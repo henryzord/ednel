@@ -1,5 +1,0 @@
-PART,PART_binarySplits,probability
-True,True,0.4
-True,False,0.6
-False,True,0.0
-False,False,0.0

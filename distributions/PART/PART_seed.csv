@@ -1,4 +1,0 @@
-PART_pruning,PART_seed,probability
-unpruned,1,0.0
-reducedErrorPruning,1,1.0
-confidenceFactor,1,0.0

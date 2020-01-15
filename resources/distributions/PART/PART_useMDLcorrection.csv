@@ -1,0 +1,5 @@
+PART,PART_useMDLcorrection,probability
+True,True,0.6
+True,False,0.4
+False,True,0.0
+False,False,0.0

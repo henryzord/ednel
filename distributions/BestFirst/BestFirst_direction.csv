@@ -1,7 +1,0 @@
-DecisionTable_search,BestFirst_direction,probability
-GreedyStepwise,0,0.0
-GreedyStepwise,1,0.0
-GreedyStepwise,2,0.0
-BestFirst,0,0.285
-BestFirst,1,0.43
-BestFirst,2,0.285

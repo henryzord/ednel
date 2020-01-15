@@ -1,0 +1,5 @@
+DecisionTable_search,GreedyStepwise_searchBackwards,probability
+GreedyStepwise,False,0.6
+GreedyStepwise,True,0.4
+BestFirst,False,0.0
+BestFirst,True,0.0
