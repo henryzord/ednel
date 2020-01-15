@@ -1,0 +1,9 @@
+DecisionTable,DecisionTable_evaluationMeasure,probability
+True,acc,0.168
+True,rmse,0.166
+True,mae,0.166
+True,auc,0.5
+False,acc,0.0
+False,rmse,0.0
+False,mae,0.0
+False,auc,0.0

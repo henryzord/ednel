@@ -1,0 +1,13 @@
+REPTree,REPTree_maxDepth,probability
+True,-1,0.266
+True,1,0.1468
+True,2,0.1468
+True,3,0.1468
+True,4,0.1468
+True,5,0.1468
+False,-1,0.0
+False,1,0.0
+False,2,0.0
+False,3,0.0
+False,4,0.0
+False,5,0.0

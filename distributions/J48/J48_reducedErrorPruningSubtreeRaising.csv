@@ -1,0 +1,7 @@
+J48_pruning,J48_reducedErrorPruningSubtreeRaising,probability
+unpruned,True,0.0
+unpruned,False,0.0
+reducedErrorPruning,True,0.6
+reducedErrorPruning,False,0.4
+confidenceFactor,True,0.0
+confidenceFactor,False,0.0
