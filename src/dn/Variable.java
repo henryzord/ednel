@@ -8,13 +8,17 @@ import java.util.Hashtable;
 public class Variable {
     private String name;
     private String[] parents;
-    private ArrayList<ArrayList<String>> table;
+    private Hashtable<String, Hashtable<String, ArrayList<Integer>>> table;
+    private ArrayList<Float> probabilities;
     private MersenneTwister number_generator;
 
-    public Variable(String name, String[] parents, ArrayList<ArrayList<String>> table, MersenneTwister number_generator) {
+    public Variable(
+            String name, String[] parents, Hashtable<String, Hashtable<String, ArrayList<Integer>>> table,
+            ArrayList<Float> probabilities, MersenneTwister number_generator) {
         this.name = name;
         this.parents = parents;
         this.table = table;
+        this.probabilities = probabilities;
         this.number_generator = number_generator;
     }
 
