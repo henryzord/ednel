@@ -1,30 +1,27 @@
 package dn;
 
-import javafx.scene.transform.MatrixType;
+import dn.variables.AbstractVariable;
+import dn.variables.ContinuousVariable;
+import dn.variables.DiscreteVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.Hashtable;
-import java.util.stream.Stream;
+import java.util.*;
 
 public class DependencyNetwork {
-    private Hashtable<String, Variable> variables;
+    private Hashtable<String, AbstractVariable> variables;
     private MersenneTwister mt;
+    private ArrayList<String> variable_names;
 
     public DependencyNetwork(MersenneTwister mt, String variables_path) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
         this.mt = mt;
-
-        variables = new Hashtable<>();
+        this.variables = new Hashtable<>();
+        this.variable_names = new ArrayList<>((int)Math.pow(algorithms.length, 2));
 
         for(int i = 0; i < algorithms.length; i++) {
             Object[] variables_names  = Files.list(new File(algorithms[i].toString()).toPath()).toArray();
@@ -36,18 +33,19 @@ public class DependencyNetwork {
                 String[] header = row.split(",(?![^(]*\\))");
 
                 String variableName = header[header.length - 2];
+                this.variable_names.add(variableName);
                 int n_variables_table = 1;
-                String[] parents = null;
+                String[] parentNames = null;
 
                 Hashtable<String, Hashtable<String, ArrayList<Integer>>> table = new Hashtable<>(header.length);
                 table.put(variableName, new Hashtable<String, ArrayList<Integer>>());
 
                 if(header.length > 2) {
-                    parents = new String [header.length - 2];
-                    n_variables_table = n_variables_table + parents.length;
+                    parentNames = new String [header.length - 2];
+                    n_variables_table = n_variables_table + parentNames.length;
                     for(int k = 0; k < header.length - 2; k++) {
-                        parents[k] = header[k];
-                        table.put(parents[k], new Hashtable<String, ArrayList<Integer>>((int)Math.pow(2, n_variables_table)));
+                        parentNames[k] = header[k];
+                        table.put(parentNames[k], new Hashtable<String, ArrayList<Integer>>((int)Math.pow(2, n_variables_table)));
                     }
                 }
 
@@ -66,14 +64,36 @@ public class DependencyNetwork {
                     index++;
                 }
                 csvReader.close();
-                variables.put(variableName, new Variable(variableName, parents, table, probabilities, mt));
+                
+                boolean isContinuous = (table.get(variableName).contains("loc") && table.get(variableName).contains("scale"));
+                boolean[] continuousParents;
+                if(parentNames != null) {
+                    continuousParents = new boolean [parentNames.length];
+                    for(int k = 0; k < parentNames.length; k++) {
+                        continuousParents[k] = (table.get(parentNames[k]).contains("loc") && table.get(parentNames[k]).contains("scale"));
+                        if(continuousParents[k] && isContinuous) {
+                            throw new Exception("currently this is an unsupported case");
+                        }
+                    }
+                }
+
+                if(isContinuous) {
+                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, probabilities, mt));
+                } else {
+                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, probabilities, mt));
+                }
             }
         }
     }
 
-    public void gibbsSample() {
-        Enumeration<String> variable_names = this.variables.keys();
+    public void gibbsSample(String lastStart) {
+        AbstractVariable startVariable = this.variables.get(lastStart);
+        startVariable.unconditionalSampling(1);
         int z = 0;
+
+        // TODO use laplace correction
+        // TODO research burning time
+        // TODO research latency
     }
 
     public static void main(String[] args) throws Exception {
@@ -82,6 +102,6 @@ public class DependencyNetwork {
         MersenneTwister mt = new MersenneTwister();
 
         DependencyNetwork dn = new DependencyNetwork(mt, variables_path);
-        dn.gibbsSample();
+        dn.gibbsSample("J48_pruning");
     }
 }
