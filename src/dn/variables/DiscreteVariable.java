@@ -26,7 +26,7 @@ public class DiscreteVariable extends AbstractVariable {
             num = number_generator.nextInt((int)spread) / spread;
             sum = 0;
 
-            for(int k = 0; k < values.length; k++) {  
+            for(int k = 0; k < values.length; k++) {
                 if((sum < num) && (num <= (sum + uniformProbability))) {
                     sampled[i] = (String)values[k];
                     break;
@@ -39,7 +39,7 @@ public class DiscreteVariable extends AbstractVariable {
     }
 
     @Override
-    public String[] conditionalSampling(Hashtable<String, String> evidence, int sample_size) {
+    public String[] conditionalSampling(Hashtable<String, String> evidence) {
         return new String[0];
     }
 }

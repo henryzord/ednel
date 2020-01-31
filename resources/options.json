@@ -1,0 +1,294 @@
+{
+  "J48_unpruned": {
+    "optionName": "-U",
+    "presenceMeans": true
+  },
+  "J48_reducedErrorPruning": {
+    "optionName": "-R",
+    "presenceMeans": true
+  },
+  "J48_confidenceFactorValue": {
+    "optionName": "-C",
+    "presenceMeans": true,
+    "ptype": "continuous",
+    "dtype": "np.float64"
+  },
+  "J48_reducedErrorPruningSubtreeRaising": {
+    "optionName": "-S",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_confidenceFactorSubtreeRaising": {
+    "optionName": "-S",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_numFolds": {
+    "optionName": "-N",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "J48_seed": {
+    "optionName": "-Q",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "J48_binarySplits": {
+    "optionName": "-B",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_useMDLcorrection": {
+    "optionName": "-J",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_useLaplace": {
+    "optionName": "-A",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_doNotMakeSplitPointActualValue": {
+    "optionName": "-doNotMakeSplitPointActualValue",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_collapseTree": {
+    "optionName": "-O",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "J48_minNumObj": {
+    "optionName": "-M",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "DecisionTable_evaluationMeasure": {
+    "optionName": "-E",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.str_"
+  },
+  "DecisionTable_search": {
+    "optionName": "-S",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.str_"
+  },
+  "DecisionTable_useIBk": {
+    "optionName": "-I",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "DecisionTable_crossVal": {
+    "optionName": "-X",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "GreedyStepwise_numToSelect": {
+    "optionName": "-N",
+    "presenceMeans": true
+  },
+  "GreedyStepwise_threshold": {
+    "optionName": "-T",
+    "presenceMeans": true
+  },
+  "GreedyStepwise_generateRanking": {
+    "optionName": "-R",
+    "presenceMeans": true
+  },
+  "GreedyStepwise_searchBackwards": {
+    "optionName": "-B",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "GreedyStepwise_conservativeForwardSelection": {
+    "optionName": "-C",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "BestFirst_direction": {
+    "optionName": "-D",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "BestFirst_searchTermination": {
+    "optionName": "-N",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "PART_confidenceFactorValue": {
+    "optionName": "-C",
+    "presenceMeans": true,
+    "ptype": "continuous",
+    "dtype": "np.float64"
+  },
+  "PART_seed": {
+    "optionName": "-Q",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "PART_reducedErrorPruning": {
+    "optionName": "-R",
+    "presenceMeans": true
+  },
+  "PART_numFolds": {
+    "optionName": "-N",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "PART_unpruned": {
+    "optionName": "-U",
+    "presenceMeans": true
+  },
+  "PART_binarySplits": {
+    "optionName": "-B",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "PART_useMDLcorrection": {
+    "optionName": "-J",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "PART_doNotMakeSplitPointActualValue": {
+    "optionName": "-doNotMakeSplitPointActualValue",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "PART_minNumObj": {
+    "optionName": "-M",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "REPTree_seed": {
+    "optionName": "-S",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "REPTree_minNum": {
+    "optionName": "-M",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "REPTree_numFolds": {
+    "optionName": "-N",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "REPTree_noPruning": {
+    "optionName": "-P",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "REPTree_maxDepth": {
+    "optionName": "-L",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "JRip_seed": {
+    "optionName": "-S",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "JRip_folds": {
+    "optionName": "-F",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "JRip_optimizations": {
+    "optionName": "-O",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "JRip_usePruning": {
+    "optionName": "-P",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "JRip_checkErrorRate": {
+    "optionName": "-E",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "JRip_minNo": {
+    "optionName": "-N",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "SimpleCart_heuristic": {
+    "optionName": "-H",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "SimpleCart_minNumObj": {
+    "optionName": "-M",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "SimpleCart_numFoldsPruning": {
+    "optionName": "-N",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "SimpleCart_seed": {
+    "optionName": "-S",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "SimpleCart_sizePer": {
+    "optionName": "-C",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.int64"
+  },
+  "SimpleCart_useOneSE": {
+    "optionName": "-A",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
+  "SimpleCart_usePrune": {
+    "optionName": "-U",
+    "presenceMeans": false,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  }
+}

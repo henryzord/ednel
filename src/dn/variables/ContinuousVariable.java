@@ -18,7 +18,7 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public String[] conditionalSampling(Hashtable<String, String> evidence, int sample_size) {
+    public String[] conditionalSampling(Hashtable<String, String> evidence) {
         return new String[0];
     }
 }

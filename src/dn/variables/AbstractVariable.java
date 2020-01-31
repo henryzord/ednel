@@ -24,7 +24,7 @@ public abstract  class AbstractVariable {
     }
 
     public abstract String[] unconditionalSampling(int sample_size);
-    public abstract String[] conditionalSampling(Hashtable<String, String> evidence, int sample_size);
+    public abstract String[] conditionalSampling(Hashtable<String, String> evidence);
 
     public static void main(String[] args) {
 //        MersenneTwister mt = new MersenneTwister();

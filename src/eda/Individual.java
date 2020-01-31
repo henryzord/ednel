@@ -3,6 +3,10 @@ package eda;
 import eda.aggregators.Aggregator;
 import eda.aggregators.CompetenceBasedAggregator;
 import eda.aggregators.MajorityVotingAggregator;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
@@ -14,8 +18,10 @@ import weka.classifiers.trees.REPTree;
 import eda.trees.SimpleCart;
 import weka.core.*;
 
-import java.lang.reflect.Type;
-import java.util.ArrayList;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.*;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
 
@@ -29,18 +35,27 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     public String aggregatorName;
 
-    private Type aggregatorType;
+    protected int n_active_classifiers;
+    protected Instances train_data;
 
-    private int n_active_classifiers;
-    private Instances train_data;
+    protected Hashtable<String, String> characteristics = null;
 
-    public Individual() {
+    protected static JSONObject classifiersResources = null;
+    private static String classifiersResourcesString = "resources/options.json";
+
+    public Individual() throws IOException, ParseException {
         this.j48 = new J48();
         this.part = new PART();
         this.repTree = new REPTree();
         this.jrip = new JRip();
         this.decisionTable = new DecisionTable();
         this.simpleCart = new SimpleCart();
+
+        // TODO re-check it!
+        this.characteristics = new Hashtable<>(51);  // approximate number of variables in the GM
+
+        JSONParser jsonParser = new JSONParser();
+        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
     }
 
     public Individual(String[] options, Instances train_data) throws Exception {
@@ -53,6 +68,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
         this.setOptions(options);
         this.buildClassifier(train_data);
+
+        JSONParser jsonParser = new JSONParser();
+        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
+
+        // TODO re-check it!
+        this.characteristics = new Hashtable<>(51);  // approximate number of variables in the GM
     }
 
     public String[][] getClassifiersNames() {
@@ -64,6 +85,79 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             {"jrip", "JRip", "Lweka/classifiers/rules/JRip;"},
             {"decisionTable", "DecisionTable", "Lweka/classifiers/rules/DecisionTable;"}
         };
+    }
+
+    protected String fromCharacteristicsToOptions() {
+        Set<String> all_options = classifiersResources.keySet();
+
+        Hashtable<String, ArrayList<String>> optionTable = new Hashtable<>(classifiersResources.size());
+        optionTable.put("J48", new ArrayList<String>());
+        optionTable.put("SimpleCart", new ArrayList<String>());
+        optionTable.put("PART", new ArrayList<String>());
+        optionTable.put("JRip", new ArrayList<String>());
+        optionTable.put("DecisionTable", new ArrayList<String>());
+        optionTable.put("BestFirst", new ArrayList<String>());
+        optionTable.put("GreedyStepwise", new ArrayList<String>());
+        optionTable.put("Aggregator", new ArrayList<String>());
+
+        for (Iterator<String> it = all_options.iterator(); it.hasNext(); ) {
+            String option = it.next();
+            String algorithmName = option.split("_")[0];
+
+            boolean presenceMeans = (boolean)((JSONObject)classifiersResources.get(option)).get("presenceMeans");
+            String optionName = (String)((JSONObject)classifiersResources.get(option)).get("optionName");
+            String dtype = (String)((JSONObject)classifiersResources.get(option)).get("dtype");
+
+            System.out.println(option);
+
+            if(characteristics.containsKey(option)) {
+                if(dtype.equals("np.bool")) {
+                    if(Boolean.valueOf(characteristics.get(option))) {
+                        if(presenceMeans) {
+                            optionTable.get(algorithmName).add(optionName);
+                        }
+                    } else {
+                        if(!presenceMeans) {
+                            optionTable.get(algorithmName).add(optionName);
+                        }
+                    }
+                } else {
+                    optionTable.get(algorithmName).add(optionName + " " + characteristics.get(option));
+                }
+            } else {
+                if(!presenceMeans) {
+                    optionTable.get(algorithmName).add(optionName);
+                }
+            }
+
+        }
+
+        String[] algorithms = new String[] {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
+
+        String optionsString = "";
+        ArrayList<String> theseOptions;
+        for (String algorithm: algorithms) {
+            theseOptions = optionTable.get(algorithm);
+            optionsString += "-" + algorithm;
+            for(int i = 0; i < theseOptions.size(); i++) {
+                optionsString += " " + theseOptions.get(i);
+            }
+            optionsString += " ";
+        }
+
+        optionsString += "weka.attributeSelection.";
+        if(optionTable.get("BestFirst").size() > 0) {
+            optionsString += "BestFirst";
+            theseOptions = optionTable.get("BestFirst");
+        } else {
+            optionsString += "GreedyStepwise";
+            theseOptions = optionTable.get("GreedyStepwise");
+        }
+        for(int i = 0; i < theseOptions.size(); i++) {
+            optionsString += " " + theseOptions.get(i);
+        }
+
+        return optionsString;
     }
 
     @Override
@@ -84,6 +178,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         } else {
             throw new Exception("Aggregator required not currently supported!");
         }
+
         if(j48Parameters.length > 1) {
             j48.setOptions(j48Parameters);
         } else {

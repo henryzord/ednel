@@ -86,14 +86,13 @@ public class DependencyNetwork {
         }
     }
 
-    public void gibbsSample(String lastStart) {
+    public void gibbsSample(Hashtable<String, String> lastStart, int thinning_factor) {
         AbstractVariable startVariable = this.variables.get(lastStart);
         startVariable.unconditionalSampling(1);
         int z = 0;
 
         // TODO use laplace correction
-        // TODO research burning time
-        // TODO research latency
+        // TODO research thinning
     }
 
     public static void main(String[] args) throws Exception {
@@ -102,6 +101,6 @@ public class DependencyNetwork {
         MersenneTwister mt = new MersenneTwister();
 
         DependencyNetwork dn = new DependencyNetwork(mt, variables_path);
-        dn.gibbsSample("J48_pruning");
+//        dn.gibbsSample(10);
     }
 }
