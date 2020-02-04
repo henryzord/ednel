@@ -38,7 +38,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected int n_active_classifiers;
     protected Instances train_data;
 
-    protected Hashtable<String, String> characteristics = null;
+    protected HashMap<String, String> characteristics = null;
 
     protected static JSONObject classifiersResources = null;
     private static String classifiersResourcesString = "resources/options.json";
@@ -52,7 +52,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.simpleCart = new SimpleCart();
 
         // TODO re-check it!
-        this.characteristics = new Hashtable<>(51);  // approximate number of variables in the GM
+        this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
 
         JSONParser jsonParser = new JSONParser();
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
@@ -73,7 +73,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
 
         // TODO re-check it!
-        this.characteristics = new Hashtable<>(51);  // approximate number of variables in the GM
+        this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
     }
 
     public String[][] getClassifiersNames() {
@@ -90,7 +90,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected String fromCharacteristicsToOptions() {
         Set<String> all_options = classifiersResources.keySet();
 
-        Hashtable<String, ArrayList<String>> optionTable = new Hashtable<>(classifiersResources.size());
+        HashMap<String, ArrayList<String>> optionTable = new HashMap<>(classifiersResources.size());
         optionTable.put("J48", new ArrayList<String>());
         optionTable.put("SimpleCart", new ArrayList<String>());
         optionTable.put("PART", new ArrayList<String>());
@@ -160,7 +160,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         return optionsString;
     }
 
-    public Hashtable<String, String> getCharacteristics() {
+    public HashMap<String, String> getCharacteristics() {
         return characteristics;
     }
 

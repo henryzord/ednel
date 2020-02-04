@@ -3,11 +3,11 @@ package dn.variables;
 import org.apache.commons.math3.random.MersenneTwister;
 
 import java.util.ArrayList;
-import java.util.Hashtable;
+import java.util.HashMap;
 
 public class ContinuousVariable extends AbstractVariable {
 
-    public ContinuousVariable(String name, String[] parents, Hashtable<String, Hashtable<String, ArrayList<Integer>>> table, ArrayList<Float> probabilities, MersenneTwister number_generator) throws Exception {
+    public ContinuousVariable(String name, String[] parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table, ArrayList<Float> probabilities, MersenneTwister number_generator) throws Exception {
         super(name, parents, table, probabilities, number_generator);
     }
 
@@ -17,7 +17,7 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public String conditionalSampling(Hashtable<String, String> evidence) {
+    public String conditionalSampling(HashMap<String, String> evidence) {
         return null;
     }
 

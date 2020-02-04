@@ -4,14 +4,14 @@ import org.apache.commons.math3.random.MersenneTwister;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Set;
 
 public class DiscreteVariable extends AbstractVariable {
 
     protected Object[] values;
 
-    public DiscreteVariable(String name, String[] parents, Hashtable<String, Hashtable<String, ArrayList<Integer>>> table, ArrayList<Float> probabilities, MersenneTwister number_generator) throws Exception {
+    public DiscreteVariable(String name, String[] parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table, ArrayList<Float> probabilities, MersenneTwister number_generator) throws Exception {
         super(name, parents, table, probabilities, number_generator);
         this.values = table.get(name).keySet().toArray();
     }
@@ -39,13 +39,11 @@ public class DiscreteVariable extends AbstractVariable {
     }
 
     @Override
-    public String conditionalSampling(Hashtable<String, String> evidence) {
+    public String conditionalSampling(HashMap<String, String> evidence) {
         return null;
     }
 
     public String conditionalSampling(String[] parentNames, String[] parentValues) {
-        System.out.println(this.name);
-
         Set<Integer> intersection = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
             intersection.add(i);
@@ -59,7 +57,7 @@ public class DiscreteVariable extends AbstractVariable {
         Object[] indices = intersection.toArray();
         float probSum = 0;
         for(int i = 0; i < indices.length; i++) {
-            probSum += this.probabilities.get((int)indices[i]);
+            probSum = probSum + this.probabilities.get((Integer) indices[i]);
         }
 
         float sum = 0;
