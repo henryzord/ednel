@@ -3,7 +3,6 @@ package dn.variables;
 import org.apache.commons.math3.random.MersenneTwister;
 
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.Hashtable;
 
 public abstract  class AbstractVariable {
@@ -11,20 +10,25 @@ public abstract  class AbstractVariable {
     protected String[] parents;
     protected Hashtable<String, Hashtable<String, ArrayList<Integer>>> table;
     protected ArrayList<Float> probabilities;
-    protected MersenneTwister number_generator;
+    protected MersenneTwister mt;
 
     public AbstractVariable(
             String name, String[] parents, Hashtable<String, Hashtable<String, ArrayList<Integer>>> table,
-            ArrayList<Float> probabilities, MersenneTwister number_generator) throws Exception {
+            ArrayList<Float> probabilities, MersenneTwister mt) throws Exception {
         this.name = name;
         this.parents = parents;
         this.table = table;
         this.probabilities = probabilities;
-        this.number_generator = number_generator;
+        this.mt = mt;
     }
 
     public abstract String[] unconditionalSampling(int sample_size);
-    public abstract String[] conditionalSampling(Hashtable<String, String> evidence);
+    public abstract String conditionalSampling(Hashtable<String, String> evidence);
+    public abstract String conditionalSampling(String[] parentNames, String[] parentValues);
+
+    public String[] getParents() {
+        return parents;
+    }
 
     public static void main(String[] args) {
 //        MersenneTwister mt = new MersenneTwister();

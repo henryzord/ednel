@@ -7,7 +7,6 @@ import java.util.Hashtable;
 
 public class ContinuousVariable extends AbstractVariable {
 
-
     public ContinuousVariable(String name, String[] parents, Hashtable<String, Hashtable<String, ArrayList<Integer>>> table, ArrayList<Float> probabilities, MersenneTwister number_generator) throws Exception {
         super(name, parents, table, probabilities, number_generator);
     }
@@ -18,7 +17,12 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public String[] conditionalSampling(Hashtable<String, String> evidence) {
-        return new String[0];
+    public String conditionalSampling(Hashtable<String, String> evidence) {
+        return null;
+    }
+
+    @Override
+    public String conditionalSampling(String[] parentNames, String[] parentValues) {
+        return null;
     }
 }

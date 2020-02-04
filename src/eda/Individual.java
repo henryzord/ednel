@@ -160,6 +160,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         return optionsString;
     }
 
+    public Hashtable<String, String> getCharacteristics() {
+        return characteristics;
+    }
+
     @Override
     public void setOptions(String[] options) throws Exception {
         String[] j48Parameters = Utils.getOption("J48", options).split(" ");
