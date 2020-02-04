@@ -44,6 +44,7 @@ public class DiscreteVariable extends AbstractVariable {
     }
 
     public String conditionalSampling(String[] parentNames, String[] parentValues) {
+        System.out.println(this.name);
 
         Set<Integer> intersection = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
