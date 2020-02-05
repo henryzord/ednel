@@ -76,18 +76,37 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
     }
 
-    public String[][] getClassifiersNames() {
-        return new String[][]{
-            {"j48", "J48", "Lweka/classifiers/trees/J48;"},
-            {"simpleCart", "SimpleCart", "Lweka/classifiers/trees/SimpleCart;"},
-            {"repTree", "REPTree", "Lweka/classifiers/trees/REPTree;"},
-            {"part", "PART", "Lweka/classifiers/rules/PART;"},
-            {"jrip", "JRip", "Lweka/classifiers/rules/JRip;"},
-            {"decisionTable", "DecisionTable", "Lweka/classifiers/rules/DecisionTable;"}
-        };
+    public Individual(HashMap<String, String> characteristics, Instances train_data) throws Exception {
+        this.j48 = new J48();
+        this.part = new PART();
+        this.repTree = new REPTree();
+        this.jrip = new JRip();
+        this.decisionTable = new DecisionTable();
+        this.simpleCart = new SimpleCart();
+
+        this.characteristics = characteristics;
+
+        String[] options = this.fromCharacteristicsToOptions();
+
+        this.setOptions(options);
+        this.buildClassifier(train_data);
+
+        JSONParser jsonParser = new JSONParser();
+        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
     }
 
-    protected String fromCharacteristicsToOptions() {
+//    public String[][] getClassifiersNames() {
+//        return new String[][]{
+//            {"j48", "J48", "Lweka/classifiers/trees/J48;"},
+//            {"simpleCart", "SimpleCart", "Lweka/classifiers/trees/SimpleCart;"},
+//            {"repTree", "REPTree", "Lweka/classifiers/trees/REPTree;"},
+//            {"part", "PART", "Lweka/classifiers/rules/PART;"},
+//            {"jrip", "JRip", "Lweka/classifiers/rules/JRip;"},
+//            {"decisionTable", "DecisionTable", "Lweka/classifiers/rules/DecisionTable;"}
+//        };
+//    }
+
+    protected String[] fromCharacteristicsToOptions() throws Exception {
         Set<String> all_options = classifiersResources.keySet();
 
         HashMap<String, ArrayList<String>> optionTable = new HashMap<>(classifiersResources.size());
@@ -108,9 +127,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             String optionName = (String)((JSONObject)classifiersResources.get(option)).get("optionName");
             String dtype = (String)((JSONObject)classifiersResources.get(option)).get("dtype");
 
-            System.out.println(option);
-
-            if(characteristics.containsKey(option)) {
+            if(characteristics.containsKey(option) && (characteristics.get(option) != null)) {
                 if(dtype.equals("np.bool")) {
                     if(Boolean.valueOf(characteristics.get(option))) {
                         if(presenceMeans) {
@@ -125,7 +142,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
                     optionTable.get(algorithmName).add(optionName + " " + characteristics.get(option));
                 }
             } else {
-                if(!presenceMeans) {
+                if(dtype.equals("np.bool") && !presenceMeans) {
                     optionTable.get(algorithmName).add(optionName);
                 }
             }
@@ -134,30 +151,44 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
         String[] algorithms = new String[] {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
 
-        String optionsString = "";
+        String[] options = new String [(algorithms.length + 1) * 2];  // +1 for aggregator
         ArrayList<String> theseOptions;
-        for (String algorithm: algorithms) {
-            theseOptions = optionTable.get(algorithm);
-            optionsString += "-" + algorithm;
-            for(int i = 0; i < theseOptions.size(); i++) {
-                optionsString += " " + theseOptions.get(i);
-            }
-            optionsString += " ";
-        }
+        String optionsString = "";
 
-        optionsString += "weka.attributeSelection.";
+        int counter = 0;
+        for (String algorithm : algorithms) {
+            options[counter] = "-" + algorithm;
+            counter++;
+            optionsString = "";
+            theseOptions = optionTable.get(algorithm);
+            for(int j = 0; j < theseOptions.size(); j++) {
+                optionsString += " " + theseOptions.get(j);
+            }
+            options[counter] = optionsString;
+            counter++;
+        }
+        counter--;
+
+
+        // TODO probably will break if decision table is not present
+        optionsString += " -S weka.attributeSelection.";
         if(optionTable.get("BestFirst").size() > 0) {
+            optionsString= optionsString.replace("-S BestFirst", "");
             optionsString += "BestFirst";
             theseOptions = optionTable.get("BestFirst");
         } else {
+            optionsString= optionsString.replace("-S GreedyStepwise", "");
             optionsString += "GreedyStepwise";
             theseOptions = optionTable.get("GreedyStepwise");
         }
         for(int i = 0; i < theseOptions.size(); i++) {
             optionsString += " " + theseOptions.get(i);
         }
+        options[counter] = optionsString;
+        options[counter + 1] = "-Aggregator";
+        options[counter + 2] = characteristics.get("Aggregator");
 
-        return optionsString;
+        return options;
     }
 
     public HashMap<String, String> getCharacteristics() {
@@ -180,7 +211,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         } else if (aggregatorName.equals("CompetenceBasedAggregator")) {
             this.aggregator = new CompetenceBasedAggregator();
         } else {
-            throw new Exception("Aggregator required not currently supported!");
+            throw new Exception("Aggregator " + aggregatorParameters[0] + " not currently supported!");
         }
 
         if(j48Parameters.length > 1) {

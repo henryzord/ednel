@@ -1,5 +1,5 @@
 SimpleCart_usePrune,SimpleCart_useOneSE,probability
-False,False,0.0
-False,True,0.0
-True,False,0.6
-True,True,0.4
+false,false,0.0
+false,true,0.0
+true,false,0.6
+true,true,0.4

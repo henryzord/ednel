@@ -81,8 +81,6 @@ public class BaselineIndividual extends Individual {
         train_data.setClassIndex(train_data.numAttributes() - 1);
 
         BaselineIndividual bi = new BaselineIndividual(train_data);
-        String options = bi.fromCharacteristicsToOptions();
-        System.out.println(options);
     }
 
 }

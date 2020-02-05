@@ -1,5 +1,5 @@
 DecisionTable,DecisionTable_search,probability
-True,GreedyStepwise,0.4
-True,BestFirst,0.6
-False,GreedyStepwise,0.0
-False,BestFirst,0.0
+true,GreedyStepwise,0.4
+true,BestFirst,0.6
+false,GreedyStepwise,0.0
+false,BestFirst,0.0

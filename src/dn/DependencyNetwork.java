@@ -4,6 +4,7 @@ import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
 import eda.BaselineIndividual;
+import eda.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import weka.core.Instances;
 
@@ -66,12 +67,15 @@ public class DependencyNetwork {
                 }
 
                 ArrayList<Float> probabilities = new ArrayList<>((int)Math.pow(2, n_variables_table));
+                ArrayList<String> values = new ArrayList<>((int)Math.pow(2, n_variables_table));
 
                 int index = 0;
 
                 while ((row = csvReader.readLine()) != null) {
                     String[] this_data = row.split(",(?![^(]*\\))");
                     probabilities.add(Float.valueOf(this_data[this_data.length - 1]));
+                    values.add(this_data[this_data.length - 2]);
+
                     for(int k = 0; k < this_data.length - 1; k++) {
                         isContinuous.replace(
                                 header[k],
@@ -89,41 +93,42 @@ public class DependencyNetwork {
                 csvReader.close();
 
                 if(isContinuous.get(variableName)) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, probabilities, mt));
+                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, mt));
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, probabilities, mt));
+                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, mt));
                 }
             }
         }
     }
 
-    public ArrayList<HashMap> gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize) {
+    public ArrayList<HashMap> gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize, Instances train_data) throws Exception {
         ArrayList<HashMap> sampled = new ArrayList<>(sampleSize);
 
-        HashMap<String, String> current = new HashMap<>(lastStart.size());
+        Individual[] individuals = new Individual [sampleSize];
+
+        // HashMap<String, String> current = new HashMap<>(lastStart.size());
         // TODO use laplace correction
         for(int i = 0; i < sampleSize * thinning_factor; i++) {
-            System.out.println("at sample " + i);  // TODO remove
-            for(String variable : this.sampling_order) {
-                System.out.println(variable);  // TODO remove
-
-                AbstractVariable curVariable = this.variables.get(variable);
+            for(String variableName : this.sampling_order) {
+                AbstractVariable curVariable = this.variables.get(variableName);
                 String[] parentsNames = curVariable.getParents();
                 String[] parentValues = new String [parentsNames.length];
 
                 for(int k = 0; k < parentsNames.length; k++) {
-                    parentValues[k] = lastStart.get(parentsNames[k]);
+                    parentValues[k] = lastStart.getOrDefault(parentsNames[k], null);
                 }
 
-                current.put(
-                        variable,
-                        this.variables.get(variable).conditionalSampling(parentsNames, parentValues)
+                lastStart.put(
+                    variableName,
+                    this.variables.get(variableName).conditionalSampling(parentsNames, parentValues)
                 );
             }
             if((i % thinning_factor) == 0) {
-                sampled.add(current);
+                // TODO transform this samplingSet in an individual!
+                individuals[i / sampleSize]  = new Individual(lastStart, train_data);
+
+//                sampled.add((HashMap<String, String>)lastStart.clone());
             }
-            lastStart = current;
         }
         return sampled;
     }
@@ -140,6 +145,6 @@ public class DependencyNetwork {
         DependencyNetwork dn = new DependencyNetwork(mt, variables_path, sampling_order_path);
         BaselineIndividual bi = new BaselineIndividual(train_data);
         HashMap<String, String> startPoint = bi.getCharacteristics();
-        dn.gibbsSample(startPoint,10, 50);
+        dn.gibbsSample(startPoint,10, 50, train_data);
     }
 }

@@ -1,11 +1,15 @@
 {
   "J48_unpruned": {
     "optionName": "-U",
-    "presenceMeans": true
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
   },
   "J48_reducedErrorPruning": {
     "optionName": "-R",
-    "presenceMeans": true
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
   },
   "J48_confidenceFactorValue": {
     "optionName": "-C",
@@ -97,18 +101,6 @@
     "ptype": "discrete",
     "dtype": "np.int64"
   },
-  "GreedyStepwise_numToSelect": {
-    "optionName": "-N",
-    "presenceMeans": true
-  },
-  "GreedyStepwise_threshold": {
-    "optionName": "-T",
-    "presenceMeans": true
-  },
-  "GreedyStepwise_generateRanking": {
-    "optionName": "-R",
-    "presenceMeans": true
-  },
   "GreedyStepwise_searchBackwards": {
     "optionName": "-B",
     "presenceMeans": true,
@@ -147,7 +139,9 @@
   },
   "PART_reducedErrorPruning": {
     "optionName": "-R",
-    "presenceMeans": true
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
   },
   "PART_numFolds": {
     "optionName": "-N",
@@ -157,7 +151,9 @@
   },
   "PART_unpruned": {
     "optionName": "-U",
-    "presenceMeans": true
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
   },
   "PART_binarySplits": {
     "optionName": "-B",
