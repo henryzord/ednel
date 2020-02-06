@@ -1,4 +1,3 @@
-PART_pruning,PART_confidenceFactorValue,probability
-unpruned,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
-reducedErrorPruning,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
-confidenceFactor,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",1.0
+PART_confidenceFactor,PART_confidenceFactorValue,probability
+true,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",1.0
+false,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0

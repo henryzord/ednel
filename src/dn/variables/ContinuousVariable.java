@@ -35,8 +35,8 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public String conditionalSampling(String[] parentNames, String[] parentValues) throws Exception {
-        String value = super.conditionalSampling(parentNames, parentValues);
+    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
+        String value = super.conditionalSampling(lastStart);
         if(value != null) {
             HashMap<String, Float> thisNormal = normalProperties.get(value);
             NormalDistribution nd = new NormalDistribution(this.mt, thisNormal.get("loc"), thisNormal.get("scale"));

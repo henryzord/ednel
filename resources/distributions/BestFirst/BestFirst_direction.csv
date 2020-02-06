@@ -1,7 +1,7 @@
 DecisionTable_search,BestFirst_direction,probability
-GreedyStepwise,0,0.0
-GreedyStepwise,1,0.0
-GreedyStepwise,2,0.0
-BestFirst,0,0.285
-BestFirst,1,0.43
-BestFirst,2,0.285
+weka.attributeSelection.GreedyStepwise,0,0.0
+weka.attributeSelection.GreedyStepwise,1,0.0
+weka.attributeSelection.GreedyStepwise,2,0.0
+weka.attributeSelection.BestFirst,0,0.285
+weka.attributeSelection.BestFirst,1,0.43
+weka.attributeSelection.BestFirst,2,0.285

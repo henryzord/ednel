@@ -1,5 +1,5 @@
 DecisionTable_search,GreedyStepwise_conservativeForwardSelection,probability
-GreedyStepwise,false,0.6
-GreedyStepwise,true,0.4
-BestFirst,false,0.0
-BestFirst,true,0.0
+weka.attributeSelection.GreedyStepwise,false,0.6
+weka.attributeSelection.GreedyStepwise,true,0.4
+weka.attributeSelection.BestFirst,false,0.0
+weka.attributeSelection.BestFirst,true,0.0

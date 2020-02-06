@@ -11,6 +11,12 @@
     "ptype": "discrete",
     "dtype": "np.bool"
   },
+  "J48_confidenceFactor": {
+    "optionName": "",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
   "J48_confidenceFactorValue": {
     "optionName": "-C",
     "presenceMeans": true,
@@ -179,36 +185,6 @@
     "ptype": "discrete",
     "dtype": "np.int64"
   },
-  "REPTree_seed": {
-    "optionName": "-S",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "REPTree_minNum": {
-    "optionName": "-M",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "REPTree_numFolds": {
-    "optionName": "-N",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "REPTree_noPruning": {
-    "optionName": "-P",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.bool"
-  },
-  "REPTree_maxDepth": {
-    "optionName": "-L",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
   "JRip_seed": {
     "optionName": "-S",
     "presenceMeans": true,
@@ -286,5 +262,11 @@
     "presenceMeans": false,
     "ptype": "discrete",
     "dtype": "np.bool"
+  },
+  "Aggregator": {
+    "optionName": "",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.str_"
   }
 }

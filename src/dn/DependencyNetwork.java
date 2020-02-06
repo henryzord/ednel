@@ -6,6 +6,8 @@ import dn.variables.DiscreteVariable;
 import eda.BaselineIndividual;
 import eda.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import weka.core.Instances;
 
 import java.io.BufferedReader;
@@ -19,13 +21,17 @@ public class DependencyNetwork {
     private MersenneTwister mt;
     private ArrayList<String> variable_names;
     private ArrayList<String> sampling_order;
+    private JSONObject classifiersResources;
 
-    public DependencyNetwork(MersenneTwister mt, String variables_path, String sampling_order_path) throws Exception {
+    public DependencyNetwork(MersenneTwister mt, String variables_path, String options_path, String sampling_order_path) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
         this.mt = mt;
         this.variables = new HashMap<>();
         this.variable_names = new ArrayList<>((int)Math.pow(algorithms.length, 2));
+
+        JSONParser jsonParser = new JSONParser();
+        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(options_path));
 
         this.sampling_order = new ArrayList<>();
 
@@ -101,36 +107,69 @@ public class DependencyNetwork {
         }
     }
 
-    public ArrayList<HashMap> gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize, Instances train_data) throws Exception {
-        ArrayList<HashMap> sampled = new ArrayList<>(sampleSize);
-
+    public Individual[] gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize, Instances train_data) throws Exception {
         Individual[] individuals = new Individual [sampleSize];
 
         // HashMap<String, String> current = new HashMap<>(lastStart.size());
         // TODO use laplace correction
-        for(int i = 0; i < sampleSize * thinning_factor; i++) {
-            for(String variableName : this.sampling_order) {
-                AbstractVariable curVariable = this.variables.get(variableName);
-                String[] parentsNames = curVariable.getParents();
-                String[] parentValues = new String [parentsNames.length];
 
-                for(int k = 0; k < parentsNames.length; k++) {
-                    parentValues[k] = lastStart.getOrDefault(parentsNames[k], null);
+        for(int i = 0; i < sampleSize * thinning_factor; i++) {
+            System.out.println("at sample " + i);  // TODO remove
+            HashMap<String, String> optionTable = new HashMap<>(20);
+
+            for(String variableName : this.sampling_order) {
+                String algorithmName = variableName.split("_")[0];
+
+                if(optionTable.getOrDefault(algorithmName, null) == null) {
+                    optionTable.put(algorithmName, "");
                 }
 
                 lastStart.put(
                     variableName,
-                    this.variables.get(variableName).conditionalSampling(parentsNames, parentValues)
+                    this.variables.get(variableName).conditionalSampling(lastStart)
                 );
+
+                JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
+
+                // checks whether this is an option
+                if(optionObj != null && lastStart.get(variableName) != null) {
+                    boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
+                    String optionName = (String)optionObj.get("optionName");
+                    String dtype = (String)optionObj.get("dtype");
+
+                    if(dtype.equals("np.bool")) {
+                        if(Boolean.parseBoolean(lastStart.get(variableName))) {
+                            if(presenceMeans) {
+                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                            }
+                        } else {
+                            if(!presenceMeans) {
+                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                            }
+                        }
+                    } else {
+                        optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
+                    }
+                }
+
+                System.out.println("variable " + variableName + ": \t" + lastStart);  // TODO remove
             }
             if((i % thinning_factor) == 0) {
-                // TODO transform this samplingSet in an individual!
-                individuals[i / sampleSize]  = new Individual(lastStart, train_data);
+                String[] options = new String [optionTable.size() * 2];
+                Object[] algNames = optionTable.keySet().toArray();
+                int counter = 0;
+                for(int j = 0; j < algNames.length; j++) {
+                    options[counter] = "-" + algNames[j];
+                    options[counter + 1] = optionTable.get(algNames[j]);
+                    counter += 2;
+                }
+
+                individuals[i / sampleSize]  = new Individual(options, lastStart, train_data);
 
 //                sampled.add((HashMap<String, String>)lastStart.clone());
             }
         }
-        return sampled;
+        return individuals;
     }
 
     public static void main(String[] args) throws Exception {
@@ -138,11 +177,12 @@ public class DependencyNetwork {
         train_data.setClassIndex(train_data.numAttributes() - 1);
 
         String variables_path = "/home/henry/Projects/ednel/resources/distributions";
+        String options_path = "/home/henry/Projects/ednel/resources/options.json";
         String sampling_order_path = "/home/henry/Projects/ednel/resources/sampling_order.csv";
 
         MersenneTwister mt = new MersenneTwister();
 
-        DependencyNetwork dn = new DependencyNetwork(mt, variables_path, sampling_order_path);
+        DependencyNetwork dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
         BaselineIndividual bi = new BaselineIndividual(train_data);
         HashMap<String, String> startPoint = bi.getCharacteristics();
         dn.gibbsSample(startPoint,10, 50, train_data);

@@ -40,10 +40,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     protected HashMap<String, String> characteristics = null;
 
-    protected static JSONObject classifiersResources = null;
-    private static String classifiersResourcesString = "resources/options.json";
 
-    public Individual() throws IOException, ParseException {
+    public Individual() throws Exception {
         this.j48 = new J48();
         this.part = new PART();
         this.repTree = new REPTree();
@@ -51,14 +49,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.decisionTable = new DecisionTable();
         this.simpleCart = new SimpleCart();
 
-        // TODO re-check it!
         this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
-
-        JSONParser jsonParser = new JSONParser();
-        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
     }
 
-    public Individual(String[] options, Instances train_data) throws Exception {
+    public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
         this.j48 = new J48();
         this.part = new PART();
         this.repTree = new REPTree();
@@ -69,30 +63,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.setOptions(options);
         this.buildClassifier(train_data);
 
-        JSONParser jsonParser = new JSONParser();
-        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
-
-        // TODO re-check it!
-        this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
-    }
-
-    public Individual(HashMap<String, String> characteristics, Instances train_data) throws Exception {
-        this.j48 = new J48();
-        this.part = new PART();
-        this.repTree = new REPTree();
-        this.jrip = new JRip();
-        this.decisionTable = new DecisionTable();
-        this.simpleCart = new SimpleCart();
-
-        this.characteristics = characteristics;
-
-        String[] options = this.fromCharacteristicsToOptions();
-
-        this.setOptions(options);
-        this.buildClassifier(train_data);
-
-        JSONParser jsonParser = new JSONParser();
-        classifiersResources = (JSONObject)jsonParser.parse(new FileReader(classifiersResourcesString));
+        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
     }
 
 //    public String[][] getClassifiersNames() {
@@ -106,90 +77,83 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 //        };
 //    }
 
-    protected String[] fromCharacteristicsToOptions() throws Exception {
-        Set<String> all_options = classifiersResources.keySet();
-
-        HashMap<String, ArrayList<String>> optionTable = new HashMap<>(classifiersResources.size());
-        optionTable.put("J48", new ArrayList<String>());
-        optionTable.put("SimpleCart", new ArrayList<String>());
-        optionTable.put("PART", new ArrayList<String>());
-        optionTable.put("JRip", new ArrayList<String>());
-        optionTable.put("DecisionTable", new ArrayList<String>());
-        optionTable.put("BestFirst", new ArrayList<String>());
-        optionTable.put("GreedyStepwise", new ArrayList<String>());
-        optionTable.put("Aggregator", new ArrayList<String>());
-
-        for (Iterator<String> it = all_options.iterator(); it.hasNext(); ) {
-            String option = it.next();
-            String algorithmName = option.split("_")[0];
-
-            boolean presenceMeans = (boolean)((JSONObject)classifiersResources.get(option)).get("presenceMeans");
-            String optionName = (String)((JSONObject)classifiersResources.get(option)).get("optionName");
-            String dtype = (String)((JSONObject)classifiersResources.get(option)).get("dtype");
-
-            if(characteristics.containsKey(option) && (characteristics.get(option) != null)) {
-                if(dtype.equals("np.bool")) {
-                    if(Boolean.valueOf(characteristics.get(option))) {
-                        if(presenceMeans) {
-                            optionTable.get(algorithmName).add(optionName);
-                        }
-                    } else {
-                        if(!presenceMeans) {
-                            optionTable.get(algorithmName).add(optionName);
-                        }
-                    }
-                } else {
-                    optionTable.get(algorithmName).add(optionName + " " + characteristics.get(option));
-                }
-            } else {
-                if(dtype.equals("np.bool") && !presenceMeans) {
-                    optionTable.get(algorithmName).add(optionName);
-                }
-            }
-
-        }
-
-        String[] algorithms = new String[] {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
-
-        String[] options = new String [(algorithms.length + 1) * 2];  // +1 for aggregator
-        ArrayList<String> theseOptions;
-        String optionsString = "";
-
-        int counter = 0;
-        for (String algorithm : algorithms) {
-            options[counter] = "-" + algorithm;
-            counter++;
-            optionsString = "";
-            theseOptions = optionTable.get(algorithm);
-            for(int j = 0; j < theseOptions.size(); j++) {
-                optionsString += " " + theseOptions.get(j);
-            }
-            options[counter] = optionsString;
-            counter++;
-        }
-        counter--;
-
-
-        // TODO probably will break if decision table is not present
-        optionsString += " -S weka.attributeSelection.";
-        if(optionTable.get("BestFirst").size() > 0) {
-            optionsString= optionsString.replace("-S BestFirst", "");
-            optionsString += "BestFirst";
-            theseOptions = optionTable.get("BestFirst");
-        } else {
-            optionsString= optionsString.replace("-S GreedyStepwise", "");
-            optionsString += "GreedyStepwise";
-            theseOptions = optionTable.get("GreedyStepwise");
-        }
-        for(int i = 0; i < theseOptions.size(); i++) {
-            optionsString += " " + theseOptions.get(i);
-        }
-        options[counter] = optionsString;
-        options[counter + 1] = "-Aggregator";
-        options[counter + 2] = characteristics.get("Aggregator");
-
-        return options;
-    }
+//    protected String[] fromCharacteristicsToOptions() throws Exception {
+//        Set<String> all_options = classifiersResources.keySet();
+//
+//        HashMap<String, ArrayList<String>> optionTable = new HashMap<>(classifiersResources.size());
+//        optionTable.put("J48", new ArrayList<String>());
+//        optionTable.put("SimpleCart", new ArrayList<String>());
+//        optionTable.put("PART", new ArrayList<String>());
+//        optionTable.put("JRip", new ArrayList<String>());
+//        optionTable.put("DecisionTable", new ArrayList<String>());
+//        optionTable.put("BestFirst", new ArrayList<String>());
+//        optionTable.put("GreedyStepwise", new ArrayList<String>());
+//        optionTable.put("Aggregator", new ArrayList<String>());
+//
+//        // characteristics has more items than options, because classifiers are not options in Weka
+//        for (Iterator<String> it = all_options.iterator(); it.hasNext(); ) {
+//            String option = it.next();
+//            String algorithmName = option.split("_")[0];
+//
+//            // if is null, then option was not set
+//            if(characteristics.get(option) != null) {
+//                if(dtype.equals("np.bool")) {
+//                    if(Boolean.valueOf(characteristics.get(option))) {
+//                        if(presenceMeans) {
+//                            optionTable.get(algorithmName).add(optionName);
+//                        }
+//                    } else {
+//                        if(!presenceMeans) {
+//                            optionTable.get(algorithmName).add(optionName);
+//                        }
+//                    }
+//                } else {
+//                    optionTable.get(algorithmName).add(optionName + " " + characteristics.get(option));
+//                }
+//            }
+//        }
+//
+//        String[] algorithms = new String[] {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
+//
+//        String[] options = new String [(algorithms.length + 1) * 2];  // +1 for aggregator
+//        ArrayList<String> theseOptions;
+//        String optionsString = "";
+//
+//        int counter = 0;
+//        for (String algorithm : algorithms) {
+//            options[counter] = "-" + algorithm;
+//            counter++;
+//            optionsString = "";
+//            theseOptions = optionTable.get(algorithm);
+//            for(int j = 0; j < theseOptions.size(); j++) {
+//                optionsString += " " + theseOptions.get(j);
+//            }
+//            options[counter] = optionsString;
+//            counter++;
+//        }
+//        counter--;
+//
+//
+//        // TODO probably will break if decision table is not present
+//        optionsString += " -S weka.attributeSelection.";
+//        if(optionTable.get("BestFirst").size() > 0) {
+//            optionsString= optionsString.replace("-S BestFirst", "");
+//            optionsString += "BestFirst";
+//            theseOptions = optionTable.get("BestFirst");
+//        } else {
+//            optionsString= optionsString.replace("-S GreedyStepwise", "");
+//            optionsString += "GreedyStepwise";
+//            theseOptions = optionTable.get("GreedyStepwise");
+//        }
+//        for(int i = 0; i < theseOptions.size(); i++) {
+//            optionsString += " " + theseOptions.get(i);
+//        }
+//        options[counter] = optionsString;
+//        options[counter + 1] = "-Aggregator";
+//        options[counter + 2] = characteristics.get("Aggregator");
+//
+//        return options;
+//    }
 
     public HashMap<String, String> getCharacteristics() {
         return characteristics;
@@ -197,12 +161,16 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public void setOptions(String[] options) throws Exception {
+        String[] oldOptions = options.clone();  // TODO remove
+
         String[] j48Parameters = Utils.getOption("J48", options).split(" ");
         String[] simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
         String[] reptreeParameters = Utils.getOption("REPTree", options).split(" ");
         String[] partParameters = Utils.getOption("PART", options).split(" ");
         String[] jripParameters = Utils.getOption("JRip", options).split(" ");
         String[] decisionTableParameters = Utils.getOption("DecisionTable", options).split(" ");
+        String[] bestFirstParameters = Utils.getOption("BestFirst", options).split(" ");
+        String[] greedyStepwise = Utils.getOption("GreedyStepwise", options).split(" ");
         String[] aggregatorParameters = Utils.getOption("Aggregator", options).split(" ");
 
         aggregatorName = aggregatorParameters[0];
@@ -240,27 +208,55 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             jrip = null;
         }
         if(decisionTableParameters.length > 1) {
-            StringBuffer dtSearchParameters = new StringBuffer("");
-            int n_itens = decisionTableParameters.length;
-            boolean concating = false;
-            ArrayList<String> buffer = new ArrayList<>();
-            for(int i = 0; i < n_itens; i++) {
-                if(decisionTableParameters[i].equals("-S")) {
-                    concating = true;
-                    buffer.add(decisionTableParameters[i]);
-                    continue;
-                }
-                if(concating) {
-                    dtSearchParameters.append(" " + decisionTableParameters[i]);
-                } else {
-                    buffer.add(decisionTableParameters[i]);
-                }
+            String dtSearch = Utils.getOption("S", decisionTableParameters);
+            String dtSearchName = dtSearch.substring(dtSearch.lastIndexOf(".") + 1);
+            String[] selectedSubParams = null;
+            if(dtSearchName.equals("BestFirst")) {
+                selectedSubParams = bestFirstParameters;
+            } else if(dtSearchName.equals("GreedyStepwise")) { ;
+                selectedSubParams = greedyStepwise;
+            } else {
+                throw new Exception("Search procedure for DecisionTable not found!");
             }
-            buffer.add(dtSearchParameters.toString());
-            String[] newDecisionTableParameters = new String[buffer.size()];
-            System.arraycopy(buffer.toArray(), 0, newDecisionTableParameters, 0, buffer.size());
+            String[] newDtParams = new String [decisionTableParameters.length + 2];
+            int counter = 0;
+            for(int i = 0; i < decisionTableParameters.length; i++) {
+                newDtParams[counter] = decisionTableParameters[i];
+                counter += 1;
+            }
+            newDtParams[counter] = "-S";
+            newDtParams[counter + 1] = dtSearch;
+            counter += 1;
+            for(int i = 0; i < selectedSubParams.length; i++) {
+                newDtParams[counter] += " " + selectedSubParams[i];
+            }
 
-            decisionTable.setOptions(newDecisionTableParameters);
+            decisionTable.setOptions(newDtParams);
+//            String[] newDtParameters = new String [decisionTableParameters.length + ]
+
+//            decisionTableParameters = decisionTableParameters + " -S " + dtSearch;
+
+
+//            StringBuffer dtSearchParameters = new StringBuffer("");
+//            int n_itens = decisionTableParameters.length;
+//            boolean concating = false;
+//            ArrayList<String> buffer = new ArrayList<>();
+//            for(int i = 0; i < n_itens; i++) {
+//                if(decisionTableParameters[i].equals("-S")) {
+//                    concating = true;
+//                    buffer.add(decisionTableParameters[i]);
+//                    continue;
+//                }
+//                if(concating) {
+//                    dtSearchParameters.append(" " + decisionTableParameters[i]);
+//                } else {
+//                    buffer.add(decisionTableParameters[i]);
+//                }
+//            }
+//            buffer.add(dtSearchParameters.toString());
+//            String[] newDecisionTableParameters = new String[buffer.size()];
+//            System.arraycopy(buffer.toArray(), 0, newDecisionTableParameters, 0, buffer.size());
+
         } else {
             decisionTable = null;
         }

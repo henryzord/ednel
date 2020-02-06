@@ -1,6 +1,8 @@
 package dn.variables;
 
+import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.omg.CORBA.INTERNAL;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -29,14 +31,14 @@ public abstract  class AbstractVariable {
 
     public abstract String[] unconditionalSampling(int sample_size) throws Exception;
 
-    public String conditionalSampling(String[] parentNames, String[] parentValues) throws Exception {
+    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
         Set<Integer> intersection = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
             intersection.add(i);
         }
 
-        for(int i = 0; i < parentNames.length; i++) {
-            ArrayList<Integer> localIndices = this.table.get(parentNames[i]).getOrDefault(parentValues[i], null);
+        for(int i = 0; i < this.parents.length; i++) {
+            ArrayList<Integer> localIndices = this.table.get(this.parents[i]).get(lastStart.get(this.parents[i]));
             if(localIndices != null) {
                 intersection.retainAll(new HashSet<>(localIndices));
             }
@@ -44,26 +46,19 @@ public abstract  class AbstractVariable {
 
         Object[] indices = intersection.toArray();
 
-        float probSum = 0;
-        for(int i = 0; i < indices.length; i++) {
-            probSum = probSum + this.probabilities.get((Integer) indices[i]);
+        int[] intIndices = new int [indices.length];
+        double[] localProbs = new double [indices.length];
+        for(int i = 0; i < localProbs.length; i++) {
+            intIndices[i] = (Integer)indices[i];
+            localProbs[i] = probabilities.get((Integer)indices[i]);
         }
-
-        float sum = 0;
-        float spread = 1000;
-        float num = mt.nextInt((int)spread) / spread;  // spread is used to guarantee that numbers up to third decimal will be sampled
-
-        String sampled = null;
-        for(int i = 0; i < indices.length; i++) {
-            if((sum < num) && (num <= (sum + (this.probabilities.get((Integer)indices[i])/probSum)))) {
-                sampled = values.get(i);
-                break;
-            } else {
-                sum += (this.probabilities.get((Integer)indices[i])/probSum);
-            }
+        try {
+            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(intIndices, localProbs);
+            int idx = localDist.sample();
+            return values.get(idx);
+        } catch(org.apache.commons.math3.exception.MathArithmeticException e) {
+            return null;
         }
-
-        return sampled;
     }
 
     public String[] getParents() {
