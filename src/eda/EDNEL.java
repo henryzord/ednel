@@ -19,11 +19,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 
 import org.omg.CORBA.INTERNAL;
+import utils.ArrayIndexComparator;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.Arrays;
 import java.util.HashMap;
 
 public class EDNEL {
@@ -62,11 +64,31 @@ public class EDNEL {
     }
 
     public void fit(Instances train_data) throws Exception {
+        int seed = this.mt.nextInt();
+        this.fit(train_data, seed);
+    }
+
+    public void fit(Instances train_data, int seed) throws Exception {
+        FitnessCalculator fc = new FitnessCalculator(5, train_data, null);
+
         DependencyNetwork dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
 
         BaselineIndividual bi = new BaselineIndividual(train_data);
         HashMap<String, String> startPoint = bi.getCharacteristics();
-        Individual[] population = dn.gibbsSample(startPoint,thining_factor, this.n_individuals, train_data);
+
+        for(int c = 0; c < this.n_generations; c++) {
+            Individual[] population = dn.gibbsSample(startPoint, thining_factor, this.n_individuals, train_data);
+            Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
+
+            ArrayIndexComparator comparator = new ArrayIndexComparator(fitnesses[0]);
+            Integer[] indexes = comparator.createIndexArray();
+            Arrays.sort(indexes, comparator);
+
+            // TODO update dependency network probabilities!
+
+            System.out.println("WARNING: breaking after first generation!");  // TODO remove
+            break;  // TODO remove
+        }
 
 
         this.fitted = true;
@@ -294,7 +316,13 @@ public class EDNEL {
                                 commandLine.getOptionValue("metadata_path") + File.separator +
                                 str_time + dataset_name
                         );
-                        ednel.fit(train_data);
+                        if(commandLine.getOptionValue("seed") != null) {
+                            ednel.fit(train_data, Integer.parseInt(commandLine.getOptionValue("seed")));
+                        } else {
+                            ednel.fit(train_data);
+                        }
+
+
 
                         System.out.println("WARNING: exiting after first fold!");  // TODO remove!
                         break;  // TODO remove!

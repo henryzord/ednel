@@ -37,25 +37,18 @@ public class FitnessCalculator {
         return unweighted / n_classes;
     }
 
-    public double[][] evaluateEnsembles(int seed,
-                                        String[][] j48Parameters, String[][] simpleCartParameters, String[][] reptreeParameters,
-                                        String[][] partParameters, String[][] jripParameters, String[][] decisionTableParameters,
-                                        String[][] aggregatorParameters) throws Exception {
+    public Double[][] evaluateEnsembles(int seed, Individual[] population) throws Exception {
+        int n_individuals = population.length;
 
-        int n_individuals = j48Parameters.length;
-
-        double[] trainEvaluations = new double [n_individuals];
-        double[] testEvaluations = new double [n_individuals];
+        Double[] trainEvaluations = new Double [n_individuals];
+        Double[] testEvaluations = new Double [n_individuals];
 
         for(int k = 0; k < n_individuals; k++) {
-            trainEvaluations[k] = 0;
+            trainEvaluations[k] = 0.0;
         }
 
         Random random = new Random(seed);
 
-//        Instances data = new Instances(train_data);
-//        data.randomize(random);
-//        data.stratify(n_folds);
         Evaluation trainEval = new Evaluation(train_data);
 
         // do the folds
@@ -63,29 +56,19 @@ public class FitnessCalculator {
             Instances local_train = train_data.trainCV(n_folds, i, random), local_val = train_data.testCV(n_folds, i);
 
             for(int j = 0; j < n_individuals; j++) {
-                Individual individual = new Individual();
-                individual.setOptions(new String[]{
-                        "-J48", String.join(" ", j48Parameters[j]),
-                        "-SimpleCart", String.join(" ", simpleCartParameters[j]),
-                        "-REPTree", String.join(" ", reptreeParameters[j]),
-                        "-PART", String.join(" ", partParameters[j]),
-                        "-JRip", String.join(" ", jripParameters[j]),
-                        "-DecisionTable", String.join(" ", decisionTableParameters[j]),
-                        "-Aggregator", String.join(" ", aggregatorParameters[j])
-                });
 
-                individual.buildClassifier(local_train);
-                trainEval.evaluateModel(individual, local_val);
+                population[j].buildClassifier(local_train);
+                trainEval.evaluateModel(population[j], local_val);
                 trainEvaluations[j] += getUnweightedAreaUnderROC(trainEval);
 
                 if((i == n_folds - 1) && (test_data != null)) {
-                    individual.buildClassifier(train_data);
+                    population[j].buildClassifier(train_data);
 
                     Evaluation testEval = new Evaluation(test_data);
-                    testEval.evaluateModel(individual, test_data);
+                    testEval.evaluateModel(population[j], test_data);
                     testEvaluations[j] = getUnweightedAreaUnderROC(testEval);
                 } else {
-                    testEvaluations[j] = -1;
+                    testEvaluations[j] = null;
                 }
             }
         }
@@ -93,47 +76,73 @@ public class FitnessCalculator {
             trainEvaluations[k] /= n_folds;
         }
 
-        return new double[][]{trainEvaluations, testEvaluations};
+        return new Double[][]{trainEvaluations, testEvaluations};
     }
 
-    public double[][] broadcastEvaluationBack(int[] seeds,
-            String[] j48Parameters, String[] simpleCartParameters, String[] reptreeParameters,
-            String[] partParameters, String[] jripParameters, String[] decisionTableParameters,
-            String[] aggregatorParameters) throws Exception {
+    public Double[][] evaluateEnsembles(int seed,
+                                        String[][] j48Parameters, String[][] simpleCartParameters, String[][] reptreeParameters,
+                                        String[][] partParameters, String[][] jripParameters, String[][] decisionTableParameters,
+                                        String[][] aggregatorParameters) throws Exception {
 
-        double[] trainEvaluations = new double [seeds.length];
-        double[] testEvaluations = new double [seeds.length];
+        int n_individuals = j48Parameters.length;
 
-        Individual individual = new Individual();
+        Individual[] population = new Individual [n_individuals];
+
+        for(int j = 0; j < n_individuals; j++) {
+            Individual individual = new Individual();
             individual.setOptions(new String[]{
-                "-J48", String.join(" ", j48Parameters),
-                "-SimpleCart", String.join(" ", simpleCartParameters),
-                "-REPTree", String.join(" ", reptreeParameters),
-                "-PART", String.join(" ", partParameters),
-                "-JRip", String.join(" ", jripParameters),
-                "-DecisionTable", String.join(" ", decisionTableParameters),
-                "-Aggregator", String.join(" ", aggregatorParameters)
+                    "-J48", String.join(" ", j48Parameters[j]),
+                    "-SimpleCart", String.join(" ", simpleCartParameters[j]),
+                    "-REPTree", String.join(" ", reptreeParameters[j]),
+                    "-PART", String.join(" ", partParameters[j]),
+                    "-JRip", String.join(" ", jripParameters[j]),
+                    "-DecisionTable", String.join(" ", decisionTableParameters[j]),
+                    "-Aggregator", String.join(" ", aggregatorParameters[j])
             });
-
-        Evaluation trainEval = new Evaluation(train_data);
-        for(int i = 0; i < seeds.length; i++) {
-            Random random = new Random(seeds[i]);
-            trainEval.crossValidateModel(individual, train_data, n_folds, random);  // formerly filtered
-
-            trainEvaluations[i] = getUnweightedAreaUnderROC(trainEval);
-
-            if(test_data != null) {
-                individual.buildClassifier(train_data);
-                Evaluation testEval = new Evaluation(test_data);
-                testEval.evaluateModel(individual, test_data);
-                testEvaluations[i] = getUnweightedAreaUnderROC(testEval);
-            } else {
-                testEvaluations[i] = -1;
-            }
+            population[j] = individual;
         }
 
-        return new double[][]{trainEvaluations, testEvaluations};
+        return this.evaluateEnsembles(seed, population);
     }
+
+//    public double[][] broadcastEvaluationBack(int[] seeds,
+//            String[] j48Parameters, String[] simpleCartParameters, String[] reptreeParameters,
+//            String[] partParameters, String[] jripParameters, String[] decisionTableParameters,
+//            String[] aggregatorParameters) throws Exception {
+//
+//        double[] trainEvaluations = new double [seeds.length];
+//        double[] testEvaluations = new double [seeds.length];
+//
+//        Individual individual = new Individual();
+//            individual.setOptions(new String[]{
+//                "-J48", String.join(" ", j48Parameters),
+//                "-SimpleCart", String.join(" ", simpleCartParameters),
+//                "-REPTree", String.join(" ", reptreeParameters),
+//                "-PART", String.join(" ", partParameters),
+//                "-JRip", String.join(" ", jripParameters),
+//                "-DecisionTable", String.join(" ", decisionTableParameters),
+//                "-Aggregator", String.join(" ", aggregatorParameters)
+//            });
+//
+//        Evaluation trainEval = new Evaluation(train_data);
+//        for(int i = 0; i < seeds.length; i++) {
+//            Random random = new Random(seeds[i]);
+//            trainEval.crossValidateModel(individual, train_data, n_folds, random);  // formerly filtered
+//
+//            trainEvaluations[i] = getUnweightedAreaUnderROC(trainEval);
+//
+//            if(test_data != null) {
+//                individual.buildClassifier(train_data);
+//                Evaluation testEval = new Evaluation(test_data);
+//                testEval.evaluateModel(individual, test_data);
+//                testEvaluations[i] = getUnweightedAreaUnderROC(testEval);
+//            } else {
+//                testEvaluations[i] = -1;
+//            }
+//        }
+//
+//        return new double[][]{trainEvaluations, testEvaluations};
+//    }
 
     /**
      * runs the program, the command line looks like this:<br/>
@@ -161,19 +170,10 @@ public class FitnessCalculator {
         String[][] decisionTableParameters = new String[][]{{"-X 1 -E auc -I -R -S weka.attributeSelection.GreedyStepwise -B -T -1.7976931348623157E308 -N -1 -num-slots 1"}};
         String[][] aggregatorParameters    = new String[][]{{"MajorityVotingAggregator"}};
 
-        // String[][] j48Parameters           = new String[][]{{"-S -C 0.5 -B -M 7 -A -Q 1"}};
-        // String[][] simpleCartParameters    = new String[][]{{"-M 2 -N 5 -C 1 -S 1"}};
-        // String[][] partParameters          = new String[][]{{"-U -B -M 9 -doNotMakeSplitPointActualValue -J -Q 1"}};
-        // String[][] jripParameters          = new String[][]{{"-F 3 -N 10.0 -O 2 -E -P -S 1"}};
-        // String[][] reptreeParameters       = new String[][]{{"-M 8 -V 0.001 -N 4 -S 1 -L 3 -I 0.0"}};
-        // String[][] decisionTableParameters = new String[][]{{"-X 1 -E auc -I -R -S weka.attributeSelection.GreedyStepwise -B -T -1.7976931348623157E308 -N -1 -num-slots 1"}};
-
-
-
         FitnessCalculator evaluator = new FitnessCalculator(5, train_data, test_data);
         int seed = 0;
 
-        double[][] aucs;
+        Double[][] aucs;
 
         aucs = evaluator.evaluateEnsembles(
                 seed, j48Parameters, simpleCartParameters, reptreeParameters,
