@@ -11,25 +11,13 @@
     "ptype": "discrete",
     "dtype": "np.bool"
   },
-  "J48_confidenceFactor": {
-    "optionName": "",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.bool"
-  },
   "J48_confidenceFactorValue": {
     "optionName": "-C",
     "presenceMeans": true,
     "ptype": "continuous",
     "dtype": "np.float64"
   },
-  "J48_reducedErrorPruningSubtreeRaising": {
-    "optionName": "-S",
-    "presenceMeans": false,
-    "ptype": "discrete",
-    "dtype": "np.bool"
-  },
-  "J48_confidenceFactorSubtreeRaising": {
+  "J48_subtreeRaising": {
     "optionName": "-S",
     "presenceMeans": false,
     "ptype": "discrete",

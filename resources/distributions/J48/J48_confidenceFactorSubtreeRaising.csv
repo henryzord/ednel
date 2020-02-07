@@ -1,5 +1,0 @@
-J48_confidenceFactor,J48_confidenceFactorSubtreeRaising,probability
-true,true,0.6
-true,false,0.4
-false,true,0.0
-false,false,0.0

@@ -60,10 +60,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.decisionTable = new DecisionTable();
         this.simpleCart = new SimpleCart();
 
+        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
+
         this.setOptions(options);
         this.buildClassifier(train_data);
-
-        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
     }
 
 //    public String[][] getClassifiersNames() {
@@ -183,7 +183,13 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
 
         if(j48Parameters.length > 1) {
-            j48.setOptions(j48Parameters);
+            String[] cloneParams = j48Parameters.clone();  // TODO remove
+            try {  // TODO remove
+                j48.setOptions(j48Parameters);
+            } catch(Exception e) {  // TODO remove
+                throw e;  // TODO remove
+            }  // TODO remove
+
         } else {
             j48 = null;
         }

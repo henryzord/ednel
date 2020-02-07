@@ -9,6 +9,7 @@ weka.attributeSelection.GreedyStepwise,7,0.0
 weka.attributeSelection.GreedyStepwise,8,0.0
 weka.attributeSelection.GreedyStepwise,9,0.0
 weka.attributeSelection.GreedyStepwise,10,0.0
+weka.attributeSelection.GreedyStepwise,null,1.0
 weka.attributeSelection.BestFirst,1,0.088
 weka.attributeSelection.BestFirst,2,0.088
 weka.attributeSelection.BestFirst,3,0.088
@@ -19,3 +20,4 @@ weka.attributeSelection.BestFirst,7,0.088
 weka.attributeSelection.BestFirst,8,0.088
 weka.attributeSelection.BestFirst,9,0.088
 weka.attributeSelection.BestFirst,10,0.088
+weka.attributeSelection.BestFirst,null,0.0

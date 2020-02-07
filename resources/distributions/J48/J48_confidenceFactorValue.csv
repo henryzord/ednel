@@ -1,3 +1,7 @@
-J48_confidenceFactor,J48_confidenceFactorValue,probability
-true,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",1.0
-false,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
+J48_pruning,J48_confidenceFactorValue,probability
+J48_reducedErrorPruning,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
+J48_reducedErrorPruning,null,1.0
+J48_unpruned,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
+J48_unpruned,null,1.0
+J48_confidenceFactor,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",1.0
+J48_confidenceFactor,null,1.0

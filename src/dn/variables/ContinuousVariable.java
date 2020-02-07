@@ -17,15 +17,17 @@ public class ContinuousVariable extends AbstractVariable {
 
         normalProperties = new HashMap<>(values.size());
         for(int i = 0; i < values.size(); i++) {
-            String[] property = values.get(i).replaceAll("[\\(\\)\"]", "").split(",");
+            if(values.get(i) != null){
+                String[] property = values.get(i).replaceAll("[\\(\\)\"]", "").split(",");
 
-            HashMap<String, Float> thisProperty = new HashMap<>(property.length);
+                HashMap<String, Float> thisProperty = new HashMap<>(property.length);
 
-            for(int j = 0; j < property.length; j++) {
-                String[] pair = property[j].split("=");
-                thisProperty.put(pair[0], Float.valueOf(pair[1]));
+                for(int j = 0; j < property.length; j++) {
+                    String[] pair = property[j].split("=");
+                    thisProperty.put(pair[0], Float.valueOf(pair[1]));
+                }
+                normalProperties.put(values.get(i), thisProperty);
             }
-            normalProperties.put(values.get(i), thisProperty);
         }
     }
 

@@ -7,13 +7,10 @@ J48_useMDLcorrection
 J48_collapseTree
 J48_doNotMakeSplitPointActualValue
 J48_pruning
-J48_unpruned
-J48_reducedErrorPruning
 J48_numFolds
-J48_reducedErrorPruningSubtreeRaising
+J48_subtreeRaising
 J48_seed
 J48_confidenceFactorValue
-J48_confidenceFactorSubtreeRaising
 SimpleCart
 SimpleCart_heuristic
 SimpleCart_minNumObj
@@ -35,8 +32,6 @@ PART_minNumObj
 PART_binarySplits
 PART_useMDLcorrection
 PART_pruning
-PART_unpruned
-PART_reducedErrorPruning
 PART_confidenceFactorValue
 PART_seed
 PART_numFolds

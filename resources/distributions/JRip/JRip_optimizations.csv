@@ -9,6 +9,7 @@ false,7,0.0
 false,8,0.0
 false,9,0.0
 false,10,0.0
+false,null,1.0
 true,1,0.088
 true,2,0.208
 true,3,0.088
@@ -19,3 +20,4 @@ true,7,0.088
 true,8,0.088
 true,9,0.088
 true,10,0.088
+true,null,0.0

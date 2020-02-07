@@ -114,8 +114,7 @@ public class DependencyNetwork {
         // TODO use laplace correction
 
         for(int i = 0; i < sampleSize * thinning_factor; i++) {
-            System.out.println("at sample " + i);  // TODO remove
-            HashMap<String, String> optionTable = new HashMap<>(20);
+            HashMap<String, String> optionTable = new HashMap<>(this.sampling_order.size());
 
             for(String variableName : this.sampling_order) {
                 String algorithmName = variableName.split("_")[0];
@@ -129,30 +128,33 @@ public class DependencyNetwork {
                     this.variables.get(variableName).conditionalSampling(lastStart)
                 );
 
-                JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
+                if(lastStart.get(variableName) != null) {
+                    JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
+                    if(optionObj == null) {
+                        optionObj = (JSONObject)classifiersResources.getOrDefault(lastStart.get(variableName), null);
+                    }
 
-                // checks whether this is an option
-                if(optionObj != null && lastStart.get(variableName) != null) {
-                    boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
-                    String optionName = (String)optionObj.get("optionName");
-                    String dtype = (String)optionObj.get("dtype");
+                    // checks whether this is an option
+                    if(optionObj != null) {
+                        boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
+                        String optionName = (String)optionObj.get("optionName");
+                        String dtype = (String)optionObj.get("dtype");
 
-                    if(dtype.equals("np.bool")) {
-                        if(Boolean.parseBoolean(lastStart.get(variableName))) {
-                            if(presenceMeans) {
-                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                        if(dtype.equals("np.bool")) {
+                            if(lastStart.get(variableName).toLowerCase().equals("false")) {
+                                if(!presenceMeans) {
+                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                                }
+                            } else {
+                                if(presenceMeans) {
+                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                                }
                             }
                         } else {
-                            if(!presenceMeans) {
-                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
-                            }
+                            optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
                         }
-                    } else {
-                        optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
                     }
                 }
-
-                System.out.println("variable " + variableName + ": \t" + lastStart);  // TODO remove
             }
             if((i % thinning_factor) == 0) {
                 String[] options = new String [optionTable.size() * 2];
@@ -165,8 +167,6 @@ public class DependencyNetwork {
                 }
 
                 individuals[i / sampleSize]  = new Individual(options, lastStart, train_data);
-
-//                sampled.add((HashMap<String, String>)lastStart.clone());
             }
         }
         return individuals;

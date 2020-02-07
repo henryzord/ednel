@@ -27,6 +27,12 @@ public abstract  class AbstractVariable {
         this.values = values;
         this.probabilities = probabilities;
         this.mt = mt;
+
+        for(int i = 0; i < this.values.size(); i++) {
+            if(this.values.get(i).toLowerCase().equals("null")) {
+                this.values.set(i, null);
+            }
+        }
     }
 
     public abstract String[] unconditionalSampling(int sample_size) throws Exception;
@@ -52,13 +58,10 @@ public abstract  class AbstractVariable {
             intIndices[i] = (Integer)indices[i];
             localProbs[i] = probabilities.get((Integer)indices[i]);
         }
-        try {
-            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(intIndices, localProbs);
-            int idx = localDist.sample();
-            return values.get(idx);
-        } catch(org.apache.commons.math3.exception.MathArithmeticException e) {
-            return null;
-        }
+
+        EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(intIndices, localProbs);
+        int idx = localDist.sample();
+        return values.get(idx);
     }
 
     public String[] getParents() {
