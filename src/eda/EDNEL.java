@@ -1,5 +1,6 @@
 package eda;
 
+import dn.DependencyNetwork;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
@@ -7,6 +8,7 @@ import org.apache.commons.cli.Option.Builder;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 
 import javax.annotation.processing.FilerException;
@@ -16,43 +18,55 @@ import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 
+import org.omg.CORBA.INTERNAL;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.HashMap;
 
 public class EDNEL {
 
+    private int thining_factor;
+    private String options_path;
+    private String variables_path;
+    private String sampling_order_path;
     private float learning_rate;
     private float selection_share;
     private int n_individuals;
     private int n_generations;
-    private String variables_path;
     private String output_path;
 
     private boolean fitted;
 
-    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
-                 String variables_path, String output_path) throws Exception {
+    private MersenneTwister mt;
+
+    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
+                 String variables_path, String options_path, String sampling_order_path, String output_path) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
         this.n_individuals = n_individuals;
         this.n_generations = n_generations;
-        this.variables_path = variables_path;
+        this.thining_factor = thining_factor;
+
         this.output_path = output_path;
+        this.variables_path = variables_path;
+        this.options_path = options_path;
+        this.sampling_order_path = sampling_order_path;
+
         this.fitted = false;
 
-
-
+        this.mt = new MersenneTwister();
     }
 
-    private void readVariables(String variables_path) {
+    public void fit(Instances train_data) throws Exception {
+        DependencyNetwork dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
 
-    }
-
-    public void fit(Instances train_data) {
+        BaselineIndividual bi = new BaselineIndividual(train_data);
+        HashMap<String, String> startPoint = bi.getCharacteristics();
+        Individual[] population = dn.gibbsSample(startPoint,thining_factor, this.n_individuals, train_data);
 
 
         this.fitted = true;
@@ -143,6 +157,24 @@ public class EDNEL {
                 .build());
 
         options.addOption(Option.builder()
+                .longOpt("options_path")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Path to options file.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("sampling_order_path")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Path to sampling order file.")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("seed")
                 .required(false)
                 .type(Integer.class)
@@ -153,8 +185,8 @@ public class EDNEL {
 
         options.addOption(Option.builder()
                 .longOpt("n_jobs")
-                .required(false)
                 .type(Integer.class)
+                .required(false)
                 .hasArg()
                 .numberOfArgs(1)
                 .desc("Number of jobs to use. Will use one job per sample per fold. If unspecified or set to 1, will run in a single core.")
@@ -162,13 +194,14 @@ public class EDNEL {
 
         options.addOption(Option.builder()
                 .longOpt("cheat")
-                .required(false)
                 .type(Boolean.class)
+                .required(false)
                 .desc("Whether to log test metadata during evolution.")
                 .build());
 
         options.addOption(Option.builder()
                 .longOpt("n_generations")
+                .type(Integer.class)
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
@@ -177,6 +210,7 @@ public class EDNEL {
 
         options.addOption(Option.builder()
                 .longOpt("n_individuals")
+                .type(Integer.class)
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
@@ -194,6 +228,7 @@ public class EDNEL {
 
         options.addOption(Option.builder()
                 .longOpt("learning_rate")
+                .type(Float.class)
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
@@ -202,10 +237,20 @@ public class EDNEL {
 
         options.addOption(Option.builder()
                 .longOpt("selection_share")
+                .type(Float.class)
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
                 .desc("Fraction of fittest population to use to update graphical model")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("thining_factor")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Thining factor used in the dependency network (i.e. interval to select samples)")
                 .build());
 
         CommandLineParser parser = new DefaultParser();
@@ -242,11 +287,17 @@ public class EDNEL {
                                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
                                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
+                                Integer.parseInt(commandLine.getOptionValue("thining_factor")),
                                 commandLine.getOptionValue("variables_path"),
+                                commandLine.getOptionValue("options_path"),
+                                commandLine.getOptionValue("sampling_order_path"),
                                 commandLine.getOptionValue("metadata_path") + File.separator +
                                 str_time + dataset_name
                         );
                         ednel.fit(train_data);
+
+                        System.out.println("WARNING: exiting after first fold!");  // TODO remove!
+                        break;  // TODO remove!
                     }
                 }
             }

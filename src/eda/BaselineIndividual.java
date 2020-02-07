@@ -41,14 +41,11 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("J48_useMDLcorrection", "false");
         this.characteristics.put("J48_collapseTree", "true");
         this.characteristics.put("J48_doNotMakeSplitPointActualValue", "false");
-        this.characteristics.put("J48_pruning", "confidenceFactor");
-        this.characteristics.put("J48_unpruned", null);
-        this.characteristics.put("J48_reducedErrorPruning", null);
+        this.characteristics.put("J48_pruning", "J48_confidenceFactor");
         this.characteristics.put("J48_numFolds", null);
-        this.characteristics.put("J48_reducedErrorPruningSubtreeRaising", null);
+        this.characteristics.put("J48_subtreeRaising", "true");
         this.characteristics.put("J48_seed", null);
         this.characteristics.put("J48_confidenceFactorValue", "0.25");
-        this.characteristics.put("J48_confidenceFactorSubtreeRaising", "true");
         this.characteristics.put("SimpleCart", "true");
         this.characteristics.put("SimpleCart_heuristic", "true");
         this.characteristics.put("SimpleCart_minNumObj", "2");
@@ -69,9 +66,7 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("PART_minNumObj", "2");
         this.characteristics.put("PART_binarySplits", "false");
         this.characteristics.put("PART_useMDLcorrection", "true");
-        this.characteristics.put("PART_pruning", "confidenceFactor");
-        this.characteristics.put("PART_unpruned", null);
-        this.characteristics.put("PART_reducedErrorPruning", null);
+        this.characteristics.put("PART_pruning", "PART_confidenceFactor");
         this.characteristics.put("PART_confidenceFactorValue", "0.25");
         this.characteristics.put("PART_seed", null);
         this.characteristics.put("PART_numFolds", null);

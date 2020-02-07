@@ -110,8 +110,7 @@ public class DependencyNetwork {
     public Individual[] gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize, Instances train_data) throws Exception {
         Individual[] individuals = new Individual [sampleSize];
 
-        // HashMap<String, String> current = new HashMap<>(lastStart.size());
-        // TODO use laplace correction
+        // TODO use laplace correction; check edna
 
         for(int i = 0; i < sampleSize * thinning_factor; i++) {
             HashMap<String, String> optionTable = new HashMap<>(this.sampling_order.size());

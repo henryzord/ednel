@@ -3,10 +3,7 @@ package eda;
 import eda.aggregators.Aggregator;
 import eda.aggregators.CompetenceBasedAggregator;
 import eda.aggregators.MajorityVotingAggregator;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import eda.trees.SimpleCart;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
@@ -15,13 +12,10 @@ import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.classifiers.trees.REPTree;
-import eda.trees.SimpleCart;
 import weka.core.*;
 
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
 
@@ -77,83 +71,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 //        };
 //    }
 
-//    protected String[] fromCharacteristicsToOptions() throws Exception {
-//        Set<String> all_options = classifiersResources.keySet();
-//
-//        HashMap<String, ArrayList<String>> optionTable = new HashMap<>(classifiersResources.size());
-//        optionTable.put("J48", new ArrayList<String>());
-//        optionTable.put("SimpleCart", new ArrayList<String>());
-//        optionTable.put("PART", new ArrayList<String>());
-//        optionTable.put("JRip", new ArrayList<String>());
-//        optionTable.put("DecisionTable", new ArrayList<String>());
-//        optionTable.put("BestFirst", new ArrayList<String>());
-//        optionTable.put("GreedyStepwise", new ArrayList<String>());
-//        optionTable.put("Aggregator", new ArrayList<String>());
-//
-//        // characteristics has more items than options, because classifiers are not options in Weka
-//        for (Iterator<String> it = all_options.iterator(); it.hasNext(); ) {
-//            String option = it.next();
-//            String algorithmName = option.split("_")[0];
-//
-//            // if is null, then option was not set
-//            if(characteristics.get(option) != null) {
-//                if(dtype.equals("np.bool")) {
-//                    if(Boolean.valueOf(characteristics.get(option))) {
-//                        if(presenceMeans) {
-//                            optionTable.get(algorithmName).add(optionName);
-//                        }
-//                    } else {
-//                        if(!presenceMeans) {
-//                            optionTable.get(algorithmName).add(optionName);
-//                        }
-//                    }
-//                } else {
-//                    optionTable.get(algorithmName).add(optionName + " " + characteristics.get(option));
-//                }
-//            }
-//        }
-//
-//        String[] algorithms = new String[] {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
-//
-//        String[] options = new String [(algorithms.length + 1) * 2];  // +1 for aggregator
-//        ArrayList<String> theseOptions;
-//        String optionsString = "";
-//
-//        int counter = 0;
-//        for (String algorithm : algorithms) {
-//            options[counter] = "-" + algorithm;
-//            counter++;
-//            optionsString = "";
-//            theseOptions = optionTable.get(algorithm);
-//            for(int j = 0; j < theseOptions.size(); j++) {
-//                optionsString += " " + theseOptions.get(j);
-//            }
-//            options[counter] = optionsString;
-//            counter++;
-//        }
-//        counter--;
-//
-//
-//        // TODO probably will break if decision table is not present
-//        optionsString += " -S weka.attributeSelection.";
-//        if(optionTable.get("BestFirst").size() > 0) {
-//            optionsString= optionsString.replace("-S BestFirst", "");
-//            optionsString += "BestFirst";
-//            theseOptions = optionTable.get("BestFirst");
-//        } else {
-//            optionsString= optionsString.replace("-S GreedyStepwise", "");
-//            optionsString += "GreedyStepwise";
-//            theseOptions = optionTable.get("GreedyStepwise");
-//        }
-//        for(int i = 0; i < theseOptions.size(); i++) {
-//            optionsString += " " + theseOptions.get(i);
-//        }
-//        options[counter] = optionsString;
-//        options[counter + 1] = "-Aggregator";
-//        options[counter + 2] = characteristics.get("Aggregator");
-//
-//        return options;
-//    }
 
     public HashMap<String, String> getCharacteristics() {
         return characteristics;
@@ -161,8 +78,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public void setOptions(String[] options) throws Exception {
-        String[] oldOptions = options.clone();  // TODO remove
-
         String[] j48Parameters = Utils.getOption("J48", options).split(" ");
         String[] simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
         String[] reptreeParameters = Utils.getOption("REPTree", options).split(" ");
@@ -183,13 +98,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
 
         if(j48Parameters.length > 1) {
-            String[] cloneParams = j48Parameters.clone();  // TODO remove
-            try {  // TODO remove
-                j48.setOptions(j48Parameters);
-            } catch(Exception e) {  // TODO remove
-                throw e;  // TODO remove
-            }  // TODO remove
-
+            j48.setOptions(j48Parameters);
         } else {
             j48 = null;
         }
