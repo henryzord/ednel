@@ -1,5 +1,7 @@
 package dn;
 
+import com.google.common.collect.Collections2;
+import com.sun.org.apache.xpath.internal.operations.Variable;
 import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
@@ -8,11 +10,13 @@ import eda.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.omg.CORBA.INTERNAL;
 import weka.core.Instances;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.util.*;
 
@@ -99,9 +103,9 @@ public class DependencyNetwork {
                 csvReader.close();
 
                 if(isContinuous.get(variableName)) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, mt));
+                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt));
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, mt));
+                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, this.mt));
                 }
             }
         }
@@ -110,7 +114,7 @@ public class DependencyNetwork {
     public Individual[] gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize, Instances train_data) throws Exception {
         Individual[] individuals = new Individual [sampleSize];
 
-        // TODO use laplace correction; check edna
+        // TODO use laplace correction; check edna paper for this
 
         for(int i = 0; i < sampleSize * thinning_factor; i++) {
             HashMap<String, String> optionTable = new HashMap<>(this.sampling_order.size());
@@ -169,6 +173,71 @@ public class DependencyNetwork {
             }
         }
         return individuals;
+    }
+
+    void generatePermutations(List<List<Character>> lists, List<String> result, int depth, String current) {
+        if (depth == lists.size()) {
+            result.add(current);
+            return;
+        }
+
+        for (int i = 0; i < lists.get(depth).size(); i++) {
+            generatePermutations(lists, result, depth + 1, current + lists.get(depth).get(i));
+        }
+    }
+
+    /**
+     * Generates all possible combinations of values between a surrogate variable and its parents.
+     *
+     * @param variableName
+     * @return
+     */
+    private ArrayList<HashMap<String, String>> generateCombinations(String variableName) {
+        String[] parents = this.variables.get(variableName).getParents();
+
+        ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.length + 1);
+        Object[] thisUniqueValues = this.variables.get(variableName).getUniqueValues().toArray();
+        for(Object value : thisUniqueValues) {
+            HashMap<String, String> data = new HashMap<>(parents.length + 1);
+            data.put(variableName, (String)value);
+            combinations.add(data);
+        }
+
+        for(String parent : parents) {
+            Object[] values = this.variables.get(parent).getUniqueValues().toArray();
+            int outer = values.length * combinations.size();
+
+            ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>(outer);
+
+            for(int j = 0; j < values.length; j++) {
+                for(int i = 0; i < combinations.size(); i++) {
+                    HashMap<String, String> local = (HashMap<String, String>) combinations.get(i).clone();
+                    local.put(parent, (String)values[j]);
+                    new_combinations.add(local);
+                }
+            }
+            combinations = new_combinations;
+        }
+        return combinations;
+    }
+
+    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, int to_select) throws Exception {
+
+        for(String variableName : this.sampling_order) {
+            this.variables.get(variableName).updateProbabilities(population, sortedIndices, to_select);
+
+
+            // TODO re-normalize probabilities
+            int z = 0;
+
+//            ArrayList<HashMap<String, String>> combinations = generateCombinations(variableName);
+//
+//            this.variables.get(variableName)
+        }
+    }
+
+    public void updateStructure(Individual[] population, Integer[] sortedIndices, int to_select) {
+
     }
 
     public static void main(String[] args) throws Exception {

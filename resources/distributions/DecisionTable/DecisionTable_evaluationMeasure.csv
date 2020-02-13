@@ -3,7 +3,9 @@ true,acc,0.168
 true,rmse,0.166
 true,mae,0.166
 true,auc,0.5
+true,null,0.0
 false,acc,0.0
 false,rmse,0.0
 false,mae,0.0
 false,auc,0.0
+false,null,1.0

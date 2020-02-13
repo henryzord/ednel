@@ -1,5 +1,6 @@
 package dn.variables;
 
+import eda.Individual;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
 
@@ -49,5 +50,9 @@ public class ContinuousVariable extends AbstractVariable {
             return String.valueOf(sampled);
         }
         return null;
+    }
+
+    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, int to_select) throws Exception {
+        throw new Exception("not implemented yet!");
     }
 }

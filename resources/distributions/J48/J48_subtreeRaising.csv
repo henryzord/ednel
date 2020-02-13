@@ -8,3 +8,6 @@ J48_reducedErrorPruning,null,0.0
 J48_confidenceFactor,true,0.6
 J48_confidenceFactor,false,0.4
 J48_confidenceFactor,null,0.0
+null,true,0.0
+null,false,0.0
+null,null,1.0

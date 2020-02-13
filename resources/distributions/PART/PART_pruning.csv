@@ -2,6 +2,8 @@ PART,PART_pruning,probability
 true,J48_unpruned,0.285
 true,J48_reducedErrorPruning,0.285
 true,J48_confidenceFactor,0.43
+true,null,0.0
 false,J48_unpruned,0.0
 false,J48_reducedErrorPruning,0.0
 false,J48_confidenceFactor,0.0
+false,null,1.0

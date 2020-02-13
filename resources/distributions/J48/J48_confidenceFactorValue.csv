@@ -5,3 +5,5 @@ J48_unpruned,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_i
 J48_unpruned,null,1.0
 J48_confidenceFactor,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",1.0
 J48_confidenceFactor,null,1.0
+null,null,1.0
+null,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0

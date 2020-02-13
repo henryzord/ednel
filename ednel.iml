@@ -62,5 +62,18 @@
         <jarDirectory url="file://$MODULE_DIR$/lib/commons-math3-3.6.1" recursive="false" type="SOURCES" />
       </library>
     </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="file://$MODULE_DIR$/lib/guava-23.0" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="file://$MODULE_DIR$/lib/guava-23.0" />
+        </SOURCES>
+        <jarDirectory url="file://$MODULE_DIR$/lib/guava-23.0" recursive="false" />
+        <jarDirectory url="file://$MODULE_DIR$/lib/guava-23.0" recursive="false" type="SOURCES" />
+      </library>
+    </orderEntry>
   </component>
 </module>

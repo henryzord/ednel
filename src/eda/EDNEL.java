@@ -39,13 +39,16 @@ public class EDNEL {
     private int n_individuals;
     private int n_generations;
     private String output_path;
+    private Integer seed;
 
     private boolean fitted;
 
     private MersenneTwister mt;
 
+    private DependencyNetwork dn;
+
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
-                 String variables_path, String options_path, String sampling_order_path, String output_path) throws Exception {
+                 String variables_path, String options_path, String sampling_order_path, String output_path, Integer seed) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
@@ -60,18 +63,19 @@ public class EDNEL {
 
         this.fitted = false;
 
-        this.mt = new MersenneTwister();
+        if(seed == null) {
+            this.mt = new MersenneTwister();
+            this.seed = mt.nextInt();
+        } else {
+            this.seed = seed;
+            this.mt = new MersenneTwister(seed);
+        }
+
+        this.dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
     }
 
     public void fit(Instances train_data) throws Exception {
-        int seed = this.mt.nextInt();
-        this.fit(train_data, seed);
-    }
-
-    public void fit(Instances train_data, int seed) throws Exception {
         FitnessCalculator fc = new FitnessCalculator(5, train_data, null);
-
-        DependencyNetwork dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
 
         BaselineIndividual bi = new BaselineIndividual(train_data);
         HashMap<String, String> startPoint = bi.getCharacteristics();
@@ -81,15 +85,19 @@ public class EDNEL {
             Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
 
             ArrayIndexComparator comparator = new ArrayIndexComparator(fitnesses[0]);
-            Integer[] indexes = comparator.createIndexArray();
-            Arrays.sort(indexes, comparator);
+            Integer[] sortedIndices = comparator.createIndexArray();
+            Arrays.sort(sortedIndices, comparator);
+
+            int to_select = Math.round(this.selection_share * sortedIndices.length);
+
+            this.dn.updateStructure(population, sortedIndices, to_select);
+            this.dn.updateProbabilities(population, sortedIndices, to_select);
 
             // TODO update dependency network probabilities!
 
             System.out.println("WARNING: breaking after first generation!");  // TODO remove
             break;  // TODO remove
         }
-
 
         this.fitted = true;
     }
@@ -314,15 +322,12 @@ public class EDNEL {
                                 commandLine.getOptionValue("options_path"),
                                 commandLine.getOptionValue("sampling_order_path"),
                                 commandLine.getOptionValue("metadata_path") + File.separator +
-                                str_time + dataset_name
+                                str_time + dataset_name,
+                                commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
                         );
-                        if(commandLine.getOptionValue("seed") != null) {
-                            ednel.fit(train_data, Integer.parseInt(commandLine.getOptionValue("seed")));
-                        } else {
-                            ednel.fit(train_data);
-                        }
 
-
+                        ednel.fit(train_data);
+                        // TODO predict!
 
                         System.out.println("WARNING: exiting after first fold!");  // TODO remove!
                         break;  // TODO remove!

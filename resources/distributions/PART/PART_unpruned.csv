@@ -1,7 +1,12 @@
 PART_pruning,PART_unpruned,probability
 unpruned,true,1.0
 unpruned,false,0.0
+unpruned,null,0.0
 reducedErrorPruning,true,0.0
 reducedErrorPruning,false,1.0
+reducedErrorPruning,null,0.0
 confidenceFactor,true,0.0
 confidenceFactor,false,1.0
+confidenceFactor,null,0.0
+null,true,0.0
+null,null,1.0
