@@ -30,11 +30,6 @@ public abstract  class AbstractVariable {
         this.probabilities = probabilities;
         this.mt = mt;
 
-        for(int i = 0; i < this.values.size(); i++) {
-            if(this.values.get(i).toLowerCase().equals("null")) {
-                this.values.set(i, null);
-            }
-        }
         this.uniqueValues = new HashSet<>(this.values);
     }
 
@@ -45,7 +40,7 @@ public abstract  class AbstractVariable {
      * of parents for this variable.
      * @return
      */
-    protected int[] getIndices(HashMap<String, String> conditions) {
+    protected int[] getIndices(HashMap<String, String> conditions, String variableValue) {
         Set<Integer> intersection = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
             intersection.add(i);
@@ -58,8 +53,8 @@ public abstract  class AbstractVariable {
                 intersection.retainAll(new HashSet<>(localIndices));
             }
         }
-        if(conditions.get(this.name) != null) {
-            localIndices = this.table.get(this.name).get(conditions.get(this.name));
+        if(variableValue != null) {
+            localIndices = this.table.get(this.name).get(variableValue);
             intersection.retainAll(new HashSet<>(localIndices));
         }
 
@@ -74,8 +69,7 @@ public abstract  class AbstractVariable {
 
 
     public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
-        lastStart.put(this.name, null);
-        int[] indices = this.getIndices(lastStart);
+        int[] indices = this.getIndices(lastStart, null);
 
         double[] localProbs = new double [indices.length];
         for(int i = 0; i < localProbs.length; i++) {

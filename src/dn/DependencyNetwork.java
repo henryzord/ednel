@@ -83,6 +83,7 @@ public class DependencyNetwork {
 
                 while ((row = csvReader.readLine()) != null) {
                     String[] this_data = row.split(",(?![^(]*\\))");
+
                     probabilities.add(Float.valueOf(this_data[this_data.length - 1]));
                     values.add(this_data[this_data.length - 2]);
 
@@ -92,6 +93,9 @@ public class DependencyNetwork {
                                 isContinuous.get(header[k]) ||
                                         (this_data[k].contains("loc") && this_data[k].contains("scale"))
                         );
+                        if(this_data[k].toLowerCase().equals("null")) {
+                            this_data[k] = null;
+                        }
 
                         if(!table.get(header[k]).containsKey(this_data[k])) {  // if this variable does not have this value
                             table.get(header[k]).put(this_data[k], new ArrayList<>());
@@ -102,6 +106,12 @@ public class DependencyNetwork {
                 }
                 csvReader.close();
 
+                for(int k = 0; k < values.size(); k++) {
+                    if(values.get(k).toLowerCase().equals("null")) {
+                        values.set(k, null);
+                    }
+                }
+                
                 if(isContinuous.get(variableName)) {
                     variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt));
                 } else {
@@ -225,15 +235,8 @@ public class DependencyNetwork {
 
         for(String variableName : this.sampling_order) {
             this.variables.get(variableName).updateProbabilities(population, sortedIndices, to_select);
-
-
-            // TODO re-normalize probabilities
-            int z = 0;
-
-//            ArrayList<HashMap<String, String>> combinations = generateCombinations(variableName);
-//
-//            this.variables.get(variableName)
         }
+        int z = 0;
     }
 
     public void updateStructure(Individual[] population, Integer[] sortedIndices, int to_select) {

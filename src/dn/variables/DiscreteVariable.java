@@ -40,7 +40,7 @@ public class DiscreteVariable extends AbstractVariable {
     public void updateProbabilities(Individual[] population, Integer[] sortedIndices, int to_select) throws Exception {
         this.clearProbabilities();  // sets all to zero
         for(int i = 0; i < population.length; i++) {
-            int[] indices = this.getIndices(population[i].getCharacteristics());
+            int[] indices = this.getIndices(population[i].getCharacteristics(), population[i].getCharacteristics().get(this.name));
             for(int index : indices) {
                 this.probabilities.set(index, this.probabilities.get(index) + 1);
             }
@@ -49,8 +49,7 @@ public class DiscreteVariable extends AbstractVariable {
         ArrayList<HashMap<String, String>> combinations = new ArrayList<>();
         for(Object value : this.getUniqueValues().toArray()) {
             HashMap<String, String> local = new HashMap<>();
-            // local.put(this.name, (String)value);
-            local.put(this.name, null);  // TODO testing this way!
+            local.put(this.name, null);
             combinations.add(local);
         }
         for(String parent : this.parents) {
@@ -66,7 +65,7 @@ public class DiscreteVariable extends AbstractVariable {
             combinations = new_combinations;
         }
         for(int i = 0; i < combinations.size(); i++) {
-            int[] indices = this.getIndices(combinations.get(i));
+            int[] indices = this.getIndices(combinations.get(i), null);
             float sum = 0;
             for(int j = 0; j < indices.length; j++) {
                 sum += this.probabilities.get(indices[j]);
@@ -75,6 +74,10 @@ public class DiscreteVariable extends AbstractVariable {
                 this.probabilities.set(indices[j], this.probabilities.get(indices[j]) / sum);
             }
         }
-        int z = 0;  // TODO remove
+        for(int i = 0; i < probabilities.size(); i++) {
+            if(Double.isNaN(probabilities.get(i))) {
+                probabilities.set(i, (float)0);
+            }
+        }
     }
 }
