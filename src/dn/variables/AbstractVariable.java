@@ -12,6 +12,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 public abstract  class AbstractVariable {
+    protected float learningRate;
+    protected int n_generations;
     protected String name;
     protected String[] parents;
     protected HashMap<String, HashMap<String, ArrayList<Integer>>> table;
@@ -22,26 +24,25 @@ public abstract  class AbstractVariable {
 
     public AbstractVariable(
             String name, String[] parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-            ArrayList<String> values, ArrayList<Float> probabilities, MersenneTwister mt) throws Exception {
+            ArrayList<String> values, ArrayList<Float> probabilities, MersenneTwister mt,
+            float learningRate, int n_generations) throws Exception {
         this.name = name;
         this.parents = parents;
         this.table = table;
         this.values = values;
         this.probabilities = probabilities;
         this.mt = mt;
+        this.learningRate = learningRate;
+        this.n_generations = n_generations;
 
         this.uniqueValues = new HashSet<>(this.values);
     }
 
     public abstract String[] unconditionalSampling(int sample_size) throws Exception;
 
-    /**
-     * Get indices in the table object that correspond to a given assignment of values to the set
-     * of parents for this variable.
-     * @return
-     */
-    protected int[] getIndices(HashMap<String, String> conditions, String variableValue) {
-        Set<Integer> intersection = new HashSet<>();
+
+    protected HashSet<Integer> getSetOfIndices(HashMap<String, String> conditions, String variableValue, boolean locOnVariable) {
+        HashSet<Integer> intersection = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
             intersection.add(i);
         }
@@ -53,10 +54,20 @@ public abstract  class AbstractVariable {
                 intersection.retainAll(new HashSet<>(localIndices));
             }
         }
-        if(variableValue != null) {
+        if(locOnVariable) {
             localIndices = this.table.get(this.name).get(variableValue);
             intersection.retainAll(new HashSet<>(localIndices));
         }
+        return intersection;
+    }
+
+    /**
+     * Get indices in the table object that correspond to a given assignment of values to the set
+     * of parents for this variable.
+     * @return
+     */
+    protected int[] getIndices(HashMap<String, String> conditions, String variableValue, boolean locOnVariable) {
+        HashSet<Integer> intersection = this.getSetOfIndices(conditions, variableValue, locOnVariable);
 
         Object[] indices = intersection.toArray();
         int[] intIndices = new int [indices.length];
@@ -67,9 +78,8 @@ public abstract  class AbstractVariable {
         return intIndices;
     }
 
-
-    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
-        int[] indices = this.getIndices(lastStart, null);
+    protected int conditionalSamplingIndex(HashMap<String, String> lastStart) {
+        int[] indices = this.getIndices(lastStart, null, false);
 
         double[] localProbs = new double [indices.length];
         for(int i = 0; i < localProbs.length; i++) {
@@ -78,7 +88,12 @@ public abstract  class AbstractVariable {
 
         EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(indices, localProbs);
         int idx = localDist.sample();
-        return values.get(idx);
+        return idx;
+    }
+
+
+    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
+        return values.get(this.conditionalSamplingIndex(lastStart));
     }
 
     public String[] getParents() {
@@ -104,14 +119,68 @@ public abstract  class AbstractVariable {
         return this.table;
     }
 
-    /**
-     * Sets all probabilities to zero. Use carefully!
-     */
-    public void clearProbabilities() {
-        for(int i = 0; i < this.probabilities.size(); i++) {
-            this.probabilities.set(i, (float)0.0);
+    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
+        ArrayList<Float> occurs = new ArrayList<>();
+        for(int i = 0; i < probabilities.size(); i++) {
+            occurs.add((float)0.0);
+        }
+
+        int to_select = Math.round(selectionShare * sortedIndices.length);
+
+        // gets the count of occurrences
+        for(int i = 0; i < to_select; i++) {
+            int[] indices = this.getIndices(
+                    population[sortedIndices[i]].getCharacteristics(),
+                    population[sortedIndices[i]].getCharacteristics().get(this.name),
+                    true
+            );
+            for(int index : indices) {
+                occurs.set(index, occurs.get(index) + 1);
+            }
+        }
+
+        ArrayList<HashMap<String, String>> combinations = new ArrayList<>();
+        for(Object value : this.getUniqueValues().toArray()) {
+            HashMap<String, String> local = new HashMap<>();
+            local.put(this.name, null);
+            combinations.add(local);
+        }
+        for(String parent : this.parents) {
+            ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>();
+            for(int i = 0; i < combinations.size(); i++) {
+                Object[] parentUniqueVals = this.table.get(parent).keySet().toArray();
+                for(int j = 0; j < parentUniqueVals.length; j++) {
+                    HashMap<String, String> local = (HashMap<String, String>)combinations.get(i).clone();
+                    local.put(parent, (String)parentUniqueVals[j]);
+                    new_combinations.add(local);
+                }
+            }
+            combinations = new_combinations;
+        }
+
+        for(int i = 0; i < combinations.size(); i++) {
+            int[] indices = this.getIndices(combinations.get(i), null, false);
+            float sum = 0;
+            for(int j = 0; j < indices.length; j++) {
+                sum += occurs.get(indices[j]);
+            }
+
+            // updates probabilities using learning rate and relative frequencies
+            for(int j = 0; j < indices.length; j++) {
+                this.probabilities.set(
+                        indices[j],
+                        (float) ((1.0 - this.learningRate) * this.probabilities.get(indices[j]) +
+                                                this.learningRate * occurs.get(indices[j]) / sum)
+
+                );
+            }
+        }
+
+        for(int i = 0; i < probabilities.size(); i++) {
+            if(Double.isNaN(probabilities.get(i))) {
+                probabilities.set(i, (float)0);
+//                throw new Exception("found NaN value!");  // TODO throw away this code later
+            }
         }
     }
-
-    public abstract void updateProbabilities(Individual[] population, Integer[] sortedIndices, int to_select) throws Exception;
 }

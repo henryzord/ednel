@@ -1,7 +1,5 @@
 package dn;
 
-import com.google.common.collect.Collections2;
-import com.sun.org.apache.xpath.internal.operations.Variable;
 import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
@@ -10,13 +8,11 @@ import eda.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.omg.CORBA.INTERNAL;
 import weka.core.Instances;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.util.*;
 
@@ -26,13 +22,20 @@ public class DependencyNetwork {
     private ArrayList<String> variable_names;
     private ArrayList<String> sampling_order;
     private JSONObject classifiersResources;
+    private float learningRate;
+    private int n_generations;
 
-    public DependencyNetwork(MersenneTwister mt, String variables_path, String options_path, String sampling_order_path) throws Exception {
+    public DependencyNetwork(
+            MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
+            float learningRate, int n_generations
+    ) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
         this.mt = mt;
         this.variables = new HashMap<>();
         this.variable_names = new ArrayList<>((int)Math.pow(algorithms.length, 2));
+        this.learningRate = learningRate;
+        this.n_generations = n_generations;
 
         JSONParser jsonParser = new JSONParser();
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(options_path));
@@ -113,9 +116,9 @@ public class DependencyNetwork {
                 }
                 
                 if(isContinuous.get(variableName)) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt));
+                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt, this.learningRate, this.n_generations));
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, this.mt));
+                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, this.mt, this.learningRate, this.n_generations));
                 }
             }
         }
@@ -231,31 +234,15 @@ public class DependencyNetwork {
         return combinations;
     }
 
-    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, int to_select) throws Exception {
+    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
 
         for(String variableName : this.sampling_order) {
-            this.variables.get(variableName).updateProbabilities(population, sortedIndices, to_select);
+            this.variables.get(variableName).updateProbabilities(population, sortedIndices, selectionShare);
         }
         int z = 0;
     }
 
-    public void updateStructure(Individual[] population, Integer[] sortedIndices, int to_select) {
+    public void updateStructure(Individual[] population, Integer[] sortedIndices, float selectionShare) {
 
-    }
-
-    public static void main(String[] args) throws Exception {
-        Instances train_data = new Instances(new BufferedReader(new FileReader("/home/henry/Projects/eacomp/keel_datasets_10fcv/mammographic/mammographic-10-3tra.arff")));
-        train_data.setClassIndex(train_data.numAttributes() - 1);
-
-        String variables_path = "/home/henry/Projects/ednel/resources/distributions";
-        String options_path = "/home/henry/Projects/ednel/resources/options.json";
-        String sampling_order_path = "/home/henry/Projects/ednel/resources/sampling_order.csv";
-
-        MersenneTwister mt = new MersenneTwister();
-
-        DependencyNetwork dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
-        BaselineIndividual bi = new BaselineIndividual(train_data);
-        HashMap<String, String> startPoint = bi.getCharacteristics();
-        dn.gibbsSample(startPoint,10, 50, train_data);
     }
 }

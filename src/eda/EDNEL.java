@@ -71,7 +71,9 @@ public class EDNEL {
             this.mt = new MersenneTwister(seed);
         }
 
-        this.dn = new DependencyNetwork(mt, variables_path, options_path, sampling_order_path);
+        this.dn = new DependencyNetwork(
+                mt, variables_path, options_path, sampling_order_path, this.learning_rate, this.n_generations
+        );
     }
 
     public void fit(Instances train_data) throws Exception {
@@ -88,10 +90,8 @@ public class EDNEL {
             Integer[] sortedIndices = comparator.createIndexArray();
             Arrays.sort(sortedIndices, comparator);
 
-            int to_select = Math.round(this.selection_share * sortedIndices.length);
-
-            this.dn.updateStructure(population, sortedIndices, to_select);
-            this.dn.updateProbabilities(population, sortedIndices, to_select);
+            this.dn.updateStructure(population, sortedIndices, this.selection_share);
+            this.dn.updateProbabilities(population, sortedIndices, this.selection_share);
 
             // TODO update dependency network probabilities!
 
