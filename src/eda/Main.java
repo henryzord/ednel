@@ -1,140 +1,16 @@
 package eda;
 
-import dn.DependencyNetwork;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.Option.Builder;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.math3.random.MersenneTwister;
-import org.json.simple.JSONObject;
-
-import javax.annotation.processing.FilerException;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.time.format.DateTimeFormatter;
-import java.time.LocalDateTime;
-
-import org.omg.CORBA.INTERNAL;
-import utils.ArrayIndexComparator;
+import eda.ednel.AbstractEDNEL;
+import eda.ednel.OverallEDNEL;
+import org.apache.commons.cli.*;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.io.File;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
-public class EDNEL {
-
-    private int thining_factor;
-    private String options_path;
-    private String variables_path;
-    private String sampling_order_path;
-    private float learning_rate;
-    private float selection_share;
-    private int n_individuals;
-    private int n_generations;
-    private String output_path;
-    private Integer seed;
-
-    private boolean fitted;
-
-    private MersenneTwister mt;
-
-    private DependencyNetwork dn;
-
-    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
-                 String variables_path, String options_path, String sampling_order_path, String output_path, Integer seed) throws Exception {
-
-        this.learning_rate = learning_rate;
-        this.selection_share = selection_share;
-        this.n_individuals = n_individuals;
-        this.n_generations = n_generations;
-        this.thining_factor = thining_factor;
-
-        this.output_path = output_path;
-        this.variables_path = variables_path;
-        this.options_path = options_path;
-        this.sampling_order_path = sampling_order_path;
-
-        this.fitted = false;
-
-        if(seed == null) {
-            this.mt = new MersenneTwister();
-            this.seed = mt.nextInt();
-        } else {
-            this.seed = seed;
-            this.mt = new MersenneTwister(seed);
-        }
-
-        this.dn = new DependencyNetwork(
-                mt, variables_path, options_path, sampling_order_path, this.learning_rate, this.n_generations
-        );
-    }
-
-    public void fit(Instances train_data) throws Exception {
-        FitnessCalculator fc = new FitnessCalculator(5, train_data, null);
-
-        BaselineIndividual bi = new BaselineIndividual(train_data);
-        HashMap<String, String> startPoint = bi.getCharacteristics();
-
-        for(int c = 0; c < this.n_generations; c++) {
-            Individual[] population = dn.gibbsSample(startPoint, thining_factor, this.n_individuals, train_data);
-            Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
-
-            ArrayIndexComparator comparator = new ArrayIndexComparator(fitnesses[0]);
-            Integer[] sortedIndices = comparator.createIndexArray();
-            Arrays.sort(sortedIndices, comparator);
-
-            this.dn.updateStructure(population, sortedIndices, this.selection_share);
-            this.dn.updateProbabilities(population, sortedIndices, this.selection_share);
-
-            // TODO update dependency network probabilities!
-
-            System.out.println("WARNING: breaking after first generation!");  // TODO remove
-            break;  // TODO remove
-        }
-
-        this.fitted = true;
-    }
-
-    public String[] predict(Instances data) {
-        return null;
-    }
-
-    private static void createFolder(String path) throws FilerException {
-        File file = new File(path);
-        boolean successful = file.mkdir();
-        if(!successful) {
-            throw new FilerException("could not create directory " + path);
-        }
-    }
-
-    public static void metadata_path_start(String str_time, CommandLine commandLine) throws ParseException, IOException {
-        String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
-        String metadata_path = commandLine.getOptionValue("metadata_path");
-
-        // create one folder for each dataset
-        EDNEL.createFolder(metadata_path + File.separator + str_time);
-        for(String dataset : dataset_names) {
-            EDNEL.createFolder(metadata_path + File.separator + str_time + File.separator + dataset);
-        }
-
-        JSONObject obj = new JSONObject();
-        for(Option parameter : commandLine.getOptions()) {
-            obj.put(parameter.getLongOpt(), parameter.getValue());
-        }
-
-        FileWriter fw = new FileWriter(metadata_path + File.separator + str_time + File.separator + "parameters.json");
-        fw.write(obj.toJSONString());
-        fw.flush();
-
-    }
-
+public class Main {
     public static void main(String[] args) {
         Options options = new Options();
 
@@ -293,7 +169,7 @@ public class EDNEL {
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH:mm:ss");
             LocalDateTime now = LocalDateTime.now();
             String str_time = dtf.format(now);
-            EDNEL.metadata_path_start(str_time, commandLine);
+            AbstractEDNEL.metadata_path_start(str_time, commandLine);
 
             for(String dataset_name : commandLine.getOptionValue("datasets_names").split(",")) {
 
@@ -312,7 +188,7 @@ public class EDNEL {
                         train_data.setClassIndex(train_data.numAttributes() - 1);
                         test_data.setClassIndex(test_data.numAttributes() - 1);
 
-                        EDNEL ednel = new EDNEL(
+                        OverallEDNEL overallEDNEL = new OverallEDNEL(
                                 Float.parseFloat(commandLine.getOptionValue("learning_rate")),
                                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
                                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
@@ -322,11 +198,11 @@ public class EDNEL {
                                 commandLine.getOptionValue("options_path"),
                                 commandLine.getOptionValue("sampling_order_path"),
                                 commandLine.getOptionValue("metadata_path") + File.separator +
-                                str_time + dataset_name,
+                                        str_time + dataset_name,
                                 commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
                         );
 
-                        ednel.fit(train_data);
+                        overallEDNEL.buildClassifier(train_data);
                         // TODO predict!
 
                         System.out.println("WARNING: exiting after first fold!");  // TODO remove!
@@ -342,6 +218,4 @@ public class EDNEL {
             e.printStackTrace();
         }
     }
-
 }
-

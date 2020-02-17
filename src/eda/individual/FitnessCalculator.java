@@ -1,4 +1,4 @@
-package eda;
+package eda.individual;
 
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
@@ -56,7 +56,6 @@ public class FitnessCalculator {
             Instances local_train = train_data.trainCV(n_folds, i, random), local_val = train_data.testCV(n_folds, i);
 
             for(int j = 0; j < n_individuals; j++) {
-
                 population[j].buildClassifier(local_train);
                 trainEval.evaluateModel(population[j], local_val);
                 trainEvaluations[j] += getUnweightedAreaUnderROC(trainEval);

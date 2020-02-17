@@ -2,7 +2,7 @@
  * An individual with default hyper-parameters from Weka for each one of its classifiers.
  */
 
-package eda;
+package eda.individual;
 
 import weka.core.Instances;
 

@@ -1,15 +1,12 @@
 package dn.variables;
 
-import eda.Individual;
+import eda.individual.Individual;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
-import org.omg.CORBA.INTERNAL;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
 
 public abstract  class AbstractVariable {
     protected float learningRate;
@@ -86,9 +83,15 @@ public abstract  class AbstractVariable {
             localProbs[i] = probabilities.get((Integer)indices[i]);
         }
 
-        EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(indices, localProbs);
-        int idx = localDist.sample();
-        return idx;
+        try {
+            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(indices, localProbs);
+            int idx = localDist.sample();
+            return idx;
+        } catch (org.apache.commons.math3.exception.MathArithmeticException e) {
+            throw(e); // TODO remove
+        } catch(org.apache.commons.math3.exception.NotPositiveException e) {
+            throw(e);  // TODO remove
+        }
     }
 
 
@@ -127,18 +130,41 @@ public abstract  class AbstractVariable {
 
         int to_select = Math.round(selectionShare * sortedIndices.length);
 
-        // gets the count of occurrences
-        for(int i = 0; i < to_select; i++) {
-            int[] indices = this.getIndices(
-                    population[sortedIndices[i]].getCharacteristics(),
-                    population[sortedIndices[i]].getCharacteristics().get(this.name),
-                    true
-            );
-            for(int index : indices) {
-                occurs.set(index, occurs.get(index) + 1);
+        if(this.getClass().equals(ContinuousVariable.class)) {
+            // gets the count of occurrences
+            for(int i = 0; i < to_select; i++) {
+                HashSet<Integer> parentIndices = this.getSetOfIndices(
+                        population[sortedIndices[i]].getCharacteristics(),
+                        null,
+                        false
+                );
+                HashSet<Integer> nullIndices = this.getSetOfIndices(
+                        population[sortedIndices[i]].getCharacteristics(),
+                        null,
+                        true
+                );
+
+                parentIndices.retainAll(nullIndices);
+
+                for(Object index : parentIndices.toArray()) {
+                    occurs.set((int)index, occurs.get((int)index) + 1);
+                }
+            }
+        } else {
+            // gets the count of occurrences
+            for(int i = 0; i < to_select; i++) {
+                int[] indices = this.getIndices(
+                        population[sortedIndices[i]].getCharacteristics(),
+                        population[sortedIndices[i]].getCharacteristics().get(this.name),
+                        true
+                );
+                for(int index : indices) {
+                    occurs.set(index, occurs.get(index) + 1);
+                }
             }
         }
 
+        // generates combinations of values
         ArrayList<HashMap<String, String>> combinations = new ArrayList<>();
         for(Object value : this.getUniqueValues().toArray()) {
             HashMap<String, String> local = new HashMap<>();
@@ -158,26 +184,42 @@ public abstract  class AbstractVariable {
             combinations = new_combinations;
         }
 
+        // calculates the sum
         for(int i = 0; i < combinations.size(); i++) {
             int[] indices = this.getIndices(combinations.get(i), null, false);
-            float sum = 0;
+            float sum = 0, newSum = 0, newValue, rest;
             for(int j = 0; j < indices.length; j++) {
                 sum += occurs.get(indices[j]);
             }
 
-            // updates probabilities using learning rate and relative frequencies
-            for(int j = 0; j < indices.length; j++) {
-                this.probabilities.set(
-                        indices[j],
-                        (float) ((1.0 - this.learningRate) * this.probabilities.get(indices[j]) +
-                                                this.learningRate * occurs.get(indices[j]) / sum)
+            if(sum > 0) {
+                // updates probabilities using learning rate and relative frequencies
+                for(int j = 0; j < indices.length; j++) {
+                    newValue = (float) ((1.0 - this.learningRate) * this.probabilities.get(indices[j]) +
+                            this.learningRate * occurs.get(indices[j]) / sum);
+                    newSum += newValue;
+                    this.probabilities.set(
+                            indices[j],
+                            newValue
 
-                );
+                    );
+                }
+                rest = 1 - newSum;
+                newSum = 0;
+                for(int j = 0; j < indices.length; j++) {
+                    this.probabilities.set(indices[j], this.probabilities.get(indices[j]) + rest / indices.length);
+                    newSum += this.probabilities.get(indices[j]);
+                }
+
+                if(Math.abs(1 - newSum) > 0.01) {
+                    throw new Exception("does not sum up to 1!");
+                }
             }
         }
 
+        // clears NaN values
         for(int i = 0; i < probabilities.size(); i++) {
-            if(Double.isNaN(probabilities.get(i))) {
+            if(Double.isNaN(probabilities.get(i)) || probabilities.get(i) < 0) {
                 probabilities.set(i, (float)0);
 //                throw new Exception("found NaN value!");  // TODO throw away this code later
             }

@@ -1,4 +1,4 @@
-package eda;
+package eda.individual;
 
 import eda.aggregators.Aggregator;
 import eda.aggregators.CompetenceBasedAggregator;

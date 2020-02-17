@@ -1,17 +1,13 @@
 package dn.variables;
 
-import eda.Individual;
+import eda.individual.Individual;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import weka.classifiers.rules.DecisionTableHashKey;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 public class ContinuousVariable extends AbstractVariable {
 
@@ -70,80 +66,9 @@ public class ContinuousVariable extends AbstractVariable {
         return null;
     }
 
+    @Override
     public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-        ArrayList<Float> occurs = new ArrayList<>();
-        for(int i = 0; i < probabilities.size(); i++) {
-            occurs.add((float)0.0);
-        }
-
-        int to_select = Math.round(selectionShare * sortedIndices.length);
-
-        // gets the count of occurrences
-        for(int i = 0; i < to_select; i++) {
-            HashSet<Integer> parentIndices = this.getSetOfIndices(
-                    population[sortedIndices[i]].getCharacteristics(),
-                    null,
-                    false
-            );
-            HashSet<Integer> nullIndices = this.getSetOfIndices(
-                    population[sortedIndices[i]].getCharacteristics(),
-                    null,
-                    true
-            );
-
-            parentIndices.retainAll(nullIndices);
-
-            for(Object index : parentIndices.toArray()) {
-                occurs.set((int)index, occurs.get((int)index) + 1);
-            }
-        }
-
-//        throw new Exception("Check probabilities before updating normal distribution!");
-
-        ArrayList<HashMap<String, String>> combinations = new ArrayList<>();
-        for(Object value : this.getUniqueValues().toArray()) {
-            HashMap<String, String> local = new HashMap<>();
-            local.put(this.name, null);
-            combinations.add(local);
-        }
-        for(String parent : this.parents) {
-            ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>();
-            for(int i = 0; i < combinations.size(); i++) {
-                Object[] parentUniqueVals = this.table.get(parent).keySet().toArray();
-                for(int j = 0; j < parentUniqueVals.length; j++) {
-                    HashMap<String, String> local = (HashMap<String, String>)combinations.get(i).clone();
-                    local.put(parent, (String)parentUniqueVals[j]);
-                    new_combinations.add(local);
-                }
-            }
-            combinations = new_combinations;
-        }
-
-        for(int i = 0; i < combinations.size(); i++) {
-            int[] indices = this.getIndices(combinations.get(i), null, false);
-            float sum = 0;
-            for(int j = 0; j < indices.length; j++) {
-                sum += occurs.get(indices[j]);
-            }
-
-            // updates probabilities using learning rate and relative frequencies
-            for(int j = 0; j < indices.length; j++) {
-                this.probabilities.set(
-                        indices[j],
-                        (float) ((1.0 - this.learningRate) * this.probabilities.get(indices[j]) +
-                                this.learningRate * occurs.get(indices[j]) / sum)
-
-                );
-            }
-        }
-
-        for(int i = 0; i < probabilities.size(); i++) {
-            if(Double.isNaN(probabilities.get(i))) {
-                probabilities.set(i, (float)0);
-//                throw new Exception("found NaN value!");  // TODO throw away this code later
-            }
-        }
-
+        super.updateProbabilities(population, sortedIndices, selectionShare);
         this.updateNormalDistributions(population, sortedIndices, selectionShare);
     }
 
@@ -156,8 +81,10 @@ public class ContinuousVariable extends AbstractVariable {
         HashMap<Integer, DescriptiveStatistics> sampledValues = new HashMap<>(this.values.size());
 
         for(int i = 0; i < to_select; i++) {
+            // local characteristics
             HashMap<String, String> localCars = population[sortedIndices[i]].getCharacteristics();
             // this variable is not set for this individual; continue
+            // if this individual does not use this variable, then do not do anything
             if(localCars.get(this.name) == null) {
                 continue;
             }

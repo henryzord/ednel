@@ -3,8 +3,7 @@ package dn;
 import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
-import eda.BaselineIndividual;
-import eda.Individual;
+import eda.individual.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -129,7 +128,9 @@ public class DependencyNetwork {
 
         // TODO use laplace correction; check edna paper for this
 
-        for(int i = 0; i < sampleSize * thinning_factor; i++) {
+        int outerCounter = 0;
+        int individualCounter = 0;
+        while(individualCounter < sampleSize) {
             HashMap<String, String> optionTable = new HashMap<>(this.sampling_order.size());
 
             for(String variableName : this.sampling_order) {
@@ -172,7 +173,9 @@ public class DependencyNetwork {
                     }
                 }
             }
-            if((i % thinning_factor) == 0) {
+            outerCounter += 1;
+            if(outerCounter == thinning_factor) {
+                outerCounter = 0;
                 String[] options = new String [optionTable.size() * 2];
                 Object[] algNames = optionTable.keySet().toArray();
                 int counter = 0;
@@ -182,7 +185,8 @@ public class DependencyNetwork {
                     counter += 2;
                 }
 
-                individuals[i / sampleSize]  = new Individual(options, lastStart, train_data);
+                individuals[individualCounter]  = new Individual(options, lastStart, train_data);
+                individualCounter += 1;
             }
         }
         return individuals;
@@ -235,11 +239,9 @@ public class DependencyNetwork {
     }
 
     public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-
         for(String variableName : this.sampling_order) {
             this.variables.get(variableName).updateProbabilities(population, sortedIndices, selectionShare);
         }
-        int z = 0;
     }
 
     public void updateStructure(Individual[] population, Integer[] sortedIndices, float selectionShare) {
