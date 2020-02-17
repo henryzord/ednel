@@ -1,8 +1,10 @@
 package eda;
 
-import eda.ednel.AbstractEDNEL;
-import eda.ednel.OverallEDNEL;
+import eda.ednel.EDNEL;
+import eda.individual.FitnessCalculator;
 import org.apache.commons.cli.*;
+import org.apache.commons.math3.genetics.Fitness;
+import weka.classifiers.Evaluation;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
@@ -169,11 +171,15 @@ public class Main {
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH:mm:ss");
             LocalDateTime now = LocalDateTime.now();
             String str_time = dtf.format(now);
-            AbstractEDNEL.metadata_path_start(str_time, commandLine);
+            EDNEL.metadata_path_start(str_time, commandLine);
 
             for(String dataset_name : commandLine.getOptionValue("datasets_names").split(",")) {
-
+                System.out.println(String.format("On dataset %s:", dataset_name));
+                double meanOverallAUC = 0, meanLastAUC = 0;
+                double overallAUC, lastAUC;
                 for(int i = 0; i < n_samples; i++) {
+                    overallAUC = 0;
+                    lastAUC = 0;
                     for(int j = 1; j < 11; j++) {  // 10 folds
                         ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
                                 commandLine.getOptionValue("datasets_path") + File.separator +
@@ -188,7 +194,7 @@ public class Main {
                         train_data.setClassIndex(train_data.numAttributes() - 1);
                         test_data.setClassIndex(test_data.numAttributes() - 1);
 
-                        OverallEDNEL overallEDNEL = new OverallEDNEL(
+                        EDNEL ednel = new EDNEL(
                                 Float.parseFloat(commandLine.getOptionValue("learning_rate")),
                                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
                                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
@@ -202,13 +208,28 @@ public class Main {
                                 commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
                         );
 
-                        overallEDNEL.buildClassifier(train_data);
-                        // TODO predict!
+                        ednel.buildClassifier(train_data);
+                        Evaluation overallEval = new Evaluation(train_data);
+                        Evaluation lastEval = new Evaluation(train_data);
+                        overallEval.evaluateModel(ednel.getOverallBest(), test_data);
+                        lastEval.evaluateModel(ednel.getCurrentGenBest(), test_data);
 
-                        System.out.println("WARNING: exiting after first fold!");  // TODO remove!
-                        break;  // TODO remove!
+                        overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(overallEval);
+                        lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(lastEval);
                     }
+                    overallAUC /= 10;
+                    lastAUC /= 10;
+
+                    meanOverallAUC += overallAUC;
+                    meanLastAUC += lastAUC;
+
+                    System.out.println(String.format("Partial results for sample %d on dataset %s:", i, dataset_name));
+                    System.out.println(String.format("\tOverall: %.8f\t\tLast: %.8f", overallAUC, lastAUC));
                 }
+                meanLastAUC /= n_samples;
+                meanOverallAUC /= n_samples;
+                System.out.println(String.format("Average of %d samples of 10-fcv on dataset %s:", n_samples, dataset_name));
+                System.out.println(String.format("\tOverall: %.8f\t\tLast: %.8f", meanOverallAUC, meanLastAUC));
             }
 
         } catch (ParseException exception) {

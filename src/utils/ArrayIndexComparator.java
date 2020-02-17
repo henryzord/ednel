@@ -20,6 +20,6 @@ public class ArrayIndexComparator implements Comparator<Integer>
 
     @Override
     public int compare(Integer index1, Integer index2) {
-        return array[index1].compareTo(array[index2]);
+        return array[index2].compareTo(array[index1]);
     }
 }

@@ -22,7 +22,7 @@ import weka.core.Instances;
 import java.util.Arrays;
 import java.util.HashMap;
 
-public abstract class AbstractEDNEL extends AbstractClassifier {
+public class EDNEL extends AbstractClassifier {
 
     protected int thining_factor;
     protected String options_path;
@@ -46,8 +46,8 @@ public abstract class AbstractEDNEL extends AbstractClassifier {
     protected Double currentGenFitness;
     protected Double overallFitness;
 
-    public AbstractEDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
-                         String variables_path, String options_path, String sampling_order_path, String output_path, Integer seed) throws Exception {
+    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
+                 String variables_path, String options_path, String sampling_order_path, String output_path, Integer seed) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
@@ -84,8 +84,8 @@ public abstract class AbstractEDNEL extends AbstractClassifier {
         BaselineIndividual bi = new BaselineIndividual(data);
         HashMap<String, String> startPoint = bi.getCharacteristics();
 
+        System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax"));
         for(int c = 0; c < this.n_generations; c++) {
-            System.out.println("at generation " + c); // TODO remove
             Individual[] population = dn.gibbsSample(startPoint, thining_factor, this.n_individuals, data);
 
             Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
@@ -93,6 +93,7 @@ public abstract class AbstractEDNEL extends AbstractClassifier {
             ArrayIndexComparator comparator = new ArrayIndexComparator(fitnesses[0]);
             Integer[] sortedIndices = comparator.createIndexArray();
             Arrays.sort(sortedIndices, comparator);
+
             this.currentGenBest = population[sortedIndices[0]];
             this.currentGenFitness = fitnesses[0][sortedIndices[0]];
 
@@ -100,6 +101,15 @@ public abstract class AbstractEDNEL extends AbstractClassifier {
                 this.overallFitness = this.currentGenFitness;
                 this.overallBest = this.currentGenBest;
             }
+
+            System.out.println(String.format(
+                    "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f",
+                    c,
+                    population.length,
+                    fitnesses[0][sortedIndices[sortedIndices.length - 1]],
+                    fitnesses[0][sortedIndices[sortedIndices.length / 2]],
+                    fitnesses[0][sortedIndices[0]]
+            ));
 
             this.dn.updateStructure(population, sortedIndices, this.selection_share);  // TODO update structure
             this.dn.updateProbabilities(population, sortedIndices, this.selection_share);
@@ -120,9 +130,9 @@ public abstract class AbstractEDNEL extends AbstractClassifier {
         String metadata_path = commandLine.getOptionValue("metadata_path");
 
         // create one folder for each dataset
-        AbstractEDNEL.createFolder(metadata_path + File.separator + str_time);
+        EDNEL.createFolder(metadata_path + File.separator + str_time);
         for(String dataset : dataset_names) {
-            AbstractEDNEL.createFolder(metadata_path + File.separator + str_time + File.separator + dataset);
+            EDNEL.createFolder(metadata_path + File.separator + str_time + File.separator + dataset);
         }
 
         JSONObject obj = new JSONObject();
