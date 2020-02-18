@@ -1,6 +1,7 @@
 package eda.ednel;
 
 import dn.DependencyNetwork;
+import dn.stoppers.EarlyStop;
 import eda.individual.BaselineIndividual;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
@@ -46,6 +47,8 @@ public class EDNEL extends AbstractClassifier {
     protected Double currentGenFitness;
     protected Double overallFitness;
 
+    protected EarlyStop earlyStop;
+
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
                  String variables_path, String options_path, String sampling_order_path, String output_path, Integer seed) throws Exception {
 
@@ -61,6 +64,8 @@ public class EDNEL extends AbstractClassifier {
         this.sampling_order_path = sampling_order_path;
 
         this.overallFitness = -1.0;
+
+        this.earlyStop = new EarlyStop();
 
         this.fitted = false;
 
@@ -86,6 +91,10 @@ public class EDNEL extends AbstractClassifier {
 
         System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax"));
         for(int c = 0; c < this.n_generations; c++) {
+            if(this.earlyStop.isStopping()) {
+                break;
+            }
+
             Individual[] population = dn.gibbsSample(startPoint, thining_factor, this.n_individuals, data);
 
             Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
@@ -101,6 +110,8 @@ public class EDNEL extends AbstractClassifier {
                 this.overallFitness = this.currentGenFitness;
                 this.overallBest = this.currentGenBest;
             }
+
+            this.earlyStop.update(c, fitnesses[0][sortedIndices[0]]);
 
             System.out.println(String.format(
                     "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f",
