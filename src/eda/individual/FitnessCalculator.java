@@ -2,6 +2,7 @@ package eda.individual;
 
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
+import weka.core.Utils;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -28,12 +29,16 @@ public class FitnessCalculator {
     }
 
     public static double getUnweightedAreaUnderROC(Evaluation evaluation) {
-        double [][] confusionMatrix = evaluation.confusionMatrix();
-        int n_classes = confusionMatrix.length;
+        int n_classes = evaluation.confusionMatrix().length;
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
-            unweighted += evaluation.areaUnderROC(i);
+            if(Utils.isMissingValue(evaluation.areaUnderROC(i))) {
+                unweighted += 0;  // TODO testing!
+            } else {
+                unweighted += evaluation.areaUnderROC(i);
+            }
         }
+
         return unweighted / n_classes;
     }
 

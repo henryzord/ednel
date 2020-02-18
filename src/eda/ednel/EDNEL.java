@@ -111,7 +111,7 @@ public class EDNEL extends AbstractClassifier {
                 this.overallBest = this.currentGenBest;
             }
 
-            this.earlyStop.update(c, fitnesses[0][sortedIndices[0]]);
+            this.earlyStop.update(c, this.currentGenFitness);
 
             System.out.println(String.format(
                     "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f",
