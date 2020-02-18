@@ -4,6 +4,7 @@ import eda.ednel.EDNEL;
 import eda.individual.FitnessCalculator;
 import org.apache.commons.cli.*;
 import org.apache.commons.math3.genetics.Fitness;
+import utils.PBILLogger;
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
@@ -171,13 +172,13 @@ public class Main {
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH:mm:ss");
             LocalDateTime now = LocalDateTime.now();
             String str_time = dtf.format(now);
-            EDNEL.metadata_path_start(str_time, commandLine);
+            PBILLogger.metadata_path_start(str_time, commandLine);
 
             for(String dataset_name : commandLine.getOptionValue("datasets_names").split(",")) {
                 System.out.println(String.format("On dataset %s:", dataset_name));
                 double meanOverallAUC = 0, meanLastAUC = 0;
                 double overallAUC, lastAUC;
-                for(int i = 0; i < n_samples; i++) {
+                for(int i = 1; i < n_samples + 1; i++) {
                     overallAUC = 0;
                     lastAUC = 0;
                     for(int j = 1; j < 11; j++) {  // 10 folds
@@ -194,6 +195,12 @@ public class Main {
                         train_data.setClassIndex(train_data.numAttributes() - 1);
                         test_data.setClassIndex(test_data.numAttributes() - 1);
 
+                        PBILLogger pbilLogger = new PBILLogger(
+                                commandLine.getOptionValue("metadata_path") + File.separator +
+                                        str_time + File.separator + dataset_name,
+                                Integer.parseInt(commandLine.getOptionValue("n_individuals")), i, j
+                        );
+
                         EDNEL ednel = new EDNEL(
                                 Float.parseFloat(commandLine.getOptionValue("learning_rate")),
                                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
@@ -203,16 +210,19 @@ public class Main {
                                 commandLine.getOptionValue("variables_path"),
                                 commandLine.getOptionValue("options_path"),
                                 commandLine.getOptionValue("sampling_order_path"),
-                                commandLine.getOptionValue("metadata_path") + File.separator +
-                                        str_time + dataset_name,
+                                pbilLogger,
                                 commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
                         );
 
                         ednel.buildClassifier(train_data);
+
                         Evaluation overallEval = new Evaluation(train_data);
                         Evaluation lastEval = new Evaluation(train_data);
+
                         overallEval.evaluateModel(ednel.getOverallBest(), test_data);
                         lastEval.evaluateModel(ednel.getCurrentGenBest(), test_data);
+
+                        ednel.getPbilLogger().toFile(overallEval, lastEval);
 
                         overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(overallEval);
                         lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(lastEval);

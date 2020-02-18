@@ -17,6 +17,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 
 import utils.ArrayIndexComparator;
+import utils.PBILLogger;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
@@ -33,7 +34,7 @@ public class EDNEL extends AbstractClassifier {
     protected float selection_share;
     protected int n_individuals;
     protected int n_generations;
-    protected String output_path;
+    protected PBILLogger pbilLogger;
     protected Integer seed;
 
     protected boolean fitted;
@@ -50,7 +51,7 @@ public class EDNEL extends AbstractClassifier {
     protected EarlyStop earlyStop;
 
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
-                 String variables_path, String options_path, String sampling_order_path, String output_path, Integer seed) throws Exception {
+                 String variables_path, String options_path, String sampling_order_path, PBILLogger pbilLogger, Integer seed) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
@@ -58,7 +59,7 @@ public class EDNEL extends AbstractClassifier {
         this.n_generations = n_generations;
         this.thining_factor = thining_factor;
 
-        this.output_path = output_path;
+        this.pbilLogger = pbilLogger;
         this.variables_path = variables_path;
         this.options_path = options_path;
         this.sampling_order_path = sampling_order_path;
@@ -112,15 +113,13 @@ public class EDNEL extends AbstractClassifier {
             }
 
             this.earlyStop.update(c, this.currentGenFitness);
-
-            System.out.println(String.format(
-                    "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f",
-                    c,
-                    population.length,
-                    fitnesses[0][sortedIndices[sortedIndices.length - 1]],
-                    fitnesses[0][sortedIndices[sortedIndices.length / 2]],
-                    fitnesses[0][sortedIndices[0]]
-            ));
+            this.pbilLogger.logPopulation(
+                    fitnesses[0][sortedIndices.length - 1],
+                    fitnesses[0][sortedIndices.length / 2],
+                    fitnesses[0][sortedIndices[0]],
+                    this.overallBest, this.currentGenBest
+            );
+            this.pbilLogger.print();
 
             this.dn.updateStructure(population, sortedIndices, this.selection_share);  // TODO update structure
             this.dn.updateProbabilities(population, sortedIndices, this.selection_share);
@@ -128,32 +127,8 @@ public class EDNEL extends AbstractClassifier {
         this.fitted = true;
     }
 
-    protected static void createFolder(String path) throws FilerException {
-        File file = new File(path);
-        boolean successful = file.mkdir();
-        if(!successful) {
-            throw new FilerException("could not create directory " + path);
-        }
-    }
-
-    public static void metadata_path_start(String str_time, CommandLine commandLine) throws ParseException, IOException {
-        String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
-        String metadata_path = commandLine.getOptionValue("metadata_path");
-
-        // create one folder for each dataset
-        EDNEL.createFolder(metadata_path + File.separator + str_time);
-        for(String dataset : dataset_names) {
-            EDNEL.createFolder(metadata_path + File.separator + str_time + File.separator + dataset);
-        }
-
-        JSONObject obj = new JSONObject();
-        for(Option parameter : commandLine.getOptions()) {
-            obj.put(parameter.getLongOpt(), parameter.getValue());
-        }
-
-        FileWriter fw = new FileWriter(metadata_path + File.separator + str_time + File.separator + "parameters.json");
-        fw.write(obj.toJSONString());
-        fw.flush();
+    public PBILLogger getPbilLogger() {
+        return pbilLogger;
     }
 
     public Individual getCurrentGenBest() {
