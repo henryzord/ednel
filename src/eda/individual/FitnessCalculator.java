@@ -1,5 +1,6 @@
 package eda.individual;
 
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
 import weka.core.Utils;
@@ -28,14 +29,20 @@ public class FitnessCalculator {
         this.n_folds = n_folds;
     }
 
+    public static double getUnweightedAreaUnderROC(Instances train_data, Instances test_data, AbstractClassifier clf) throws Exception {
+        Evaluation evaluation = new Evaluation(train_data);
+        evaluation.evaluateModel(clf, test_data);
+        return getUnweightedAreaUnderROC(evaluation);
+    }
+
     public static double getUnweightedAreaUnderROC(Evaluation evaluation) {
         int n_classes = evaluation.confusionMatrix().length;
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
             if(Utils.isMissingValue(evaluation.areaUnderROC(i))) {
-                unweighted += 0;  // TODO testing!
+                unweighted += 0;
             } else {
-                unweighted += evaluation.areaUnderROC(i);
+              unweighted += evaluation.areaUnderROC(i);
             }
         }
 

@@ -7,6 +7,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
 import org.json.simple.JSONObject;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
 
@@ -15,6 +16,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +48,6 @@ public class PBILLogger {
             "KBRelativeInformation",
             "meanAbsoluteError",
             "meanPriorAbsoluteError",
-            // "nClasses",
             "numInstances",
             "pctCorrect",
             "pctIncorrect",
@@ -108,32 +109,82 @@ public class PBILLogger {
 
     }
 
-    public void toFile(Evaluation overallEval, Evaluation lastEval) throws Exception {
-        Method[] overallMethods = overallEval.getClass().getMethods();
-        Method[] lastMethods = lastEval.getClass().getMethods();
+    private String getLineForClassifier(String name, Evaluation evaluation) throws InvocationTargetException, IllegalAccessException {
+        Method[] overallMethods = evaluation.getClass().getMethods();
+
         HashMap<String, Method> overallMethodDict = new HashMap<>(overallMethods.length);
-        HashMap<String, Method> lastMethodDict = new HashMap<>(lastMethods.length);
+
         for(Method method : overallMethods) {
             overallMethodDict.put(method.getName(), method);
         }
-        for(Method method : lastMethods) {
-            lastMethodDict.put(method.getName(), method);
+
+        String line = name;
+
+        for(String methodName : metricsToCollect) {
+
+            Object res = overallMethodDict.get(methodName).invoke(evaluation);
+
+            if(res.getClass().isArray()) {
+                try {
+                    double[] doublyOverall = ((double[])res);
+
+                    line += ", \"np.array([";
+                    for(int k = 0; k < doublyOverall.length; k++) {
+                        line += doublyOverall[k] + ",";
+                    }
+                    line = line.substring(0, line.lastIndexOf(",")) + "], dtype=np.float64)\"";
+                } catch(ClassCastException e) {
+                    double[][] doublyOverall = ((double[][])res);
+
+                    line += ", \"np.array([[";
+                    for(int j = 0; j < doublyOverall.length; j++) {
+                        for(int k = 0; k < doublyOverall[j].length; k++) {
+                            line += doublyOverall[j][k] + ",";
+                        }
+                        line = line.substring(0, line.lastIndexOf(",")) + "],[";
+                    }
+                    line = line.substring(0, line.lastIndexOf(",[")) + "], dtype=np.float64)\"";
+                } catch(Exception e) {
+                    throw(e);
+                }
+
+            } else {
+                line += "," + res;
+            }
+        }
+        return line + "," + FitnessCalculator.getUnweightedAreaUnderROC(evaluation) + "\n";
+    }
+
+    public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+        BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
+
+        HashMap<String, Evaluation> clfEvaluations = new HashMap<>(14);
+
+        for(String indName : individuals.keySet()) {
+            Evaluation evaluation = new Evaluation(train_data);
+            HashMap<String, AbstractClassifier> overallClassifiers = individuals.get(indName).getClassifiers();
+            evaluation.evaluateModel(individuals.get(indName), test_data);
+
+            clfEvaluations.put(indName, evaluation);
+
+            for(String key: overallClassifiers.keySet()) {
+                if(overallClassifiers.get(key) != null) {
+                    evaluation.evaluateModel(overallClassifiers.get(key), test_data);
+                }
+                clfEvaluations.put(indName + "-" + key, evaluation);
+            }
         }
 
+        // writes header
         String header = "algorithm";
-        String overallLine = "overall";
-        String lastLine = "last";
-
-        BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
         for(String methodName : metricsToCollect) {
             header += "," + methodName;
-            overallLine += "," + overallMethodDict.get(methodName).invoke(overallEval);
-            lastLine += "," + lastMethodDict.get(methodName).invoke(lastEval);
         }
         bw.write(header + "," + "unweightedAreaUnderRoc" + "\n");
-        bw.write(overallLine + "," + FitnessCalculator.getUnweightedAreaUnderROC(overallEval) + "\n");
-        bw.write(lastLine + "," + FitnessCalculator.getUnweightedAreaUnderROC(lastEval) + "\n");
 
+        for(String clf: clfEvaluations.keySet()) {
+            bw.write(this.getLineForClassifier(clf, clfEvaluations.get(clf)));
+        }
         bw.close();
     }
 

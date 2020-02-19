@@ -34,6 +34,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     protected HashMap<String, String> characteristics = null;
 
+    protected HashMap<String, AbstractClassifier> classifiers;
 
     public Individual() throws Exception {
         this.j48 = new J48();
@@ -44,15 +45,18 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.simpleCart = new SimpleCart();
 
         this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
+
+        this.classifiers = new HashMap<>(6);
+        this.classifiers.put("J48", this.j48);
+        this.classifiers.put("SimpleCart", this.simpleCart);
+        this.classifiers.put("PART", this.part);
+        this.classifiers.put("JRip", this.jrip);
+        this.classifiers.put("REPTree", this.jrip);
+        this.classifiers.put("DecisionTable", this.decisionTable);
     }
 
     public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
-        this.j48 = new J48();
-        this.part = new PART();
-        this.repTree = new REPTree();
-        this.jrip = new JRip();
-        this.decisionTable = new DecisionTable();
-        this.simpleCart = new SimpleCart();
+        this();
 
         this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
 
@@ -277,6 +281,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         return strOptions;
     }
 
+    public HashMap<String, AbstractClassifier> getClassifiers() {
+        return classifiers;
+    }
+
     @Override
     public String toString() {
         return "method not implemented yet";
@@ -294,3 +302,4 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         return null;
     }
 }
+

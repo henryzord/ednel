@@ -2,9 +2,10 @@ package eda;
 
 import eda.ednel.EDNEL;
 import eda.individual.FitnessCalculator;
+import eda.individual.Individual;
 import org.apache.commons.cli.*;
-import org.apache.commons.math3.genetics.Fitness;
 import utils.PBILLogger;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
@@ -12,6 +13,7 @@ import weka.core.converters.ConverterUtils;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 
 public class Main {
     public static void main(String[] args) {
@@ -216,28 +218,21 @@ public class Main {
 
                         ednel.buildClassifier(train_data);
 
-                        Evaluation overallEval = new Evaluation(train_data);
-                        Evaluation lastEval = new Evaluation(train_data);
+                        HashMap<String, Individual> toReport = new HashMap<>(2);
+                        toReport.put("overall", ednel.getOverallBest());
+                        toReport.put("last", ednel.getCurrentGenBest());
 
-                        overallEval.evaluateModel(ednel.getOverallBest(), test_data);
-                        lastEval.evaluateModel(ednel.getCurrentGenBest(), test_data);
+                        ednel.getPbilLogger().toFile(toReport, train_data, test_data);
 
-                        ednel.getPbilLogger().toFile(overallEval, lastEval);
-
-                        overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(overallEval);
-                        lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(lastEval);
+                        overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest()) / 10;
+                        lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest()) / 10;
                     }
-                    overallAUC /= 10;
-                    lastAUC /= 10;
-
-                    meanOverallAUC += overallAUC;
-                    meanLastAUC += lastAUC;
+                    meanOverallAUC += overallAUC / n_samples;
+                    meanLastAUC += lastAUC / n_samples;
 
                     System.out.println(String.format("Partial results for sample %d on dataset %s:", i, dataset_name));
                     System.out.println(String.format("\tOverall: %.8f\t\tLast: %.8f", overallAUC, lastAUC));
                 }
-                meanLastAUC /= n_samples;
-                meanOverallAUC /= n_samples;
                 System.out.println(String.format("Average of %d samples of 10-fcv on dataset %s:", n_samples, dataset_name));
                 System.out.println(String.format("\tOverall: %.8f\t\tLast: %.8f", meanOverallAUC, meanLastAUC));
             }
