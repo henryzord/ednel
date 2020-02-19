@@ -1,6 +1,7 @@
 package utils;
 
 import dn.DependencyNetwork;
+import eda.individual.BaselineIndividual;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
 import org.apache.commons.cli.CommandLine;
@@ -109,7 +110,8 @@ public class PBILLogger {
 
     }
 
-    private String getLineForClassifier(String name, Evaluation evaluation) throws InvocationTargetException, IllegalAccessException {
+    private String getEvaluationLineForClassifier(
+            String name, Evaluation evaluation) throws InvocationTargetException, IllegalAccessException {
         Method[] overallMethods = evaluation.getClass().getMethods();
 
         HashMap<String, Method> overallMethodDict = new HashMap<>(overallMethods.length);
@@ -155,7 +157,7 @@ public class PBILLogger {
         return line + "," + FitnessCalculator.getUnweightedAreaUnderROC(evaluation) + "\n";
     }
 
-    public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+    private void evaluationsToFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
         BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
 
         HashMap<String, Evaluation> clfEvaluations = new HashMap<>(14);
@@ -183,8 +185,47 @@ public class PBILLogger {
         bw.write(header + "," + "unweightedAreaUnderRoc" + "\n");
 
         for(String clf: clfEvaluations.keySet()) {
-            bw.write(this.getLineForClassifier(clf, clfEvaluations.get(clf)));
+            bw.write(this.getEvaluationLineForClassifier(clf, clfEvaluations.get(clf)));
         }
+        bw.close();
+    }
+
+    public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+        evaluationsToFile(individuals, train_data, test_data);
+        individualsCharacteristicsToFile(individuals);
+    }
+
+    private String getCharacteristicsLineForIndividual(Object[] order, String indName, HashMap<String, String> characteristics) {
+        String line = indName;
+        for(Object ch : order) {
+            line += "," + characteristics.get(ch);
+        }
+        return line + "\n";
+    }
+
+    private void individualsCharacteristicsToFile(HashMap<String, Individual> individuals) throws IOException {
+        String thisRunFolder = String.format(
+                "%s%ssample_%02d_fold_%02d",
+                this.dataset_metadata_path, File.separator, this.n_sample, this.n_fold
+        );
+        PBILLogger.createFolder(thisRunFolder);
+
+        BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.csv"));
+
+        Object[] characteristicsNames = null;
+        for(String indName : individuals.keySet()) {
+            HashMap<String, String> characteristics = individuals.get(indName).getCharacteristics();
+            if(characteristicsNames == null) {
+                characteristicsNames = characteristics.keySet().toArray();
+                String header = "individual_name";
+                for(int i = 0; i < characteristicsNames.length; i++) {
+                    header += "," + characteristicsNames[i];
+                }
+                bw.write(header + "\n");
+            }
+            bw.write(this.getCharacteristicsLineForIndividual(characteristicsNames, indName, characteristics));
+        }
+
         bw.close();
     }
 

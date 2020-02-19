@@ -5,8 +5,6 @@ import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
 import org.apache.commons.cli.*;
 import utils.PBILLogger;
-import weka.classifiers.AbstractClassifier;
-import weka.classifiers.Evaluation;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
