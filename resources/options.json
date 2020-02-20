@@ -89,6 +89,12 @@
     "ptype": "discrete",
     "dtype": "np.bool"
   },
+  "DecisionTable_displayRules": {
+    "optionName": "-R",
+    "presenceMeans": true,
+    "ptype": "discrete",
+    "dtype": "np.bool"
+  },
   "DecisionTable_crossVal": {
     "optionName": "-X",
     "presenceMeans": true,

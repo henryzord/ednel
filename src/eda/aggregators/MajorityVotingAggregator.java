@@ -13,19 +13,19 @@ public class MajorityVotingAggregator extends Aggregator implements Serializable
      *
      * The fusion aggregation performed is described in Equation 5.17 (p 150) of the Book
      *
-     * Kuncheva, Ludmila I. Combining pattern classifiers: methods and algorithms. John Wiley & Sons, 2004.
+     * Kuncheva, Ludmila I. Combining pattern eda.classifiers: methods and algorithms. John Wiley & Sons, 2004.
      *
      * The fusion function is:
      *
      * .. math:: \mu(\mathbf{x}) = argmax_{j \in C}( 1/B \sum_{i \in B} d_{i,j}(\mathbf{x}))
      *
      * where :math:`\mu(\mathbf{x})` is the prediction of instance :math:`\mathbf{x}`, :math:`B` the number of base
-     * classifiers, :math:`C` the number of classes, and :math:`d_{i,j}` the confidence of the :math:`j`-th classifier
+     * eda.classifiers, :math:`C` the number of classes, and :math:`d_{i,j}` the confidence of the :math:`j`-th classifier
      * that the instance belongs to the :math:`i`-th class.
      *
-     * This basically translates to assigning the class with the largest average support among all base classifiers.
+     * This basically translates to assigning the class with the largest average support among all base eda.classifiers.
      *
-     * @param distributions: A 3D matrix with one axis for classifiers, another for instances, and the last for classes.
+     * @param distributions: A 3D matrix with one axis for eda.classifiers, another for instances, and the last for classes.
      * @return a 2D matrix where each row is an instance and each column a class.
      */
     public double[][] aggregateProba(double[][][] distributions) {

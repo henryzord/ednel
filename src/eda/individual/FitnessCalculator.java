@@ -161,7 +161,7 @@ public class FitnessCalculator {
      * filename <br/>
      * e.g., <br/>
      * java -classpath ".:weka.jar" eda.EDAEvaluator \<br/>
-     * CLASSIFIER weka.classifiers.trees.J48 -U \<br/>
+     * CLASSIFIER weka.eda.classifiers.trees.J48 -U \<br/>
      * FILTER weka.filters.unsupervised.instance.Randomize \<br/>
      * DATASET iris.arff<br/>
      */

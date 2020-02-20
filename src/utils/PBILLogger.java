@@ -1,7 +1,7 @@
 package utils;
 
 import dn.DependencyNetwork;
-import eda.individual.BaselineIndividual;
+import eda.classifiers.trees.SimpleCart;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
 import org.apache.commons.cli.CommandLine;
@@ -10,9 +10,15 @@ import org.apache.commons.cli.ParseException;
 import org.json.simple.JSONObject;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.rules.DecisionTable;
+import weka.classifiers.rules.JRip;
+import weka.classifiers.rules.PART;
 import weka.core.Instances;
 
+import weka.classifiers.trees.J48;
+
 import javax.annotation.processing.FilerException;
+import javax.xml.soap.Detail;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -35,6 +41,8 @@ public class PBILLogger {
     protected ArrayList<Double> minFitness;
     protected ArrayList<Double> maxFitness;
     protected ArrayList<Double> medianFitness;
+
+
 
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
@@ -191,8 +199,33 @@ public class PBILLogger {
     }
 
     public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+        String thisRunFolder = String.format(
+                "%s%ssample_%02d_fold_%02d",
+                this.dataset_metadata_path, File.separator, this.n_sample, this.n_fold
+        );
+
         evaluationsToFile(individuals, train_data, test_data);
-        individualsCharacteristicsToFile(individuals);
+        individualsCharacteristicsToFile(thisRunFolder, individuals);
+        individualsClassifiersToFile(thisRunFolder, individuals);
+    }
+
+    private void individualsClassifiersToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws Exception {
+        for(String indName : individuals.keySet()) {
+            BufferedWriter bw = new BufferedWriter(new FileWriter(
+                    thisRunFolder + File.separator + indName  + "_classifiers.csv"
+            ));
+
+            // TODO optimize this. each classifier must be better written
+            HashMap<String, AbstractClassifier> classifiers = individuals.get(indName).getClassifiers();
+            for(String clfName : classifiers.keySet()) {
+                AbstractClassifier clf = classifiers.get(clfName);
+
+                String clfString = PBILLogger.formatClassifierString(clf);
+                bw.write(clfName + "\n");
+                bw.write(clfString + "\n\n\n");
+            }
+            bw.close();
+        }
     }
 
     private String getCharacteristicsLineForIndividual(Object[] order, String indName, HashMap<String, String> characteristics) {
@@ -203,14 +236,10 @@ public class PBILLogger {
         return line + "\n";
     }
 
-    private void individualsCharacteristicsToFile(HashMap<String, Individual> individuals) throws IOException {
-        String thisRunFolder = String.format(
-                "%s%ssample_%02d_fold_%02d",
-                this.dataset_metadata_path, File.separator, this.n_sample, this.n_fold
-        );
+    private void individualsCharacteristicsToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws IOException {
         PBILLogger.createFolder(thisRunFolder);
 
-        BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.csv"));
+        BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.md"));
 
         Object[] characteristicsNames = null;
         for(String indName : individuals.keySet()) {
@@ -268,4 +297,74 @@ public class PBILLogger {
                 this.medianFitness.get(this.curGen - 1)
         ));
     }
+
+    public static String formatClassifierString(AbstractClassifier clf) throws Exception {
+        return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
+    }
+
+    public static String formatJ48String(AbstractClassifier clf) throws Exception {
+        try {
+            String header = "# J48 Decision Tree";
+            //        String rawBody = ;
+
+//            body = '\n\n'.join(map(lambda x: x.strip(), txt.split('------------------')[-1].split('Number of Leaves')[0].strip().replace('|   ', '  * ').split('\n')))
+
+//            return '%s\n\n%s' % (header, body)
+            return clf.toString();
+        } catch(Exception e) {
+            return clf.toString();
+        }
+    }
+    public static String formatSimpleCartString(AbstractClassifier clf) throws Exception  {
+        return clf.toString();
+    }
+    public static String formatJRipString(AbstractClassifier clf) throws Exception {
+        return clf.toString();
+    }
+    public static String formatPARTString(AbstractClassifier clf) throws Exception {
+        return clf.toString();
+    }
+    public static String formatDecisionTableString(AbstractClassifier clf) throws Exception {
+        Boolean usesIbk = (Boolean) DecisionTable.class.getMethod("getUseIBk").invoke(clf);
+
+        String defaultString = "Non matches covered by " + (usesIbk? "IB1" : "Majority class");
+        String[] lines = clf.toString().toLowerCase().replaceAll("\'", "").split("rules:")[1].split("\n");
+
+        // TODO do not join null values!
+        ArrayList<String> sanitized_lines = new ArrayList<String>(lines.length);
+
+        int count_columns = 0;
+        for(String line : lines) {
+            if(line.contains("=")) {
+                if(sanitized_lines.size() == 1) {
+                    String delimiter = "---";
+                    for(int k = 1; k < count_columns; k++) {
+                        delimiter += "|---";
+                    }
+                    sanitized_lines.add(delimiter);
+                }
+            } else if ((line.length() > 0)) {
+                String[] columns = line.trim().split(" ");
+                ArrayList<String> sanitized_columns = new ArrayList<String>(columns.length);
+                count_columns = 0;
+                for(String column : columns) {
+                    if (column.length() > 0) {
+                        sanitized_columns.add(column);
+                        count_columns += 1;
+                    }
+                }
+                sanitized_lines.add(String.join("|", sanitized_columns));
+            }
+        }
+
+//        fmt = ['---' for i in range(len(df.columns))]
+//        df_fmt = pd.DataFrame([fmt], columns=df.columns)
+//        df_formatted = pd.concat([df_fmt, df])
+//        table_str = df_formatted.to_csv(sep="|", index=False)
+        String table_str  = String.join("\n", sanitized_lines);
+
+        String r_str = String.format("# Decision Table\n\n%s\n\n%s", defaultString, table_str);
+        return r_str;
+    }
+
 }

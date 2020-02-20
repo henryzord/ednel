@@ -19,7 +19,7 @@
  *
  */
 
-package eda.trees;
+package eda.classifiers.trees;
 
 import weka.classifiers.Evaluation;
 import weka.classifiers.RandomizableClassifier;

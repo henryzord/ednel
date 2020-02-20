@@ -43,7 +43,7 @@ public class Main {
                 .type(String.class)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Path to file with classifiers and their hyper-parameters.")
+                .desc("Path to file with eda.classifiers and their hyper-parameters.")
                 .build()
         );
 
@@ -89,7 +89,7 @@ public class Main {
                 .type(Integer.class)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Seed used to initialize base classifiers (i.e. Weka-related). It is not used to bias PBIL.")
+                .desc("Seed used to initialize base eda.classifiers (i.e. Weka-related). It is not used to bias PBIL.")
                 .build());
 
         options.addOption(Option.builder()

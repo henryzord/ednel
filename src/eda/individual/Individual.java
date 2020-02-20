@@ -3,7 +3,7 @@ package eda.individual;
 import eda.aggregators.Aggregator;
 import eda.aggregators.CompetenceBasedAggregator;
 import eda.aggregators.MajorityVotingAggregator;
-import eda.trees.SimpleCart;
+import eda.classifiers.trees.SimpleCart;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
@@ -66,12 +66,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
 //    public String[][] getClassifiersNames() {
 //        return new String[][]{
-//            {"j48", "J48", "Lweka/classifiers/trees/J48;"},
-//            {"simpleCart", "SimpleCart", "Lweka/classifiers/trees/SimpleCart;"},
-//            {"repTree", "REPTree", "Lweka/classifiers/trees/REPTree;"},
-//            {"part", "PART", "Lweka/classifiers/rules/PART;"},
-//            {"jrip", "JRip", "Lweka/classifiers/rules/JRip;"},
-//            {"decisionTable", "DecisionTable", "Lweka/classifiers/rules/DecisionTable;"}
+//            {"j48", "J48", "Lweka/eda.classifiers/trees/J48;"},
+//            {"simpleCart", "SimpleCart", "Lweka/eda.classifiers/trees/SimpleCart;"},
+//            {"repTree", "REPTree", "Lweka/eda.classifiers/trees/REPTree;"},
+//            {"part", "PART", "Lweka/eda.classifiers/rules/PART;"},
+//            {"jrip", "JRip", "Lweka/eda.classifiers/rules/JRip;"},
+//            {"decisionTable", "DecisionTable", "Lweka/eda.classifiers/rules/DecisionTable;"}
 //        };
 //    }
 

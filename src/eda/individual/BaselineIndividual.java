@@ -1,5 +1,5 @@
 /**
- * An individual with default hyper-parameters from Weka for each one of its classifiers.
+ * An individual with default hyper-parameters from Weka for each one of its eda.classifiers.
  */
 
 package eda.individual;
@@ -72,6 +72,7 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("PART_numFolds", null);
         this.characteristics.put("DecisionTable", "true");
         this.characteristics.put("DecisionTable_useIBk", "false");
+        this.characteristics.put("DecisionTable_displayRules", "true");
         this.characteristics.put("DecisionTable_crossVal", "1");
         this.characteristics.put("DecisionTable_evaluationMeasure", "auc");
         this.characteristics.put("DecisionTable_search", "BestFirst");

@@ -37,6 +37,7 @@ PART_seed
 PART_numFolds
 DecisionTable
 DecisionTable_useIBk
+DecisionTable_displayRules
 DecisionTable_crossVal
 DecisionTable_evaluationMeasure
 DecisionTable_search
