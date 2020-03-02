@@ -9,7 +9,6 @@ import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
-import weka.classifiers.trees.REPTree;
 import weka.core.Instances;
 
 import java.io.BufferedReader;
@@ -22,7 +21,6 @@ public class BaselineIndividual extends Individual {
 
         this.j48 = new J48();
         this.part = new PART();
-        this.repTree = null;
         this.jrip = new JRip();
         this.decisionTable = new DecisionTable();
         this.simpleCart = new SimpleCart();

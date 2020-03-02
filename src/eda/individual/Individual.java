@@ -11,7 +11,6 @@ import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
-import weka.classifiers.trees.REPTree;
 import weka.core.*;
 
 import java.util.ArrayList;
@@ -21,7 +20,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     public J48 j48;
     public SimpleCart simpleCart;
-    public REPTree repTree;
     public PART part;
     public JRip jrip;
     public DecisionTable decisionTable;
@@ -39,7 +37,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     public Individual() throws Exception {
         this.j48 = null;
         this.part = null;
-        this.repTree = null;
         this.jrip = null;
         this.decisionTable = null;
         this.simpleCart = null;
@@ -51,7 +48,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.classifiers.put("SimpleCart", null);
         this.classifiers.put("PART", null);
         this.classifiers.put("JRip", null);
-        this.classifiers.put("REPTree", null);
         this.classifiers.put("DecisionTable", null);
     }
 
@@ -61,21 +57,23 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
         if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
             this.decisionTable = new DecisionTable();
+            this.classifiers.put("DecisionTable", this.decisionTable);
         }
         if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
             this.j48 = new J48();
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("REPTree"))) {
-            this.repTree = new REPTree();
+            this.classifiers.put("J48", this.j48);
         }
         if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
             this.simpleCart = new SimpleCart();
+            this.classifiers.put("SimpleCart", this.simpleCart);
         }
         if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
             this.part = new PART();
+            this.classifiers.put("PART", this.part);
         }
         if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
             this.jrip = new JRip();
+            this.classifiers.put("JRip", this.jrip);
         }
         this.setOptions(options);
         this.buildClassifier(train_data);
@@ -85,7 +83,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 //        return new String[][]{
 //            {"j48", "J48", "Lweka/eda.classifiers/trees/J48;"},
 //            {"simpleCart", "SimpleCart", "Lweka/eda.classifiers/trees/SimpleCart;"},
-//            {"repTree", "REPTree", "Lweka/eda.classifiers/trees/REPTree;"},
 //            {"part", "PART", "Lweka/eda.classifiers/rules/PART;"},
 //            {"jrip", "JRip", "Lweka/eda.classifiers/rules/JRip;"},
 //            {"decisionTable", "DecisionTable", "Lweka/eda.classifiers/rules/DecisionTable;"}
@@ -101,7 +98,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     public void setOptions(String[] options) throws Exception {
         String[] j48Parameters = Utils.getOption("J48", options).split(" ");
         String[] simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
-        String[] reptreeParameters = Utils.getOption("REPTree", options).split(" ");
         String[] partParameters = Utils.getOption("PART", options).split(" ");
         String[] jripParameters = Utils.getOption("JRip", options).split(" ");
         String[] decisionTableParameters = Utils.getOption("DecisionTable", options).split(" ");
@@ -127,11 +123,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             simpleCart.setOptions(simpleCartParameters);
         } else {
             simpleCart = null;
-        }
-        if(reptreeParameters.length > 1) {
-            repTree.setOptions(reptreeParameters);
-        } else {
-            repTree = null;
         }
         if(partParameters.length > 1) {
             part.setOptions(partParameters);
@@ -168,31 +159,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             }
 
             decisionTable.setOptions(newDtParams);
-//            String[] newDtParameters = new String [decisionTableParameters.length + ]
-
-//            decisionTableParameters = decisionTableParameters + " -S " + dtSearch;
-
-
-//            StringBuffer dtSearchParameters = new StringBuffer("");
-//            int n_itens = decisionTableParameters.length;
-//            boolean concating = false;
-//            ArrayList<String> buffer = new ArrayList<>();
-//            for(int i = 0; i < n_itens; i++) {
-//                if(decisionTableParameters[i].equals("-S")) {
-//                    concating = true;
-//                    buffer.add(decisionTableParameters[i]);
-//                    continue;
-//                }
-//                if(concating) {
-//                    dtSearchParameters.append(" " + decisionTableParameters[i]);
-//                } else {
-//                    buffer.add(decisionTableParameters[i]);
-//                }
-//            }
-//            buffer.add(dtSearchParameters.toString());
-//            String[] newDecisionTableParameters = new String[buffer.size()];
-//            System.arraycopy(buffer.toArray(), 0, newDecisionTableParameters, 0, buffer.size());
-
         } else {
             decisionTable = null;
         }
@@ -204,7 +170,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         train_data = data;
 
         n_active_classifiers = 0;
-        Classifier[] clfs = new Classifier[]{j48, simpleCart, repTree, part, jrip, decisionTable};
+        Classifier[] clfs = new Classifier[]{j48, simpleCart, part, jrip, decisionTable};
         for(Classifier clf : clfs) {
             if(clf != null) {
                 clf.buildClassifier(data);
@@ -244,7 +210,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public double[] distributionForInstance(Instance instance) throws Exception {
-        Classifier[] clfs = new Classifier[]{j48, simpleCart, repTree, part, jrip, decisionTable};
+        Classifier[] clfs = new Classifier[]{j48, simpleCart, part, jrip, decisionTable};
 
         double[][][] dists = new double[this.n_active_classifiers][][];
         int i = 0, counter = 0;
@@ -260,7 +226,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public double[][] distributionsForInstances(Instances batch) throws Exception {
-        Classifier[] clfs = new Classifier[]{j48, simpleCart, repTree, part, jrip, decisionTable};
+        Classifier[] clfs = new Classifier[]{j48, simpleCart, part, jrip, decisionTable};
 
         double[][][] dists = new double[this.n_active_classifiers][][];
         int i = 0, counter = 0;
@@ -281,8 +247,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         options.add(String.join(" ", j48 == null? new String[]{""} : j48.getOptions()));
         options.add("-SimpleCart");
         options.add(String.join(" ", simpleCart == null? new String[]{""} : simpleCart.getOptions()));
-        options.add("-REPTree");
-        options.add(String.join(" ", repTree == null? new String[]{""} : repTree.getOptions()));
         options.add("-PART");
         options.add(String.join(" ", part == null? new String[]{""} : part.getOptions()));
         options.add("-JRip");

@@ -302,14 +302,6 @@ public class PBILLogger {
         return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
     }
 
-    public static String formatREPTreeString(AbstractClassifier clf) throws Exception {
-        try {
-            throw new Exception("not implemented yet!");
-        } catch(Exception e) {
-            return clf.toString();
-        }
-    }
-
     public static String formatJ48String(AbstractClassifier clf) throws Exception {
         try {
             String txt = clf.toString().split("------------------")[1].split("Number of Leaves")[0].trim();
