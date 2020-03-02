@@ -37,29 +37,46 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected HashMap<String, AbstractClassifier> classifiers;
 
     public Individual() throws Exception {
-        this.j48 = new J48();
-        this.part = new PART();
-        this.repTree = new REPTree();
-        this.jrip = new JRip();
-        this.decisionTable = new DecisionTable();
-        this.simpleCart = new SimpleCart();
+        this.j48 = null;
+        this.part = null;
+        this.repTree = null;
+        this.jrip = null;
+        this.decisionTable = null;
+        this.simpleCart = null;
 
         this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
 
         this.classifiers = new HashMap<>(6);
-        this.classifiers.put("J48", this.j48);
-        this.classifiers.put("SimpleCart", this.simpleCart);
-        this.classifiers.put("PART", this.part);
-        this.classifiers.put("JRip", this.jrip);
-        this.classifiers.put("REPTree", this.jrip);
-        this.classifiers.put("DecisionTable", this.decisionTable);
+        this.classifiers.put("J48", null);
+        this.classifiers.put("SimpleCart", null);
+        this.classifiers.put("PART", null);
+        this.classifiers.put("JRip", null);
+        this.classifiers.put("REPTree", null);
+        this.classifiers.put("DecisionTable", null);
     }
 
     public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
         this();
 
         this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
-
+        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
+            this.decisionTable = new DecisionTable();
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
+            this.j48 = new J48();
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("REPTree"))) {
+            this.repTree = new REPTree();
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
+            this.simpleCart = new SimpleCart();
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
+            this.part = new PART();
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
+            this.jrip = new JRip();
+        }
         this.setOptions(options);
         this.buildClassifier(train_data);
     }

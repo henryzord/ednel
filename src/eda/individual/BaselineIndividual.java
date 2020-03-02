@@ -4,6 +4,12 @@
 
 package eda.individual;
 
+import eda.classifiers.trees.SimpleCart;
+import weka.classifiers.rules.DecisionTable;
+import weka.classifiers.rules.JRip;
+import weka.classifiers.rules.PART;
+import weka.classifiers.trees.J48;
+import weka.classifiers.trees.REPTree;
 import weka.core.Instances;
 
 import java.io.BufferedReader;
@@ -13,6 +19,14 @@ public class BaselineIndividual extends Individual {
 
     public BaselineIndividual(Instances train_data) throws Exception {
         super();
+
+        this.j48 = new J48();
+        this.part = new PART();
+        this.repTree = null;
+        this.jrip = new JRip();
+        this.decisionTable = new DecisionTable();
+        this.simpleCart = new SimpleCart();
+
 
         String j48Parameters            = "-C 0.25 -M 2";
         String simpleCartParameters     = "-M 2 -N 5 -C 1 -S 1";

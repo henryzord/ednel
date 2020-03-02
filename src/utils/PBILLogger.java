@@ -212,17 +212,17 @@ public class PBILLogger {
     private void individualsClassifiersToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws Exception {
         for(String indName : individuals.keySet()) {
             BufferedWriter bw = new BufferedWriter(new FileWriter(
-                    thisRunFolder + File.separator + indName  + "_classifiers.csv"
+                    thisRunFolder + File.separator + indName  + "_classifiers.md"
             ));
 
-            // TODO optimize this. each classifier must be better written
             HashMap<String, AbstractClassifier> classifiers = individuals.get(indName).getClassifiers();
             for(String clfName : classifiers.keySet()) {
                 AbstractClassifier clf = classifiers.get(clfName);
 
-                String clfString = PBILLogger.formatClassifierString(clf);
-                bw.write(clfName + "\n");
-                bw.write(clfString + "\n\n\n");
+                if(clf != null) {
+                    String clfString = PBILLogger.formatClassifierString(clf);
+                    bw.write(clfString + "\n\n\n");
+                }
             }
             bw.close();
         }
@@ -302,69 +302,129 @@ public class PBILLogger {
         return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
     }
 
+    public static String formatREPTreeString(AbstractClassifier clf) throws Exception {
+        try {
+            throw new Exception("not implemented yet!");
+        } catch(Exception e) {
+            return clf.toString();
+        }
+    }
+
     public static String formatJ48String(AbstractClassifier clf) throws Exception {
         try {
+            String txt = clf.toString().split("------------------")[1].split("Number of Leaves")[0].trim();
+            String[] branches = txt.split("\n");
+            String body = "";
+            for(int i = 0; i < branches.length; i++) {
+                int depth = branches[i].split("\\|").length - 1;
+                for(int j = 0; j < depth; j++) {
+                    body += "\t";
+                }
+                body += "* " + branches[i].replaceAll("\\|  ", "").trim() + "\n";
+            }
             String header = "# J48 Decision Tree";
-            //        String rawBody = ;
-
-//            body = '\n\n'.join(map(lambda x: x.strip(), txt.split('------------------')[-1].split('Number of Leaves')[0].strip().replace('|   ', '  * ').split('\n')))
-
-//            return '%s\n\n%s' % (header, body)
-            return clf.toString();
+            return String.format("%s\n\n%s", header, body);
         } catch(Exception e) {
             return clf.toString();
         }
     }
     public static String formatSimpleCartString(AbstractClassifier clf) throws Exception  {
-        return clf.toString();
+        try {
+            String txt = clf.toString().split("CART Decision Tree")[1].split("Number of Leaf Nodes")[0].trim();
+            String[] branches = txt.split("\n");
+            String body = "";
+            for(int i = 0; i < branches.length; i++) {
+                int depth = branches[i].split("\\|").length - 1;
+                for(int j = 0; j < depth; j++) {
+                    body += "\t";
+                }
+                body += "* " + branches[i].replaceAll("\\|  ", "").trim() + "\n";
+            }
+            String header = "# SimpleCart Decision Tree";
+            return String.format("%s\n\n%s", header, body);
+        } catch(Exception e) {
+            return clf.toString();
+        }
     }
     public static String formatJRipString(AbstractClassifier clf) throws Exception {
-        return clf.toString();
+        try {
+            String rulesStr = clf.toString().split("===========")[1].split("Number of Rules")[0].trim();
+            String classAttrName = rulesStr.substring(rulesStr.lastIndexOf("=>") + 2, rulesStr.lastIndexOf("=")).trim();
+            String[] rules = rulesStr.split("\n");
+            String newRuleStr = "rules | predicted class\n---|---\n";
+            for(int i = 0; i < rules.length; i++) {
+                String[] partials = rules[i].split(String.format(" => %s=", classAttrName));
+                for(String partial : partials) {
+                    newRuleStr += partial.trim() + "|";
+                }
+                newRuleStr = newRuleStr.substring(0, newRuleStr.length() - 1) + "\n";
+            }
+            String r_str = String.format("# JRip\n\nDecision list:\n\n%s", newRuleStr);
+            return r_str;
+      } catch(Exception e) {
+            return clf.toString();
+        }
     }
     public static String formatPARTString(AbstractClassifier clf) throws Exception {
-        return clf.toString();
+        try {
+            String defaultStr = clf.toString().split("------------------\\n\\n")[1];
+            defaultStr = defaultStr.substring(0, defaultStr.lastIndexOf("Number of Rules"));
+            String[] rules = defaultStr.split("\n\n");
+            String newRuleStr = "rules | predicted class\n---|---\n";
+            for(int i = 0; i < rules.length; i++) {
+                String[] partials = rules[i].replace("\n", " ").split(":");
+                for(String partial : partials) {
+                    newRuleStr += partial.trim() + "|";
+                }
+                newRuleStr = newRuleStr.substring(0, newRuleStr.length() - 1) + "\n";
+            }
+            String r_str = String.format("# PART\n\nDecision list:\n\n%s", newRuleStr);
+            return r_str;
+
+        } catch (Exception e) {
+            return clf.toString();
+        }
     }
     public static String formatDecisionTableString(AbstractClassifier clf) throws Exception {
-        Boolean usesIbk = (Boolean) DecisionTable.class.getMethod("getUseIBk").invoke(clf);
+        try {
+            Boolean usesIbk = (Boolean) DecisionTable.class.getMethod("getUseIBk").invoke(clf);
 
-        String defaultString = "Non matches covered by " + (usesIbk? "IB1" : "Majority class");
-        String[] lines = clf.toString().toLowerCase().replaceAll("\'", "").split("rules:")[1].split("\n");
+            String defaultString = "Non matches covered by " + (usesIbk? "IB1" : "Majority class");
+            String[] lines = clf.toString().toLowerCase().replaceAll("\'", "").split("rules:")[1].split("\n");
 
-        // TODO do not join null values!
-        ArrayList<String> sanitized_lines = new ArrayList<String>(lines.length);
+            ArrayList<String> sanitized_lines = new ArrayList<String>(lines.length);
 
-        int count_columns = 0;
-        for(String line : lines) {
-            if(line.contains("=")) {
-                if(sanitized_lines.size() == 1) {
-                    String delimiter = "---";
-                    for(int k = 1; k < count_columns; k++) {
-                        delimiter += "|---";
+            int count_columns = 0;
+            for(String line : lines) {
+                if(line.contains("=")) {
+                    if(sanitized_lines.size() == 1) {
+                        String delimiter = "---";
+                        for(int k = 1; k < count_columns; k++) {
+                            delimiter += "|---";
+                        }
+                        sanitized_lines.add(delimiter);
                     }
-                    sanitized_lines.add(delimiter);
-                }
-            } else if ((line.length() > 0)) {
-                String[] columns = line.trim().split(" ");
-                ArrayList<String> sanitized_columns = new ArrayList<String>(columns.length);
-                count_columns = 0;
-                for(String column : columns) {
-                    if (column.length() > 0) {
-                        sanitized_columns.add(column);
-                        count_columns += 1;
+                } else if ((line.length() > 0)) {
+                    String[] columns = line.trim().split(" ");
+                    ArrayList<String> sanitized_columns = new ArrayList<String>(columns.length);
+                    count_columns = 0;
+                    for(String column : columns) {
+                        if (column.length() > 0) {
+                            sanitized_columns.add(column);
+                            count_columns += 1;
+                        }
                     }
+                    sanitized_lines.add(String.join("|", sanitized_columns));
                 }
-                sanitized_lines.add(String.join("|", sanitized_columns));
             }
+
+            String table_str  = String.join("\n", sanitized_lines);
+
+            String r_str = String.format("# Decision Table\n\n%s\n\n%s", defaultString, table_str);
+            return r_str;
+        } catch(Exception e) {
+            return clf.toString();
         }
-
-//        fmt = ['---' for i in range(len(df.columns))]
-//        df_fmt = pd.DataFrame([fmt], columns=df.columns)
-//        df_formatted = pd.concat([df_fmt, df])
-//        table_str = df_formatted.to_csv(sep="|", index=False)
-        String table_str  = String.join("\n", sanitized_lines);
-
-        String r_str = String.format("# Decision Table\n\n%s\n\n%s", defaultString, table_str);
-        return r_str;
     }
 
 }
