@@ -1,9 +1,10 @@
 package utils;
 
 import dn.DependencyNetwork;
-import eda.classifiers.trees.SimpleCart;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
+import guru.nidi.graphviz.engine.Format;
+import guru.nidi.graphviz.engine.Graphviz;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
@@ -11,14 +12,9 @@ import org.json.simple.JSONObject;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.rules.DecisionTable;
-import weka.classifiers.rules.JRip;
-import weka.classifiers.rules.PART;
 import weka.core.Instances;
 
-import weka.classifiers.trees.J48;
-
 import javax.annotation.processing.FilerException;
-import javax.xml.soap.Detail;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -31,6 +27,7 @@ import java.util.HashMap;
 public class PBILLogger {
 
     protected final String dataset_overall_path;
+    protected final String dataset_thisrun_path;
     protected String dataset_metadata_path;
     protected Individual overall;
     protected Individual last;
@@ -88,13 +85,19 @@ public class PBILLogger {
     };
 
     public PBILLogger(String dataset_metadata_path, int n_individuals, int n_sample, int n_fold) {
+        this.n_sample = n_sample;
+        this.n_fold = n_fold;
+
         this.dataset_metadata_path = dataset_metadata_path;
         this.dataset_overall_path = String.format(
                 "%s%soverall%stest_sample-%02d_fold_%02d.csv",
                 dataset_metadata_path, File.separator, File.separator, n_sample, n_fold
         );
-        this.n_sample = n_sample;
-        this.n_fold = n_fold;
+        this.dataset_thisrun_path = String.format(
+                "%s%ssample_%02d_fold_%02d",
+                this.dataset_metadata_path, File.separator, this.n_sample, this.n_fold
+        );
+
         this.n_individuals = n_individuals;
 
         this.minFitness = new ArrayList<>();;
@@ -199,14 +202,9 @@ public class PBILLogger {
     }
 
     public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
-        String thisRunFolder = String.format(
-                "%s%ssample_%02d_fold_%02d",
-                this.dataset_metadata_path, File.separator, this.n_sample, this.n_fold
-        );
-
         evaluationsToFile(individuals, train_data, test_data);
-        individualsCharacteristicsToFile(thisRunFolder, individuals);
-        individualsClassifiersToFile(thisRunFolder, individuals);
+        individualsCharacteristicsToFile(dataset_thisrun_path, individuals);
+        individualsClassifiersToFile(dataset_thisrun_path, individuals);
     }
 
     private void individualsClassifiersToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws Exception {
@@ -220,8 +218,19 @@ public class PBILLogger {
                 AbstractClassifier clf = classifiers.get(clfName);
 
                 if(clf != null) {
-                    String clfString = PBILLogger.formatClassifierString(clf);
-                    bw.write(clfString + "\n\n\n");
+                    // return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
+                    try {
+                        Method graphMethod = clf.getClass().getMethod("graph");
+                        String dotText = (String)graphMethod.invoke(clf);
+
+                        String imageFilename = String.format("%s_%s_graph.png", indName, clfName);
+                        Graphviz.fromString(dotText).render(Format.PNG).toFile(new File(dataset_thisrun_path + File.separator + imageFilename));
+                        bw.write(String.format("# %s\n![](%s)\n", clfName, imageFilename));
+
+                    } catch (NoSuchMethodException e) {
+                        String clfString = PBILLogger.formatClassifierString(clf);
+                        bw.write(clfString + "\n\n\n");
+                    }
                 }
             }
             bw.close();
