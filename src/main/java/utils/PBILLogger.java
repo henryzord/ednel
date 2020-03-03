@@ -39,8 +39,6 @@ public class PBILLogger {
     protected ArrayList<Double> maxFitness;
     protected ArrayList<Double> medianFitness;
 
-
-
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
             "getClassPriors",
@@ -226,7 +224,6 @@ public class PBILLogger {
                         String imageFilename = String.format("%s_%s_graph.png", indName, clfName);
                         Graphviz.fromString(dotText).render(Format.PNG).toFile(new File(dataset_thisrun_path + File.separator + imageFilename));
                         bw.write(String.format("# %s\n![](%s)\n", clfName, imageFilename));
-
                     } catch (NoSuchMethodException e) {
                         String clfString = PBILLogger.formatClassifierString(clf);
                         bw.write(clfString + "\n\n\n");
