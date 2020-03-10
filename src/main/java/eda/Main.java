@@ -154,12 +154,48 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
-                .longOpt("thining_factor")
+                .longOpt("burn_in")
                 .type(Integer.class)
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Thining factor used in the dependency network (i.e. interval to select samples)")
+                .desc("Number of samples to discard at the start of the gibbs sampling process.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("thinning_factor")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("thinning factor used in the dependency network (i.e. interval to select samples)")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("early_stop_generations")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of generations tolerated to have an improvement less than early_stop_tolerance")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("early_stop_tolerance")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Maximum tolerance between two generations that do not improve in the best individual fitness. Higher values are less tolerant.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("log")
+                .type(Boolean.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Whether to log metadata to files.")
                 .build());
 
         CommandLineParser parser = new DefaultParser();
@@ -206,12 +242,16 @@ public class Main {
                                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
                                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
-                                Integer.parseInt(commandLine.getOptionValue("thining_factor")),
+                                Integer.parseInt(commandLine.getOptionValue("burn_in")),
+                                Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
+                                Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
+                                Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
                                 commandLine.getOptionValue("variables_path"),
                                 commandLine.getOptionValue("options_path"),
                                 commandLine.getOptionValue("sampling_order_path"),
                                 pbilLogger,
-                                commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
+                                commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed")),
+                                Boolean.parseBoolean(commandLine.getOptionValue("log"))
                         );
 
                         ednel.buildClassifier(train_data);
@@ -220,7 +260,7 @@ public class Main {
                         toReport.put("overall", ednel.getOverallBest());
                         toReport.put("last", ednel.getCurrentGenBest());
 
-                        ednel.getPbilLogger().toFile(toReport, train_data, test_data);
+                        ednel.getPbilLogger().toFile(ednel.getDependencyNetwork(), toReport, train_data, test_data);
 
                         overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest()) / 10;
                         lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest()) / 10;

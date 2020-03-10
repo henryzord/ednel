@@ -1,12 +1,8 @@
 package dn.stoppers;
 
 public class EarlyStop {
-
-    protected int delayGenerations;
-    protected double tolerance;
-
-    private double minFitness;
-    private double maxFitness;
+    private int delayGenerations;
+    private double tolerance;
     private double[] lastBests;
 
     public EarlyStop(int delayGenerations, double tolerance) {
@@ -15,32 +11,24 @@ public class EarlyStop {
 
         this.lastBests = new double [this.delayGenerations];
         for(int i = 0; i < this.delayGenerations; i++) {
-            this.lastBests[i] = (double)i/this.delayGenerations;
+            this.lastBests[i] = 0;
         }
-        this.minFitness = 100;
-        this.maxFitness = -100;
-    }
-
-    public EarlyStop() {
-        this(10, 0.005);
+        this.lastBests[0] = this.tolerance * 2;
     }
 
     public boolean isStopping() {
-        return Math.abs(this.maxFitness - this.minFitness) < this.tolerance;
+        return Math.abs(this.lastBests[this.lastBests.length - 1] - this.lastBests[0]) < this.tolerance;
     }
 
     public void update(int gen, double fitness) {
         this.lastBests[gen % this.delayGenerations] = fitness;
-        this.minFitness = fitness;
-        this.maxFitness = fitness;
-        for(int i = 0; i < this.lastBests.length; i++) {
-            if(this.lastBests[i] < this.minFitness) {
-                this.minFitness = this.lastBests[i];
-            }
-            if(this.lastBests[i] > this.maxFitness) {
-                this.maxFitness = this.lastBests[i];
-            }
-        }
     }
 
+    public int getDelayGenerations() {
+        return delayGenerations;
+    }
+
+    public double getTolerance() {
+        return tolerance;
+    }
 }

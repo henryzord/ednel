@@ -5,28 +5,20 @@ import dn.stoppers.EarlyStop;
 import eda.individual.BaselineIndividual;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.ParseException;
 import org.apache.commons.math3.random.MersenneTwister;
-import org.json.simple.JSONObject;
-
-import javax.annotation.processing.FilerException;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-
 import utils.ArrayIndexComparator;
 import utils.PBILLogger;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
 import java.util.Arrays;
-import java.util.HashMap;
 
 public class EDNEL extends AbstractClassifier {
 
-    protected int thining_factor;
+    protected int burn_in;
+    protected int early_stop_generations;
+    protected float early_stop_tolerance;
+    protected int thinning_factor;
     protected String options_path;
     protected String variables_path;
     protected String sampling_order_path;
@@ -48,16 +40,23 @@ public class EDNEL extends AbstractClassifier {
     protected Double currentGenFitness;
     protected Double overallFitness;
 
+    protected boolean log;
+
     protected EarlyStop earlyStop;
 
-    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations, int thining_factor,
-                 String variables_path, String options_path, String sampling_order_path, PBILLogger pbilLogger, Integer seed) throws Exception {
+    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
+                 int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
+                 String variables_path, String options_path, String sampling_order_path, PBILLogger pbilLogger,
+                 Integer seed, boolean log) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
         this.n_individuals = n_individuals;
         this.n_generations = n_generations;
-        this.thining_factor = thining_factor;
+        this.burn_in = burn_in;
+        this.thinning_factor = thinning_factor;
+        this.early_stop_generations = early_stop_generations;
+        this.early_stop_tolerance = early_stop_tolerance;
 
         this.pbilLogger = pbilLogger;
         this.variables_path = variables_path;
@@ -66,9 +65,11 @@ public class EDNEL extends AbstractClassifier {
 
         this.overallFitness = -1.0;
 
-        this.earlyStop = new EarlyStop();
+        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance);
 
         this.fitted = false;
+
+        this.log = log;
 
         if(seed == null) {
             this.mt = new MersenneTwister();
@@ -79,7 +80,9 @@ public class EDNEL extends AbstractClassifier {
         }
 
         this.dn = new DependencyNetwork(
-                mt, variables_path, options_path, sampling_order_path, this.learning_rate, this.n_generations
+                mt, variables_path, options_path, sampling_order_path,
+                this.burn_in, this.thinning_factor, this.learning_rate, this.n_generations,
+                this.log
         );
     }
 
@@ -88,7 +91,7 @@ public class EDNEL extends AbstractClassifier {
         FitnessCalculator fc = new FitnessCalculator(5, data, null);
 
         BaselineIndividual bi = new BaselineIndividual(data);
-        HashMap<String, String> startPoint = bi.getCharacteristics();
+        this.currentGenBest = bi;
 
         System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax"));
         for(int c = 0; c < this.n_generations; c++) {
@@ -96,7 +99,9 @@ public class EDNEL extends AbstractClassifier {
                 break;
             }
 
-            Individual[] population = dn.gibbsSample(startPoint, thining_factor, this.n_individuals, data);
+            Individual[] population = dn.gibbsSample(
+                    this.currentGenBest.getCharacteristics(), this.n_individuals, data
+            );
 
             Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
 
@@ -114,15 +119,14 @@ public class EDNEL extends AbstractClassifier {
 
             this.earlyStop.update(c, this.currentGenFitness);
             this.pbilLogger.logPopulation(
-                    fitnesses[0][sortedIndices.length - 1],
-                    fitnesses[0][sortedIndices.length / 2],
+                    fitnesses[0][sortedIndices[fitnesses[0].length - 1]],
+                    fitnesses[0][sortedIndices[fitnesses[0].length / 2]],  // lazy median calculus
                     fitnesses[0][sortedIndices[0]],
                     this.overallBest, this.currentGenBest
             );
             this.pbilLogger.print();
 
-            this.dn.updateStructure(population, sortedIndices, this.selection_share);  // TODO update structure
-            this.dn.updateProbabilities(population, sortedIndices, this.selection_share);
+            this.dn.update(population, sortedIndices, this.selection_share);
         }
         this.fitted = true;
     }
@@ -137,6 +141,10 @@ public class EDNEL extends AbstractClassifier {
 
     public Individual getOverallBest() {
         return overallBest;
+    }
+
+    public DependencyNetwork getDependencyNetwork() {
+        return this.dn;
     }
 }
 

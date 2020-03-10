@@ -7,15 +7,15 @@ import eda.individual.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import utils.PBILLogger;
 import weka.core.Instances;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
+import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
 
 public class DependencyNetwork {
+    private boolean log;
     private HashMap<String, AbstractVariable> variables;
     private MersenneTwister mt;
     private ArrayList<String> variable_names;
@@ -23,10 +23,18 @@ public class DependencyNetwork {
     private JSONObject classifiersResources;
     private float learningRate;
     private int n_generations;
+    private int burn_in;
+    private int thinning_factor;
+
+    private ArrayList<HashMap<String, AbstractVariable>> pastVariables;
+
+    private HashMap<String, String> optionTable;
+    private HashMap<String, String> lastStart;
+
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
-            float learningRate, int n_generations
+            int burn_in, int thinning_factor, float learningRate, int n_generations, boolean log
     ) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
@@ -35,6 +43,16 @@ public class DependencyNetwork {
         this.variable_names = new ArrayList<>((int)Math.pow(algorithms.length, 2));
         this.learningRate = learningRate;
         this.n_generations = n_generations;
+
+        this.burn_in = burn_in;
+        this.thinning_factor = thinning_factor;
+
+        this.log = log;
+        if(this.log) {
+            this.pastVariables = new ArrayList<>();
+        }
+
+        this.lastStart = null;
 
         JSONParser jsonParser = new JSONParser();
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(options_path));
@@ -123,58 +141,72 @@ public class DependencyNetwork {
         }
     }
 
-    public Individual[] gibbsSample(HashMap<String, String> lastStart, int thinning_factor, int sampleSize, Instances train_data) throws Exception {
+    private void sampleIndividual() throws Exception {
+        optionTable = new HashMap<>(this.sampling_order.size());
+
+        for(String variableName : this.sampling_order) {
+            String algorithmName = variableName.split("_")[0];
+
+            if(optionTable.getOrDefault(algorithmName, null) == null) {
+                optionTable.put(algorithmName, "");
+            }
+
+            lastStart.put(
+                    variableName,
+                    this.variables.get(variableName).conditionalSampling(lastStart)
+            );
+
+            if(lastStart.get(variableName) != null) {
+                JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
+                if(optionObj == null) {
+                    optionObj = (JSONObject)classifiersResources.getOrDefault(lastStart.get(variableName), null);
+                }
+
+                // checks whether this is an option
+                if(optionObj != null) {
+                    boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
+                    String optionName = (String)optionObj.get("optionName");
+                    String dtype = (String)optionObj.get("dtype");
+
+                    if(dtype.equals("np.bool")) {
+                        if(lastStart.get(variableName).toLowerCase().equals("false")) {
+                            if(!presenceMeans) {
+                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                            }
+                        } else {
+                            if(presenceMeans) {
+                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                            }
+                        }
+                    } else {
+                        optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
+                    }
+                }
+            }
+        }
+    }
+
+    public Individual[] gibbsSample(HashMap<String, String> lastStart, int sampleSize, Instances train_data) throws Exception {
         Individual[] individuals = new Individual [sampleSize];
+
+        this.lastStart = lastStart;
 
         // TODO use laplace correction; check edna paper for this
 
         int outerCounter = 0;
         int individualCounter = 0;
+
+        // burns some individuals
+        for(int i = 0; i < burn_in; i++) {
+            // updates currentLastStart and currentOptionTable
+            this.sampleIndividual();
+        }
+
         while(individualCounter < sampleSize) {
-            HashMap<String, String> optionTable = new HashMap<>(this.sampling_order.size());
+            this.sampleIndividual();
 
-            for(String variableName : this.sampling_order) {
-                String algorithmName = variableName.split("_")[0];
-
-                if(optionTable.getOrDefault(algorithmName, null) == null) {
-                    optionTable.put(algorithmName, "");
-                }
-
-                lastStart.put(
-                    variableName,
-                    this.variables.get(variableName).conditionalSampling(lastStart)
-                );
-
-                if(lastStart.get(variableName) != null) {
-                    JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
-                    if(optionObj == null) {
-                        optionObj = (JSONObject)classifiersResources.getOrDefault(lastStart.get(variableName), null);
-                    }
-
-                    // checks whether this is an option
-                    if(optionObj != null) {
-                        boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
-                        String optionName = (String)optionObj.get("optionName");
-                        String dtype = (String)optionObj.get("dtype");
-
-                        if(dtype.equals("np.bool")) {
-                            if(lastStart.get(variableName).toLowerCase().equals("false")) {
-                                if(!presenceMeans) {
-                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
-                                }
-                            } else {
-                                if(presenceMeans) {
-                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
-                                }
-                            }
-                        } else {
-                            optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
-                        }
-                    }
-                }
-            }
             outerCounter += 1;
-            if(outerCounter == thinning_factor) {
+            if(outerCounter == this.thinning_factor) {
                 outerCounter = 0;
                 String[] options = new String [optionTable.size() * 2];
                 Object[] algNames = optionTable.keySet().toArray();
@@ -185,10 +217,11 @@ public class DependencyNetwork {
                     counter += 2;
                 }
 
-                individuals[individualCounter]  = new Individual(options, lastStart, train_data);
+                individuals[individualCounter]  = new Individual(options, this.lastStart, train_data);
                 individualCounter += 1;
             }
         }
+        this.lastStart = null;
         return individuals;
     }
 
@@ -238,6 +271,16 @@ public class DependencyNetwork {
         return combinations;
     }
 
+    public void update(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
+        if(this.log) {
+            this.pastVariables.add((HashMap<String, AbstractVariable>)this.variables.clone());
+        }
+
+        this.updateStructure(population, sortedIndices, selectionShare);  // TODO implement
+        this.updateProbabilities(population, sortedIndices, selectionShare);
+
+    }
+
     public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
         for(String variableName : this.sampling_order) {
             this.variables.get(variableName).updateProbabilities(population, sortedIndices, selectionShare);
@@ -245,6 +288,21 @@ public class DependencyNetwork {
     }
 
     public void updateStructure(Individual[] population, Integer[] sortedIndices, float selectionShare) {
+        // TODO implement!
+    }
 
+    public void toFile(String run_path) throws IOException {
+        if(this.log) {
+            for(String variable : this.variable_names) {
+                BufferedWriter bw = new BufferedWriter(new FileWriter(run_path + File.separator + variable + ".csv"));
+
+                for(int i = 0; i < this.pastVariables.size(); i++) {
+                    AbstractVariable var = this.pastVariables.get(i).get(variable);
+                    // TODO now write to file
+                    int z = 0;
+                }
+                bw.close();
+            }
+        }
     }
 }
