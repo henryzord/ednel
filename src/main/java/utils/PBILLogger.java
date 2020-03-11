@@ -88,7 +88,7 @@ public class PBILLogger {
 
         this.dataset_metadata_path = dataset_metadata_path;
         this.dataset_overall_path = String.format(
-                "%s%soverall%stest_sample-%02d_fold_%02d.csv",
+                "%s%soverall%stest_sample-%02d_fold-%02d.csv",
                 dataset_metadata_path, File.separator, File.separator, n_sample, n_fold
         );
         this.dataset_thisrun_path = String.format(
@@ -119,10 +119,10 @@ public class PBILLogger {
 
     }
 
-    private String getEvaluationLineForClassifier(
-            String name, Evaluation evaluation) throws InvocationTargetException, IllegalAccessException {
-        Method[] overallMethods = evaluation.getClass().getMethods();
+    private String getEvaluationLineForClassifier(String name, Evaluation evaluation)
+            throws InvocationTargetException, IllegalAccessException {
 
+        Method[] overallMethods = evaluation.getClass().getMethods();
         HashMap<String, Method> overallMethodDict = new HashMap<>(overallMethods.length);
 
         for(Method method : overallMethods) {
@@ -132,14 +132,12 @@ public class PBILLogger {
         String line = name;
 
         for(String methodName : metricsToCollect) {
-
             Object res = overallMethodDict.get(methodName).invoke(evaluation);
-
             if(res.getClass().isArray()) {
                 try {
                     double[] doublyOverall = ((double[])res);
 
-                    line += ", \"np.array([";
+                    line += ",\"np.array([";
                     for(int k = 0; k < doublyOverall.length; k++) {
                         line += doublyOverall[k] + ",";
                     }
@@ -147,7 +145,7 @@ public class PBILLogger {
                 } catch(ClassCastException e) {
                     double[][] doublyOverall = ((double[][])res);
 
-                    line += ", \"np.array([[";
+                    line += ",\"np.array([[";
                     for(int j = 0; j < doublyOverall.length; j++) {
                         for(int k = 0; k < doublyOverall[j].length; k++) {
                             line += doublyOverall[j][k] + ",";
@@ -169,22 +167,7 @@ public class PBILLogger {
     private void evaluationsToFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
         BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
 
-        HashMap<String, Evaluation> clfEvaluations = new HashMap<>(14);
-
-        for(String indName : individuals.keySet()) {
-            Evaluation evaluation = new Evaluation(train_data);
-            HashMap<String, AbstractClassifier> overallClassifiers = individuals.get(indName).getClassifiers();
-            evaluation.evaluateModel(individuals.get(indName), test_data);
-
-            clfEvaluations.put(indName, evaluation);
-
-            for(String key: overallClassifiers.keySet()) {
-                if(overallClassifiers.get(key) != null) {
-                    evaluation.evaluateModel(overallClassifiers.get(key), test_data);
-                }
-                clfEvaluations.put(indName + "-" + key, evaluation);
-            }
-        }
+//        HashMap<String, Evaluation> clfEvaluations = new HashMap<>(14);
 
         // writes header
         String header = "algorithm";
@@ -193,8 +176,23 @@ public class PBILLogger {
         }
         bw.write(header + "," + "unweightedAreaUnderRoc" + "\n");
 
-        for(String clf: clfEvaluations.keySet()) {
-            bw.write(this.getEvaluationLineForClassifier(clf, clfEvaluations.get(clf)));
+        Evaluation evaluation;
+
+        for(String indName : individuals.keySet()) {
+            evaluation = new Evaluation(train_data);
+            evaluation.evaluateModel(individuals.get(indName), test_data);
+
+            bw.write(this.getEvaluationLineForClassifier(indName, evaluation));
+
+            HashMap<String, AbstractClassifier> overallClassifiers = individuals.get(indName).getClassifiers();
+
+            for(String key: overallClassifiers.keySet()) {
+                if(overallClassifiers.get(key) != null) {
+                    evaluation = new Evaluation(train_data);
+                    evaluation.evaluateModel(overallClassifiers.get(key), test_data);
+                }
+                bw.write(this.getEvaluationLineForClassifier(indName + "-" + key, evaluation));
+            }
         }
         bw.close();
     }
@@ -249,7 +247,7 @@ public class PBILLogger {
     private void individualsCharacteristicsToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws IOException {
         PBILLogger.createFolder(thisRunFolder);
 
-        BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.md"));
+        BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.csv"));
 
         Object[] characteristicsNames = null;
         for(String indName : individuals.keySet()) {
