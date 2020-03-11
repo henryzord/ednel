@@ -199,15 +199,14 @@ public class PBILLogger {
         bw.close();
     }
 
-    public void toFile(DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+    public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
         evaluationsToFile(individuals, train_data, test_data);
         individualsCharacteristicsToFile(dataset_thisrun_path, individuals);
         individualsClassifiersToFile(dataset_thisrun_path, individuals);
 
         String variablesFolder = dataset_thisrun_path + File.separator + "variables";
-        this.createFolder(variablesFolder);
-
-        dn.toFile(variablesFolder);
+        // TODO log population!
+//        this.createFolder(variablesFolder);
     }
 
     private void individualsClassifiersToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws Exception {

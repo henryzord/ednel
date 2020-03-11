@@ -80,18 +80,12 @@ public abstract  class AbstractVariable {
 
         double[] localProbs = new double [indices.length];
         for(int i = 0; i < localProbs.length; i++) {
-            localProbs[i] = probabilities.get((Integer)indices[i]);
+            localProbs[i] = probabilities.get(indices[i]);
         }
 
-        try {
-            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(indices, localProbs);
-            int idx = localDist.sample();
-            return idx;
-        } catch (org.apache.commons.math3.exception.MathArithmeticException e) {
-            throw(e); // TODO remove
-        } catch(org.apache.commons.math3.exception.NotPositiveException e) {
-            throw(e);  // TODO remove
-        }
+        EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
+        int idx = localDist.sample();
+        return idx;
     }
 
 

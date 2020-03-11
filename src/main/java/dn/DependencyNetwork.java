@@ -17,12 +17,13 @@ public class DependencyNetwork {
     private HashMap<String, AbstractVariable> variables;
     private MersenneTwister mt;
     private ArrayList<String> variable_names;
-    private ArrayList<String> sampling_order;
     private JSONObject classifiersResources;
     private float learningRate;
     private int n_generations;
     private int burn_in;
     private int thinning_factor;
+
+    private List<Integer> sampling_order = null;
 
     private ArrayList<HashMap<String, AbstractVariable>> pastVariables;
 
@@ -31,7 +32,7 @@ public class DependencyNetwork {
 
 
     public DependencyNetwork(
-            MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
+            MersenneTwister mt, String variables_path, String options_path,
             int burn_in, int thinning_factor, float learningRate, int n_generations
     ) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
@@ -50,19 +51,12 @@ public class DependencyNetwork {
         JSONParser jsonParser = new JSONParser();
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(options_path));
 
-        this.sampling_order = new ArrayList<>();
-
-        // reads sampling order
         String row;
-        BufferedReader csvReader = new BufferedReader(new FileReader(sampling_order_path));
-        while ((row = csvReader.readLine()) != null) {
-            sampling_order.add(row);
-        }
 
         for(int i = 0; i < algorithms.length; i++) {
             Object[] variables_names  = Files.list(new File(algorithms[i].toString()).toPath()).toArray();
             for(int j = 0; j < variables_names.length; j++) {
-                csvReader = new BufferedReader(new FileReader(variables_names[j].toString()));
+                BufferedReader csvReader = new BufferedReader(new FileReader(variables_names[j].toString()));
 
                 row = csvReader.readLine();
 
@@ -132,12 +126,22 @@ public class DependencyNetwork {
                 }
             }
         }
+
+        Integer[] indices = new Integer [variables.size()];
+        for(int i = 0; i < indices.length; i++) {
+            indices[i] = i;
+        }
+        sampling_order = Arrays.asList(indices);
     }
 
     private void sampleIndividual() throws Exception {
-        optionTable = new HashMap<>(this.sampling_order.size());
+        optionTable = new HashMap<>(this.variable_names.size());
 
-        for(String variableName : this.sampling_order) {
+        Collections.shuffle(this.sampling_order, new Random(mt.nextInt()));
+
+        for(int i = 0; i < this.sampling_order.size(); i++) {
+            String variableName = this.variable_names.get(this.sampling_order.get(i));
+
             String algorithmName = variableName.split("_")[0];
 
             if(optionTable.getOrDefault(algorithmName, null) == null) {
@@ -197,21 +201,25 @@ public class DependencyNetwork {
 
         while(individualCounter < sampleSize) {
             this.sampleIndividual();
-
             outerCounter += 1;
-            if(outerCounter == this.thinning_factor) {
-                outerCounter = 0;
-                String[] options = new String [optionTable.size() * 2];
-                Object[] algNames = optionTable.keySet().toArray();
-                int counter = 0;
-                for(int j = 0; j < algNames.length; j++) {
-                    options[counter] = "-" + algNames[j];
-                    options[counter + 1] = optionTable.get(algNames[j]);
-                    counter += 2;
-                }
 
-                individuals[individualCounter]  = new Individual(options, this.lastStart, train_data);
-                individualCounter += 1;
+            String[] options = new String [optionTable.size() * 2];
+            Object[] algNames = optionTable.keySet().toArray();
+            int counter = 0;
+            for(int j = 0; j < algNames.length; j++) {
+                options[counter] = "-" + algNames[j];
+                options[counter + 1] = optionTable.get(algNames[j]);
+                counter += 2;
+            }
+            try {
+                Individual individual = new Individual(options, this.lastStart, train_data);
+                if(outerCounter >= this.thinning_factor) {
+                    outerCounter = 0;
+                    individuals[individualCounter] = individual;
+                    individualCounter += 1;
+                }
+            } catch(Exception e) {
+
             }
         }
         this.lastStart = null;
@@ -271,7 +279,7 @@ public class DependencyNetwork {
     }
 
     public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-        for(String variableName : this.sampling_order) {
+        for(String variableName : this.variable_names) {
             this.variables.get(variableName).updateProbabilities(population, sortedIndices, selectionShare);
         }
     }
