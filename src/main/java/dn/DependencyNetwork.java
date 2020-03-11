@@ -7,7 +7,6 @@ import eda.individual.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import utils.PBILLogger;
 import weka.core.Instances;
 
 import java.io.*;
@@ -15,7 +14,6 @@ import java.nio.file.Files;
 import java.util.*;
 
 public class DependencyNetwork {
-    private boolean log;
     private HashMap<String, AbstractVariable> variables;
     private MersenneTwister mt;
     private ArrayList<String> variable_names;
@@ -34,7 +32,7 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
-            int burn_in, int thinning_factor, float learningRate, int n_generations, boolean log
+            int burn_in, int thinning_factor, float learningRate, int n_generations
     ) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
@@ -46,11 +44,6 @@ public class DependencyNetwork {
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
-
-        this.log = log;
-        if(this.log) {
-            this.pastVariables = new ArrayList<>();
-        }
 
         this.lastStart = null;
 
@@ -272,10 +265,6 @@ public class DependencyNetwork {
     }
 
     public void update(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-        if(this.log) {
-            this.pastVariables.add((HashMap<String, AbstractVariable>)this.variables.clone());
-        }
-
         this.updateStructure(population, sortedIndices, selectionShare);  // TODO implement
         this.updateProbabilities(population, sortedIndices, selectionShare);
 
@@ -289,20 +278,5 @@ public class DependencyNetwork {
 
     public void updateStructure(Individual[] population, Integer[] sortedIndices, float selectionShare) {
         // TODO implement!
-    }
-
-    public void toFile(String run_path) throws IOException {
-        if(this.log) {
-            for(String variable : this.variable_names) {
-                BufferedWriter bw = new BufferedWriter(new FileWriter(run_path + File.separator + variable + ".csv"));
-
-                for(int i = 0; i < this.pastVariables.size(); i++) {
-                    AbstractVariable var = this.pastVariables.get(i).get(variable);
-                    // TODO now write to file
-                    int z = 0;
-                }
-                bw.close();
-            }
-        }
     }
 }
