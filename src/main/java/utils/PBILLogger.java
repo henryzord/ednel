@@ -8,6 +8,7 @@ import guru.nidi.graphviz.engine.Graphviz;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.math3.genetics.Fitness;
 import org.json.simple.JSONObject;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
@@ -43,7 +44,6 @@ public class PBILLogger {
     protected ArrayList<Double> medianFitness;
 
     protected HashMap<String, String> pastPopulations = null;
-    protected Double[][] pastFitnesses = null;
 
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
@@ -101,7 +101,6 @@ public class PBILLogger {
         this.n_fold = n_fold;
         this.log = log;
         if(this.log) {
-            this.pastFitnesses = new Double[n_generations][n_individuals];
             this.pastPopulations = new HashMap<>(n_generations * n_individuals * 50);
         }
 
@@ -117,9 +116,9 @@ public class PBILLogger {
 
         this.n_individuals = n_individuals;
 
-        this.minFitness = new ArrayList<>();;
-        this.medianFitness = new ArrayList<>();;
-        this.maxFitness = new ArrayList<>();;
+        this.minFitness = new ArrayList<>();
+        this.medianFitness = new ArrayList<>();
+        this.maxFitness = new ArrayList<>();
 
         this.curGen = 0;
     }
@@ -135,6 +134,7 @@ public class PBILLogger {
                 for(String characteristic : population[i].getCharacteristics().keySet()) {
                     this.pastPopulations.put(String.format("gen_%03d_ind_%03d_%s", this.curGen, i, characteristic), population[i].getCharacteristics().get(characteristic));
                 }
+                this.pastPopulations.put(String.format("gen_%03d_ind_%03d_%s", this.curGen, i, "fitness"), String.valueOf(fitnesses[i]));
             }
         }
         this.minFitness.add(fitnesses[sortedIndices[fitnesses.length - 1]]);
@@ -142,8 +142,7 @@ public class PBILLogger {
 
         if((fitnesses.length % 2) == 0) {
             int ind0 = (fitnesses.length / 2) - 1, ind1 = (fitnesses.length / 2);
-
-            this.medianFitness.add((fitnesses[sortedIndices[ind0]] + fitnesses[sortedIndices[ind1]] / 2));
+            this.medianFitness.add((fitnesses[sortedIndices[ind0]] + fitnesses[sortedIndices[ind1]]) / 2);
         } else {
             this.medianFitness.add(fitnesses[sortedIndices[fitnesses.length / 2]]);
         }
@@ -199,10 +198,11 @@ public class PBILLogger {
         return line + "," + FitnessCalculator.getUnweightedAreaUnderROC(evaluation) + "\n";
     }
 
-    private void evaluationsToFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+    private Double[] evaluationsToFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
         BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
 
 //        HashMap<String, Evaluation> clfEvaluations = new HashMap<>(14);
+        Double[] fitnesses = new Double [individuals.size()];
 
         // writes header
         String header = "algorithm";
@@ -213,7 +213,10 @@ public class PBILLogger {
 
         Evaluation evaluation;
 
-        for(String indName : individuals.keySet()) {
+        Object[] indNames = individuals.keySet().toArray();
+
+        for(int i = 0; i < indNames.length; i++) {
+            String indName = (String)indNames[i];
             evaluation = new Evaluation(train_data);
             evaluation.evaluateModel(individuals.get(indName), test_data);
 
@@ -226,15 +229,18 @@ public class PBILLogger {
                     evaluation = new Evaluation(train_data);
                     evaluation.evaluateModel(overallClassifiers.get(key), test_data);
                 }
+                fitnesses[i] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
                 bw.write(this.getEvaluationLineForClassifier(indName + "-" + key, evaluation));
             }
         }
         bw.close();
+        return fitnesses;
     }
 
     public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
-        evaluationsToFile(individuals, train_data, test_data);
-        individualsCharacteristicsToFile(dataset_thisrun_path, individuals);
+        // TODo capture fitnesses here!
+        Double[] fitnesses = evaluationsToFile(individuals, train_data, test_data);
+        individualsCharacteristicsToFile(dataset_thisrun_path, individuals, fitnesses);
         individualsClassifiersToFile(dataset_thisrun_path, individuals);
 
         String variablesFolder = dataset_thisrun_path + File.separator + "variables";
@@ -271,31 +277,33 @@ public class PBILLogger {
         }
     }
 
-    private String getCharacteristicsLineForIndividual(Object[] order, String indName, HashMap<String, String> characteristics) {
+    private String getCharacteristicsLineForIndividual(Object[] order, String indName, HashMap<String, String> characteristics, Double aucs) {
         String line = indName;
         for(Object ch : order) {
             line += "," + characteristics.get(ch);
         }
+        line += ",null," + aucs;
         return line + "\n";
     }
 
-    private void individualsCharacteristicsToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws IOException {
+    private void individualsCharacteristicsToFile(String thisRunFolder, HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
         PBILLogger.createFolder(thisRunFolder);
         BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.csv"));
 
         // writes header, saves order of columns
-
-
         Object[] order = individuals.get(individuals.keySet().toArray()[0]).getCharacteristics().keySet().toArray();
         String header = "individual_name";
         for(int i = 0; i < order.length; i++) {
             header += "," + order[i];
         }
-        bw.write(header + "\n");
+        bw.write(header + ",fitness,test_auc\n");
 
-        for(String indName : individuals.keySet()) {
+        Object[] indNames = individuals.keySet().toArray();
+
+        for(int i = 0; i < indNames.length; i++) {
+            String indName = (String)indNames[i];
             HashMap<String, String> characteristics = individuals.get(indName).getCharacteristics();
-            bw.write(this.getCharacteristicsLineForIndividual(order, indName, characteristics));
+            bw.write(this.getCharacteristicsLineForIndividual(order, indName, characteristics, fitnesses[i]));
         }
         if(this.log) {
             for(int i = 0; i < this.curGen; i++) {
@@ -304,6 +312,7 @@ public class PBILLogger {
                     for(Object ch : order) {
                         line += "," + pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, ch));
                     }
+                    line += "," + pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, "fitness")) + ",null";
                     bw.write(line + "\n");
                 }
             }

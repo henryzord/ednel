@@ -37,15 +37,15 @@ public class Main {
                 .build()
         );
 
-        options.addOption(Option.builder()
-                .longOpt("classifiers_path")
-                .required(true)
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Path to file with eda.classifiers and their hyper-parameters.")
-                .build()
-        );
+//        options.addOption(Option.builder()
+//                .longOpt("classifiers_path")
+//                .required(true)
+//                .type(String.class)
+//                .hasArg()
+//                .numberOfArgs(1)
+//                .desc("Path to file with eda classifiers and their hyper-parameters.")
+//                .build()
+//        );
 
         options.addOption(Option.builder()
                 .longOpt("metadata_path")
@@ -196,7 +196,7 @@ public class Main {
             int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
 
             // writes metadata
-            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH:mm:ss");
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH-mm-ss");
             LocalDateTime now = LocalDateTime.now();
             String str_time = dtf.format(now);
             PBILLogger.metadata_path_start(str_time, commandLine);
