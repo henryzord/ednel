@@ -225,7 +225,11 @@ public class Main {
                         PBILLogger pbilLogger = new PBILLogger(
                                 commandLine.getOptionValue("metadata_path") + File.separator +
                                         str_time + File.separator + dataset_name,
-                                Integer.parseInt(commandLine.getOptionValue("n_individuals")), i, j
+                                Integer.parseInt(commandLine.getOptionValue("n_individuals")),
+                                Integer.parseInt(commandLine.getOptionValue("n_generations")),
+                                i, j,
+                                Boolean.parseBoolean(commandLine.getOptionValue("log"))
+
                         );
 
                         EDNEL ednel = new EDNEL(
@@ -240,8 +244,7 @@ public class Main {
                                 commandLine.getOptionValue("variables_path"),
                                 commandLine.getOptionValue("options_path"),
                                 pbilLogger,
-                                commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed")),
-                                Boolean.parseBoolean(commandLine.getOptionValue("log"))
+                                commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
                         );
 
                         ednel.buildClassifier(train_data);

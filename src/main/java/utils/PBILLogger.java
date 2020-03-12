@@ -34,10 +34,16 @@ public class PBILLogger {
     protected int n_sample;
     protected int n_fold;
     protected int n_individuals;
+    protected boolean log;
+
     protected int curGen;
+
     protected ArrayList<Double> minFitness;
     protected ArrayList<Double> maxFitness;
     protected ArrayList<Double> medianFitness;
+
+    protected HashMap<String, String> pastPopulations = null;
+    protected Double[][] pastFitnesses = null;
 
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
@@ -82,9 +88,22 @@ public class PBILLogger {
             "unweightedMicroFmeasure"
     };
 
-    public PBILLogger(String dataset_metadata_path, int n_individuals, int n_sample, int n_fold) {
+    /**
+     *
+     * @param dataset_metadata_path
+     * @param n_individuals
+     * @param n_sample
+     * @param n_fold
+     * @param log Whether to implement more aggressive logging capabilities. May have a great impact in performance.
+     */
+    public PBILLogger(String dataset_metadata_path, int n_individuals, int n_generations, int n_sample, int n_fold, boolean log) {
         this.n_sample = n_sample;
         this.n_fold = n_fold;
+        this.log = log;
+        if(this.log) {
+            this.pastFitnesses = new Double[n_generations][n_individuals];
+            this.pastPopulations = new HashMap<>(n_generations * n_individuals * 50);
+        }
 
         this.dataset_metadata_path = dataset_metadata_path;
         this.dataset_overall_path = String.format(
@@ -105,13 +124,29 @@ public class PBILLogger {
         this.curGen = 0;
     }
 
-    public void logPopulation(double min, double median, double max, Individual overall, Individual last) {
+    public void logPopulation(Double[] fitnesses, Integer[] sortedIndices,
+                              Individual[] population, Individual overall, Individual last
+    ) {
         this.overall = overall;
         this.last = last;
-        this.minFitness.add(min);
-        this.medianFitness.add(median);
-        this.maxFitness.add(max);
 
+        if(this.log) {
+            for(int i = 0; i < population.length; i++) {
+                for(String characteristic : population[i].getCharacteristics().keySet()) {
+                    this.pastPopulations.put(String.format("gen_%03d_ind_%03d_%s", this.curGen, i, characteristic), population[i].getCharacteristics().get(characteristic));
+                }
+            }
+        }
+        this.minFitness.add(fitnesses[sortedIndices[fitnesses.length - 1]]);
+        this.maxFitness.add(fitnesses[sortedIndices[0]]);
+
+        if((fitnesses.length % 2) == 0) {
+            int ind0 = (fitnesses.length / 2) - 1, ind1 = (fitnesses.length / 2);
+
+            this.medianFitness.add((fitnesses[sortedIndices[ind0]] + fitnesses[sortedIndices[ind1]] / 2));
+        } else {
+            this.medianFitness.add(fitnesses[sortedIndices[fitnesses.length / 2]]);
+        }
         this.curGen += 1;
     }
 
@@ -203,7 +238,7 @@ public class PBILLogger {
         individualsClassifiersToFile(dataset_thisrun_path, individuals);
 
         String variablesFolder = dataset_thisrun_path + File.separator + "variables";
-        // TODO log population!
+
 //        this.createFolder(variablesFolder);
     }
 
@@ -246,23 +281,33 @@ public class PBILLogger {
 
     private void individualsCharacteristicsToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws IOException {
         PBILLogger.createFolder(thisRunFolder);
-
         BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.csv"));
 
-        Object[] characteristicsNames = null;
+        // writes header, saves order of columns
+
+
+        Object[] order = individuals.get(individuals.keySet().toArray()[0]).getCharacteristics().keySet().toArray();
+        String header = "individual_name";
+        for(int i = 0; i < order.length; i++) {
+            header += "," + order[i];
+        }
+        bw.write(header + "\n");
+
         for(String indName : individuals.keySet()) {
             HashMap<String, String> characteristics = individuals.get(indName).getCharacteristics();
-            if(characteristicsNames == null) {
-                characteristicsNames = characteristics.keySet().toArray();
-                String header = "individual_name";
-                for(int i = 0; i < characteristicsNames.length; i++) {
-                    header += "," + characteristicsNames[i];
-                }
-                bw.write(header + "\n");
-            }
-            bw.write(this.getCharacteristicsLineForIndividual(characteristicsNames, indName, characteristics));
+            bw.write(this.getCharacteristicsLineForIndividual(order, indName, characteristics));
         }
-
+        if(this.log) {
+            for(int i = 0; i < this.curGen; i++) {
+                for(int j = 0; j < this.n_individuals; j++) {
+                    String line = String.format("gen_%03d_ind_%03d", i, j);
+                    for(Object ch : order) {
+                        line += "," + pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, ch));
+                    }
+                    bw.write(line + "\n");
+                }
+            }
+        }
         bw.close();
     }
 

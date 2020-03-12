@@ -39,14 +39,12 @@ public class EDNEL extends AbstractClassifier {
     protected Double currentGenFitness;
     protected Double overallFitness;
 
-    protected boolean log;
-
     protected EarlyStop earlyStop;
 
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
                  int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
                  String variables_path, String options_path, PBILLogger pbilLogger,
-                 Integer seed, boolean log) throws Exception {
+                 Integer seed) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
@@ -66,8 +64,6 @@ public class EDNEL extends AbstractClassifier {
         this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance);
 
         this.fitted = false;
-
-        this.log = log;
 
         if(seed == null) {
             this.mt = new MersenneTwister();
@@ -117,10 +113,7 @@ public class EDNEL extends AbstractClassifier {
 
             this.earlyStop.update(c, this.currentGenFitness);
             this.pbilLogger.logPopulation(
-                    fitnesses[0][sortedIndices[fitnesses[0].length - 1]],
-                    fitnesses[0][sortedIndices[fitnesses[0].length / 2]],  // lazy median calculus
-                    fitnesses[0][sortedIndices[0]],
-                    this.overallBest, this.currentGenBest
+                    fitnesses[0], sortedIndices, population, this.overallBest, this.currentGenBest
             );
             this.pbilLogger.print();
 
