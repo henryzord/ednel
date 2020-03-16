@@ -1,11 +1,14 @@
 import argparse
 import pandas as pd
 import numpy as np
+import os
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go
-from ipywidgets import widgets
-from plotly import offline as py
+from plotly.offline import plot
 from IPython.display import display, HTML
+from matplotlib.colors import to_hex
+from matplotlib.cm import viridis
+from copy import deepcopy
 
 """
 Script for generating a visualization of individuals from a csv table.
@@ -13,6 +16,17 @@ Script for generating a visualization of individuals from a csv table.
 
 
 def read_and_discretize(csv_path):
+    """
+    Reads a csv file into a DataFrame.
+
+    This csv file must be the result of a (partial) run of the EDNEL algorithm.
+    Will swap NaN values with -1, and convert categorical columns to one-hot.
+
+    :param csv_path: Full path to the csv file.
+    :type csv_path: str
+    :return: A dataframe with the information.
+    :rtype: pandas.DataFrame
+    """
     df = pd.read_csv(csv_path, index_col=0)
     for column in df.columns:
         if df[column].dtype == np.object:
@@ -28,96 +42,108 @@ def read_and_discretize(csv_path):
 
 
 def run_pca(df):
+    index = deepcopy(df.apply(lambda x: x.name.split('_')[:2][-1], axis=1))
+    fitness = deepcopy(df['fitness'].values)
+
     pca = PCA(n_components=2, copy=False)
     npa = pca.fit_transform(df)
-    index = df.apply(lambda x: x.name.split('_')[:2][-1], axis=1)
 
     new_df = pd.DataFrame(npa, columns=['x', 'y'], index=index)
+    new_df.insert(len(new_df.columns), column='fitness', value=fitness)
     return new_df
 
 
-def plot(df):
-    generations = []
-    not_generations = []
+def local_plot(df, csv_path):
+    fig = go.Figure(
+        layout=go.Layout(
+            title='Individuals throughout generations',
+            xaxis=go.layout.XAxis(
+                range=(min(df['x']) - 2, max(df['x']) + 2),
+                showticklabels=False,
+                title='First PCA dimension'
+            ),
+            yaxis=go.layout.YAxis(
+                range=(min(df['y']) - 2, max(df['y']) + 2),
+                showticklabels=False,
+                title='Second PCA dimension'
+            )
+        )
+    )
+
+    active = 0
+
+    numeric_gens = []
+    categoric_gens = []
     for gen in df.index.unique():
         try:
-            generations += [int(gen)]
-        except ValueError:
-            not_generations += [gen]
+            numeric_gens += [int(gen)]
+        except:
+            categoric_gens += [gen]
 
-    genSlider = widgets.IntSlider(
-        value=0,
-        min=min(generations),
-        max=max(generations),
-        step=1,
-        description='Generation:',
-        continuous_update=False
-    )
-    show_last = widgets.Checkbox(
-        description='Show Last',
-        value=True
-    )
-    show_overall = widgets.Checkbox(
-        description='Show Overall',
-        value=True
-    )
+    always_display = np.array(list(map(lambda x: x in categoric_gens, df.index)))
 
-    container = widgets.HBox(children=[genSlider, show_last, show_overall])
+    # add traces, one for each slider step
+    for gen in sorted(numeric_gens):
+        sub = df.loc[(df.index == '%03d' % gen) | always_display]
+        x = sub['x']
+        y = sub['y']
 
-    trace1 = go.Figure(
-        data=go.Scatter(
-            x=df.loc[:, df.columns[0]],
-            y=df.loc[:, df.columns[1]],
-            mode='markers'
+        hovertext = []
+        for i, row in sub.iterrows():
+            if i in categoric_gens:
+                hovertext += [i]
+            else:
+                hovertext += ['Fitness: %.4f' % row.loc['fitness']]
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode='markers',
+                visible=False,
+                marker=dict(
+                    color=sub['fitness'],
+                    size=12,
+                    colorscale='Viridis',
+                    colorbar=dict(
+                        title='Fitness'
+                    )
+                ),
+                hovertext=hovertext,
+            )
         )
-    )
 
-    g = go.FigureWidget(
-        data=trace1,
-        layout=go.Layout(
-            title=dict(
-                text='Population throughout generations'
-            ),
-            barmode='overlay'
+    # makes first scatter visible
+    fig.data[active].visible = True
+
+    steps = []
+    for i in range(len(fig.data)):
+        step = dict(
+            method="restyle",
+            args=["visible", [False] * len(fig.data)],
         )
+        step["args"][1][i] = True  # Toggle i'th trace to "visible"
+        steps.append(step)
+
+    sliders = [dict(
+        active=active,
+        currentvalue={"prefix": "Generation: "},
+        pad={"t": 50},
+        steps=steps
+    )]
+
+    fig.update_layout(
+        sliders=sliders
     )
 
-    def validate():
-        if genSlider.value in generations:
-            return True
-        return False
-
-    def response(change):
-        if validate():
-            filter_list = df.index == '%03d' % genSlider.value
-
-            if show_overall:
-                filter_list = filter_list | df.index == 'overall'
-
-            if show_last:
-                filter_list = filter_list | df.index == 'last'
-
-            local = df.loc[filter_list]
-
-            with g.batch_update():
-                g.data[0].x = local[local.columns[0]]
-                g.data[1].y = local[local.columns[1]]
-                g.layout.barmode = 'overlay'
-
-    genSlider.observe(response, names='value')
-    show_last.observe(response, names='value')
-    show_overall.observe(response, names='value')
-
-    vbox = widgets.VBox([container, g])
-    display(vbox)
+    to_write_path = os.sep.join(csv_path.split(os.sep)[:-1])
+    plot(fig, filename=os.path.join(to_write_path, 'characteristics.html'))
 
 
 def main(args):
-    py.init_notebook_mode()
-
     df = read_and_discretize(args.csv_path)
     new_df = run_pca(df)
-    plot(new_df)
+    local_plot(new_df, args.csv_path)
 
 
 if __name__ == '__main__':
