@@ -253,7 +253,7 @@ public class Main {
                         toReport.put("overall", ednel.getOverallBest());
                         toReport.put("last", ednel.getCurrentGenBest());
 
-                        ednel.getPbilLogger().toFile(toReport, train_data, test_data);
+                        ednel.getPbilLogger().toFile(ednel.getDependencyNetwork(), toReport, train_data, test_data);
 
                         overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest()) / 10;
                         lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest()) / 10;

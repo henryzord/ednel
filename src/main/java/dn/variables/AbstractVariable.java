@@ -37,7 +37,13 @@ public abstract  class AbstractVariable {
 
     public abstract String[] unconditionalSampling(int sample_size) throws Exception;
 
-
+    /**
+     *
+     * @param conditions
+     * @param variableValue
+     * @param locOnVariable
+     * @return
+     */
     protected HashSet<Integer> getSetOfIndices(HashMap<String, String> conditions, String variableValue, boolean locOnVariable) {
         HashSet<Integer> intersection = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
@@ -88,52 +94,31 @@ public abstract  class AbstractVariable {
         return idx;
     }
 
-
-    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
-        return values.get(this.conditionalSamplingIndex(lastStart));
-    }
-
-    public String[] getParents() {
-        return parents;
-    }
-
-    public static void main(String[] args) {
-//        MersenneTwister mt = new MersenneTwister();
-//
-//        Variable v = new Variable(mt, new String[]{"a", "b", "c"}, new float[]{(float)0.5, (float)0.4, (float)0.1});
-//        String[] samples = v.conditionalSampling(100);
-//        for(int i = 0; i < samples.length; i++) {
-//            System.out.print(samples[i]);
-//        }
-
-    }
-
-    public HashSet<String> getUniqueValues() {
-        return this.uniqueValues;
-    }
-
     public HashMap<String, HashMap<String, ArrayList<Integer>>> getTable() {
         return this.table;
     }
 
-    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
+    /**
+     * Update probabilities of this Variable based on the fittest population of a generation.
+     * @param fittest
+     * @throws Exception
+     */
+    public void updateProbabilities(Individual[] fittest) throws Exception {
         ArrayList<Float> occurs = new ArrayList<>();
         for(int i = 0; i < probabilities.size(); i++) {
             occurs.add((float)0.0);
         }
 
-        int to_select = Math.round(selectionShare * sortedIndices.length);
-
         if(this.getClass().equals(ContinuousVariable.class)) {
             // gets the count of occurrences
-            for(int i = 0; i < to_select; i++) {
+            for(int i = 0; i < fittest.length; i++) {
                 HashSet<Integer> parentIndices = this.getSetOfIndices(
-                        population[sortedIndices[i]].getCharacteristics(),
+                        fittest[i].getCharacteristics(),
                         null,
                         false
                 );
                 HashSet<Integer> nullIndices = this.getSetOfIndices(
-                        population[sortedIndices[i]].getCharacteristics(),
+                        fittest[i].getCharacteristics(),
                         null,
                         true
                 );
@@ -146,10 +131,10 @@ public abstract  class AbstractVariable {
             }
         } else {
             // gets the count of occurrences
-            for(int i = 0; i < to_select; i++) {
+            for(int i = 0; i < fittest.length; i++) {
                 int[] indices = this.getIndices(
-                        population[sortedIndices[i]].getCharacteristics(),
-                        population[sortedIndices[i]].getCharacteristics().get(this.name),
+                        fittest[i].getCharacteristics(),
+                        fittest[i].getCharacteristics().get(this.name),
                         true
                 );
                 for(int index : indices) {
@@ -218,5 +203,39 @@ public abstract  class AbstractVariable {
 //                throw new Exception("found NaN value!");  // TODO throw away this code later
             }
         }
+    }
+
+    /**
+     * Updates the parent set of this variable, based on the fittest individuals from a generation.
+     * @param fittest
+     * @throws Exception
+     */
+    public void updateStructure(Individual[] fittest) throws Exception {
+    }
+
+    /**
+     * Samples a new value for this variable, based on conditions.
+     * @param lastStart Last values from the Dependency Network.
+     * @return A new value for this variable.
+     * @throws Exception
+     */
+    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
+        return values.get(this.conditionalSamplingIndex(lastStart));
+    }
+
+    public String[] getParents() {
+        return parents;
+    }
+
+    /**
+     * Gets the values that this variable can assume.
+     * @return
+     */
+    public HashSet<String> getUniqueValues() {
+        return this.uniqueValues;
+    }
+
+    public String getName() {
+        return name;
     }
 }

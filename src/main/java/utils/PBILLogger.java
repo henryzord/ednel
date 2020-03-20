@@ -1,6 +1,9 @@
 package utils;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import dn.DependencyNetwork;
+import dn.variables.AbstractVariable;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
 import guru.nidi.graphviz.engine.Format;
@@ -8,8 +11,6 @@ import guru.nidi.graphviz.engine.Graphviz;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
-import org.apache.commons.math3.genetics.Fitness;
-import org.json.simple.JSONObject;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.rules.DecisionTable;
@@ -27,8 +28,9 @@ import java.util.HashMap;
 
 public class PBILLogger {
 
-    protected final String dataset_overall_path;
-    protected final String dataset_thisrun_path;
+    protected String dataset_overall_path;
+    protected String dataset_thisrun_path;
+    protected HashMap<String, String[]> pastDependencyStructures = null;
     protected String dataset_metadata_path;
     protected Individual overall;
     protected Individual last;
@@ -102,6 +104,7 @@ public class PBILLogger {
         this.log = log;
         if(this.log) {
             this.pastPopulations = new HashMap<>(n_generations * n_individuals * 50);
+            this.pastDependencyStructures = new HashMap<>(n_generations * 50);
         }
 
         this.dataset_metadata_path = dataset_metadata_path;
@@ -123,12 +126,21 @@ public class PBILLogger {
         this.curGen = 0;
     }
 
-    public void logPopulation(Double[] fitnesses, Integer[] sortedIndices,
-                              Individual[] population, Individual overall, Individual last
+    public void log(Double[] fitnesses, Integer[] sortedIndices,
+                    Individual[] population, Individual overall, Individual last,
+                    DependencyNetwork dn
     ) {
         this.overall = overall;
         this.last = last;
 
+        this.logPopulation(fitnesses, sortedIndices, population, overall, last);
+        this.logDependencyStructure(dn);
+
+        this.curGen += 1;
+    }
+
+    private void logPopulation(Double[] fitnesses, Integer[] sortedIndices,
+                               Individual[] population, Individual overall, Individual last) {
         if(this.log) {
             for(int i = 0; i < population.length; i++) {
                 for(String characteristic : population[i].getCharacteristics().keySet()) {
@@ -146,11 +158,20 @@ public class PBILLogger {
         } else {
             this.medianFitness.add(fitnesses[sortedIndices[fitnesses.length / 2]]);
         }
-        this.curGen += 1;
     }
 
-    public void logProbabilities(DependencyNetwork dn) {
+    private void logDependencyStructure(DependencyNetwork dn) {
+        if(this.log) {
+            HashMap<String, AbstractVariable> variables = dn.getVariables();
+            Object[] variableNames = variables.keySet().toArray();
 
+            for(Object variable : variableNames) {
+                this.pastDependencyStructures.put(
+                        String.format("gen_%03d_var_%s", this.curGen, variable),
+                        variables.get(variable).getParents()
+                );
+            }
+        }
     }
 
     private String getEvaluationLineForClassifier(String name, Evaluation evaluation)
@@ -237,21 +258,29 @@ public class PBILLogger {
         return fitnesses;
     }
 
-    public void toFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
-        // TODo capture fitnesses here!
+    public void toFile(DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
         Double[] fitnesses = evaluationsToFile(individuals, train_data, test_data);
-        individualsCharacteristicsToFile(dataset_thisrun_path, individuals, fitnesses);
-        individualsClassifiersToFile(dataset_thisrun_path, individuals);
-
-        String variablesFolder = dataset_thisrun_path + File.separator + "variables";
-
-//        this.createFolder(variablesFolder);
+        PBILLogger.createFolder(dataset_thisrun_path);
+        individualsCharacteristicsToFile(individuals, fitnesses);
+        individualsClassifiersToFile(individuals);
+        dependencyNetworkStructureToFile(dn);
     }
 
-    private void individualsClassifiersToFile(String thisRunFolder, HashMap<String, Individual> individuals) throws Exception {
+    private void dependencyNetworkStructureToFile(DependencyNetwork dn) throws IOException {
+        //BufferedWriter bw = new BufferedWriter();
+        if(this.log) {
+            FileWriter fw = new FileWriter(dataset_thisrun_path + File.separator + "dependency_network_structure.json");
+            Gson converter = new GsonBuilder().setPrettyPrinting().create();
+            fw.write(converter.toJson(pastDependencyStructures));
+            fw.flush();
+            fw.close();
+        }
+    }
+
+    private void individualsClassifiersToFile(HashMap<String, Individual> individuals) throws Exception {
         for(String indName : individuals.keySet()) {
             BufferedWriter bw = new BufferedWriter(new FileWriter(
-                    thisRunFolder + File.separator + indName  + "_classifiers.md"
+                    dataset_thisrun_path + File.separator + indName  + "_classifiers.md"
             ));
 
             HashMap<String, AbstractClassifier> classifiers = individuals.get(indName).getClassifiers();
@@ -286,9 +315,8 @@ public class PBILLogger {
         return line + "\n";
     }
 
-    private void individualsCharacteristicsToFile(String thisRunFolder, HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
-        PBILLogger.createFolder(thisRunFolder);
-        BufferedWriter bw = new BufferedWriter(new FileWriter(thisRunFolder + File.separator + "characteristics.csv"));
+    private void individualsCharacteristicsToFile(HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
+        BufferedWriter bw = new BufferedWriter(new FileWriter(dataset_thisrun_path + File.separator + "characteristics.csv"));
 
         // writes header, saves order of columns
         Object[] order = individuals.get(individuals.keySet().toArray()[0]).getCharacteristics().keySet().toArray();
@@ -331,14 +359,17 @@ public class PBILLogger {
             PBILLogger.createFolder(metadata_path + File.separator + str_time + File.separator + dataset + File.separator + "overall");
         }
 
-        JSONObject obj = new JSONObject();
+        HashMap<String, String> obj = new HashMap<>();
         for(Option parameter : commandLine.getOptions()) {
             obj.put(parameter.getLongOpt(), parameter.getValue());
         }
 
         FileWriter fw = new FileWriter(metadata_path + File.separator + str_time + File.separator + "parameters.json");
-        fw.write(obj.toJSONString());
+        Gson converter = new GsonBuilder().setPrettyPrinting().create();
+
+        fw.write(converter.toJson(obj));
         fw.flush();
+        fw.close();
     }
 
     private static void createFolder(String path) throws FilerException {

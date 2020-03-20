@@ -4,10 +4,12 @@ import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
 import eda.individual.Individual;
+import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import weka.core.Instances;
+import org.apache.commons.math3.special.Gamma;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -18,10 +20,15 @@ public class DependencyNetwork {
     private MersenneTwister mt;
     private ArrayList<String> variable_names;
     private JSONObject classifiersResources;
-    private float learningRate;
-    private int n_generations;
     private int burn_in;
     private int thinning_factor;
+
+    /**
+     * The number of nearest neighbors to consider when
+     * calculating the mutual information between discrete and
+     * continuous variables.
+     */
+    private int nearestNeighbor = 3;
 
     private List<Integer> sampling_order = null;
 
@@ -40,8 +47,6 @@ public class DependencyNetwork {
         this.mt = mt;
         this.variables = new HashMap<>();
         this.variable_names = new ArrayList<>((int)Math.pow(algorithms.length, 2));
-        this.learningRate = learningRate;
-        this.n_generations = n_generations;
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
@@ -120,9 +125,9 @@ public class DependencyNetwork {
                 }
                 
                 if(isContinuous.get(variableName)) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt, this.learningRate, this.n_generations));
+                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt, learningRate, n_generations));
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, this.mt, this.learningRate, this.n_generations));
+                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, this.mt, learningRate, n_generations));
                 }
             }
         }
@@ -273,18 +278,207 @@ public class DependencyNetwork {
     }
 
     public void update(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-        this.updateStructure(population, sortedIndices, selectionShare);  // TODO implement
-        this.updateProbabilities(population, sortedIndices, selectionShare);
+        int to_select = Math.round(selectionShare * sortedIndices.length);
+
+        Individual[] fittest = new Individual[to_select];
+        for(int i = 0; i < to_select; i++) {
+            fittest[i] = population[sortedIndices[i]];
+        }
+
+        this.updateStructure(fittest);  // TODO implement
+        this.updateProbabilities(fittest);
 
     }
 
-    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
+    public void updateProbabilities(Individual[] fittest) throws Exception {
         for(String variableName : this.variable_names) {
-            this.variables.get(variableName).updateProbabilities(population, sortedIndices, selectionShare);
+            this.variables.get(variableName).updateProbabilities(fittest);
         }
     }
 
-    public void updateStructure(Individual[] population, Integer[] sortedIndices, float selectionShare) {
+    /**
+     * A modified Mutual Information metric derived from
+     * J.A. Gámez, J.L. Mateo, J.M. Puerta. EDNA: Estimation of Dependenc Networks Algorithm.
+     */
+    private double heuristic(
+        AbstractVariable pivot, HashSet<String> parentSet, AbstractVariable candidate, Individual[] fittest) throws Exception {
+        double mutualInformation = this.mutualInformation(pivot, candidate, fittest);
+        double localMIs = 0;
+        for(String parent : parentSet) {
+            localMIs += this.mutualInformation(this.variables.get(parent), candidate, fittest);
+        }
+        return mutualInformation - (localMIs / (parentSet.size() + 1));
+    }
+
+    /**
+     * Implements a method for calculating Mutual Information between Discrete and Continuous variables
+     * proposed in
+     *
+     * Ross, Brian C. "Mutual information between discrete and continuous data sets." PloS one 9.2 (2014).
+     *
+     * The specific method is Equation 5 of the paper.
+     *
+     * @param a Discrete variable a
+     * @param b Continuous variable b
+     * @param fittest data points to use for calculating mutual information
+     * @return The mutual information between these two variables, given data points.
+     */
+    private double discreteContinuousMutualInformation(DiscreteVariable a, ContinuousVariable b, Individual[] fittest) {
+        String a_name = a.getName();
+        String b_name = b.getName();
+
+        HashSet<String> a_values = a.getUniqueValues();
+        HashMap<String, Integer> a_counts = new HashMap<>(a.getUniqueValues().size());
+        for(String value : a_values) {
+            a_counts.put(String.valueOf(value), 0);
+        }
+        for(Individual fit : fittest) {
+            HashMap<String, String> localCharacteristics = fit.getCharacteristics();
+            String a_value = String.valueOf(localCharacteristics.get(a_name));
+
+            a_counts.put(
+                a_value,
+                a_counts.get(a_value) + 1
+            );
+        }
+
+        int N = fittest.length;
+        int k = this.nearestNeighbor;
+        double mutualInformation = 0;
+
+        for(Individual fit : fittest) {
+            Float b_value = Float.valueOf(fit.getCharacteristics().get(b_name));
+            int z = 0;
+            z += 1;
+        }
+
+
+//        Gamma.digamma()
+
+        return mutualInformation;
+    }
+
+    private double doubleDiscreteMutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) {
+        HashMap<String, Integer> a_counts = new HashMap<>(a.getUniqueValues().size());
+        HashMap<String, Integer> b_counts = new HashMap<>(b.getUniqueValues().size());
+        HashMap<String, Integer> joint_counts = new HashMap<>(
+                a.getUniqueValues().size() * b.getUniqueValues().size()
+        );
+
+        int total_cases = fittest.length;
+        String a_name = a.getName();
+        String b_name = b.getName();
+
+        for(String value : a.getUniqueValues()) {
+            a_counts.put(String.valueOf(value), 0);
+        }
+        for(String value : b.getUniqueValues()) {
+            b_counts.put(String.valueOf(value), 0);
+        }
+        for(String a_value : a.getUniqueValues()) {
+            for(String b_value : b.getUniqueValues()) {
+                joint_counts.put(String.format("%s,%s", a_value, b_value), 0);
+            }
+        }
+
+        for(Individual fit : fittest) {
+            HashMap<String, String> localCharacteristics = fit.getCharacteristics();
+
+            String a_value = String.valueOf(localCharacteristics.get(a_name));
+            String b_value = String.valueOf(localCharacteristics.get(b_name));
+
+            a_counts.put(
+                a_value,
+                a_counts.get(a_value) + 1
+            );
+            b_counts.put(
+                b_value,
+                b_counts.get(b_value) + 1
+            );
+
+            String joint_name = String.format("%s,%s", a_value, b_value);
+
+            joint_counts.put(
+                joint_name,
+                joint_counts.get(joint_name) + 1
+            );
+        }
+
+        double mutual_information = 0;
+        for(String joint_name : joint_counts.keySet()) {
+            String a_value = joint_name.split(",")[0];
+            String b_value = joint_name.split(",")[1];
+
+            double joint_prob = (double)joint_counts.get(joint_name) / (double)total_cases;
+            double a_prob = (double)a_counts.get(a_value) / (double)total_cases;
+            double b_prob = (double)b_counts.get(b_value) / (double)total_cases;
+
+            double local = joint_prob * Math.log(joint_prob / (a_prob * b_prob));
+            mutual_information += Double.isNaN(local)? 0 : local;
+        }
+        return mutual_information;
+    }
+
+    private double mutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) throws Exception {
+        if(a instanceof DiscreteVariable) {
+            if(b instanceof DiscreteVariable) {
+                return this.doubleDiscreteMutualInformation(a, b, fittest);
+            } else {  // b is instance of ContinuousVariable
+                return this.discreteContinuousMutualInformation((DiscreteVariable)a, (ContinuousVariable)b, fittest);
+            }
+        } else {  // a is instance of ContinuousVariable
+            if(b instanceof DiscreteVariable) {
+                return this.discreteContinuousMutualInformation((DiscreteVariable)b, (ContinuousVariable)a, fittest);
+            } else { // a and b are instances of ContinuousVariable
+                throw new Exception("unsupported case.");
+            }
+        }
+    }
+
+    public void updateStructure(Individual[] fittest) throws Exception {
         // TODO implement!
+        // candidates to be parents of a variable
+        HashSet<String> staticCandSet = new HashSet<>(variable_names.size());
+        staticCandSet.addAll(this.variable_names);
+
+        for(int index : this.sampling_order) {
+            String this_variable = this.variable_names.get(index);
+            HashSet<String> localCandSet = (HashSet<String>)staticCandSet.clone();
+            localCandSet.remove(this_variable);
+            HashSet<String> parentSet = new HashSet<>();
+
+            while(staticCandSet.size() > 0) {
+                double bestHeuristic = -1;
+                String bestCandidate = null;
+                for(String candidate : staticCandSet) {
+                    // TODO calculate mutual information, heuristic
+                    double heuristic = this.heuristic(
+                        this.variables.get(this_variable),
+                        parentSet,
+                        this.variables.get(candidate),
+                        fittest
+                    );
+                    if(heuristic > 0) {
+                        if(heuristic > bestHeuristic) {
+                            bestHeuristic = heuristic;
+                            bestCandidate = candidate;
+                        }
+                    } else {
+                        localCandSet.remove(candidate);
+                    }
+                }
+                if(bestHeuristic > 0) {
+                    parentSet.add(bestCandidate);
+                    localCandSet.remove(bestCandidate);
+                }
+            }
+            // TODO now add candidates as parents of this variable!
+            int z = 0;
+            z += 1;
+        }
+    }
+
+    public HashMap<String, AbstractVariable> getVariables() {
+        return this.variables;
     }
 }

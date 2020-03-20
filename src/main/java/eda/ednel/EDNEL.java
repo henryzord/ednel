@@ -112,8 +112,8 @@ public class EDNEL extends AbstractClassifier {
             }
 
             this.earlyStop.update(c, this.currentGenFitness);
-            this.pbilLogger.logPopulation(
-                    fitnesses[0], sortedIndices, population, this.overallBest, this.currentGenBest
+            this.pbilLogger.log(
+                    fitnesses[0], sortedIndices, population, this.overallBest, this.currentGenBest, this.dn
             );
             this.pbilLogger.print();
 

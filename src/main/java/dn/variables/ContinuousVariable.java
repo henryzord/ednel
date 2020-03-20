@@ -67,22 +67,20 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public void updateProbabilities(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-        super.updateProbabilities(population, sortedIndices, selectionShare);
-        this.updateNormalDistributions(population, sortedIndices, selectionShare);
+    public void updateProbabilities(Individual[] fittest) throws Exception {
+        super.updateProbabilities(fittest);
+        this.updateNormalDistributions(fittest);
     }
 
-    private void updateNormalDistributions(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
-        int to_select = Math.round(selectionShare * sortedIndices.length);
-
+    private void updateNormalDistributions(Individual[] fittest) throws Exception {
         HashSet<Integer> nullSet = new HashSet<>(this.values.size());
         nullSet.addAll(this.table.get(this.name).get(null));
 
         HashMap<Integer, DescriptiveStatistics> sampledValues = new HashMap<>(this.values.size());
 
-        for(int i = 0; i < to_select; i++) {
+        for(int i = 0; i < fittest.length; i++) {
             // local characteristics
-            HashMap<String, String> localCars = population[sortedIndices[i]].getCharacteristics();
+            HashMap<String, String> localCars = fittest[i].getCharacteristics();
             // this variable is not set for this individual; continue
             // if this individual does not use this variable, then do not do anything
             if(localCars.get(this.name) == null) {
@@ -92,7 +90,7 @@ public class ContinuousVariable extends AbstractVariable {
             HashSet<Integer> nullSetLocal = (HashSet<Integer>) nullSet.clone();
             // gets all indices where variable is null
             HashSet<Integer> parentIndices = getSetOfIndices(
-                    population[sortedIndices[i]].getCharacteristics(), null, false
+                    fittest[i].getCharacteristics(), null, false
             );
             parentIndices.removeAll(nullSetLocal);  // now parentIndices has all the indices which should be updated
             if(parentIndices.size() != 1) {
