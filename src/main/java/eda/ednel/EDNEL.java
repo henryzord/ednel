@@ -6,12 +6,10 @@ import eda.individual.BaselineIndividual;
 import eda.individual.FitnessCalculator;
 import eda.individual.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
-import utils.ArrayIndexComparator;
+import utils.Argsorter;
 import utils.PBILLogger;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
-
-import java.util.Arrays;
 
 public class EDNEL extends AbstractClassifier {
 
@@ -98,10 +96,7 @@ public class EDNEL extends AbstractClassifier {
             );
 
             Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
-
-            ArrayIndexComparator comparator = new ArrayIndexComparator(fitnesses[0]);
-            Integer[] sortedIndices = comparator.createIndexArray();
-            Arrays.sort(sortedIndices, comparator);
+            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses[0]);
 
             this.currentGenBest = population[sortedIndices[0]];
             this.currentGenFitness = fitnesses[0][sortedIndices[0]];

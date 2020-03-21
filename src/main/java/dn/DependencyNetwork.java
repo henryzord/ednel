@@ -4,10 +4,10 @@ import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
 import eda.individual.Individual;
-import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import utils.Argsorter;
 import weka.core.Instances;
 import org.apache.commons.math3.special.Gamma;
 
@@ -332,30 +332,82 @@ public class DependencyNetwork {
         for(String value : a_values) {
             a_counts.put(String.valueOf(value), 0);
         }
-        for(Individual fit : fittest) {
-            HashMap<String, String> localCharacteristics = fit.getCharacteristics();
-            String a_value = String.valueOf(localCharacteristics.get(a_name));
+        Double[] continuousValues = new Double [fittest.length];
+        String[] discreteValues = new String [fittest.length];
 
-            a_counts.put(
-                a_value,
-                a_counts.get(a_value) + 1
-            );
+        for(int i = 0; i < fittest.length; i++) {
+            HashMap<String, String> localCharacteristics = fittest[i].getCharacteristics();
+            String a_value = String.valueOf(localCharacteristics.get(a_name));
+            String b_value = String.valueOf(localCharacteristics.get(b_name));
+
+            if(!b_value.toLowerCase().equals("null")) {
+                discreteValues[i] = a_value;
+                continuousValues[i] = Double.valueOf(b_value);
+
+                a_counts.put(
+                    a_value,
+                    a_counts.get(a_value) + 1
+                );
+            } else {
+                continuousValues[i] = Double.NaN;
+            }
         }
 
-        int N = fittest.length;
-        int k = this.nearestNeighbor;
         double mutualInformation = 0;
 
-        for(Individual fit : fittest) {
-            Float b_value = Float.valueOf(fit.getCharacteristics().get(b_name));
-            int z = 0;
-            z += 1;
+        // NaN values are placed at the end of the sorting
+        Integer[] sortedIndices = Argsorter.crescent_argsort(continuousValues);
+
+        for(int i = 0; i < sortedIndices.length; i++) {
+            int m = 0;
+            int neighbour_counter = 0;
+
+            Double thisValue = continuousValues[sortedIndices[i]];
+
+            if(!Double.isNaN(thisValue)) {
+                String thisClass = discreteValues[sortedIndices[i]];
+                // looks forward
+                for(int j = i + 1; j < sortedIndices.length; j++) {
+                    int localIndex = sortedIndices[j];
+
+                    if(!Double.isNaN(continuousValues[localIndex])) {
+                        m += 1;
+                        if(discreteValues[localIndex].equals(thisClass)) {
+                            neighbour_counter += 1;
+                            if(neighbour_counter == this.nearestNeighbor) {
+                                break;
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                // looks backwards
+                for(int j = i - 1; j >= 0; j--) {
+                    int localIndex = sortedIndices[j];
+                    if(!Double.isNaN(continuousValues[localIndex])) {
+                        m += 1;
+                        if(discreteValues[localIndex].equals(thisClass)) {
+                            neighbour_counter += 1;
+                            if(neighbour_counter == this.nearestNeighbor) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                if((m > 0) && (a_counts.get(thisClass) > 0)) {
+                    mutualInformation +=
+                        Gamma.digamma(fittest.length)
+                            -Gamma.digamma(a_counts.get(thisClass))
+                            +Gamma.digamma(this.nearestNeighbor)
+                            -Gamma.digamma(m);
+                }
+            } else {
+                break; // reached end of array
+            }
         }
 
-
-//        Gamma.digamma()
-
-        return mutualInformation;
+        return mutualInformation / (double)fittest.length;
     }
 
     private double doubleDiscreteMutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) {

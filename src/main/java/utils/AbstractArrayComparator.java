@@ -2,11 +2,10 @@ package utils;
 
 import java.util.Comparator;
 
-public class ArrayIndexComparator implements Comparator<Integer>
-{
-    private final Double[] array;
+public abstract class AbstractArrayComparator implements Comparator<Integer> {
+    protected Double[] array;
 
-    public ArrayIndexComparator(Double[] array) {
+    public AbstractArrayComparator(Double[] array) {
         this.array = array;
     }
 
@@ -16,10 +15,5 @@ public class ArrayIndexComparator implements Comparator<Integer>
             indexes[i] = i;
         }
         return indexes;
-    }
-
-    @Override
-    public int compare(Integer index1, Integer index2) {
-        return array[index2].compareTo(array[index1]);
     }
 }
