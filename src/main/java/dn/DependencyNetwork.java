@@ -28,7 +28,7 @@ public class DependencyNetwork {
      * calculating the mutual information between discrete and
      * continuous variables.
      */
-    private int nearestNeighbor = 3;
+    private int nearest_neighbor = 3;
 
     private List<Integer> sampling_order = null;
 
@@ -40,7 +40,7 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path,
-            int burn_in, int thinning_factor, float learningRate, int n_generations
+            int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor
     ) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
@@ -50,6 +50,7 @@ public class DependencyNetwork {
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
+        this.nearest_neighbor = nearest_neighbor;
 
         this.lastStart = null;
 
@@ -335,6 +336,8 @@ public class DependencyNetwork {
         Double[] continuousValues = new Double [fittest.length];
         String[] discreteValues = new String [fittest.length];
 
+        int continuous_values_size = 0;
+
         for(int i = 0; i < fittest.length; i++) {
             HashMap<String, String> localCharacteristics = fittest[i].getCharacteristics();
             String a_value = String.valueOf(localCharacteristics.get(a_name));
@@ -343,6 +346,8 @@ public class DependencyNetwork {
             if(!b_value.toLowerCase().equals("null")) {
                 discreteValues[i] = a_value;
                 continuousValues[i] = Double.valueOf(b_value);
+
+                continuous_values_size += 1;
 
                 a_counts.put(
                     a_value,
@@ -353,7 +358,8 @@ public class DependencyNetwork {
             }
         }
 
-        double mutualInformation = 0;
+        // mutual information
+        double mi = 0;
 
         // NaN values are placed at the end of the sorting
         Integer[] sortedIndices = Argsorter.crescent_argsort(continuousValues);
@@ -374,7 +380,7 @@ public class DependencyNetwork {
                         m += 1;
                         if(discreteValues[localIndex].equals(thisClass)) {
                             neighbour_counter += 1;
-                            if(neighbour_counter == this.nearestNeighbor) {
+                            if(neighbour_counter == this.nearest_neighbor) {
                                 break;
                             }
                         }
@@ -389,28 +395,133 @@ public class DependencyNetwork {
                         m += 1;
                         if(discreteValues[localIndex].equals(thisClass)) {
                             neighbour_counter += 1;
-                            if(neighbour_counter == this.nearestNeighbor) {
+                            if(neighbour_counter == this.nearest_neighbor) {
                                 break;
                             }
                         }
                     }
                 }
                 if((m > 0) && (a_counts.get(thisClass) > 0)) {
-                    mutualInformation +=
-                        Gamma.digamma(fittest.length)
-                            -Gamma.digamma(a_counts.get(thisClass))
-                            +Gamma.digamma(this.nearestNeighbor)
-                            -Gamma.digamma(m);
+                    mi -= (Gamma.digamma(a_counts.get(thisClass)) + Gamma.digamma(m));
                 }
             } else {
                 break; // reached end of array
             }
         }
-
-        return mutualInformation / (double)fittest.length;
+        mi = (mi/continuous_values_size) + Gamma.digamma(continuous_values_size) + Gamma.digamma(this.nearest_neighbor);
+        return mi;
     }
 
-    private double doubleDiscreteMutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) {
+    /**
+     * Implements a method for calculating Mutual Information between two Continuous Variables. The variables need
+     * not to be Gaussians. The method was proposed in<br>
+     *
+     * Kraskov, Alexander, Harald Stögbauer, and Peter Grassberger.
+     * "Estimating mutual information." Physical review E 69.6 (2004): 066138.<br>
+     *
+     * The specific method is Equation 8 of the paper.<br>
+     *
+     * @param a Continuous variable a
+     * @param b Continuous variable b
+     * @param fittest data points to use for calculating mutual information
+     * @return The mutual information between these two variables, given data points.
+     */
+    private double continuousContinuousMutualInformation(ContinuousVariable a, ContinuousVariable b, Individual[] fittest) throws Exception {
+        String a_name = a.getName();
+        String b_name = b.getName();
+
+        Double[] a_values = new Double [fittest.length];
+        Double[] b_values = new Double [fittest.length];
+
+        Double mean_a = 0.;
+        Double mean_b = 0.;
+        int a_values_size = 0;
+        int b_values_size = 0;
+
+        for(int i = 0; i < fittest.length; i++) {
+            HashMap<String, String> localCharacteristics = fittest[i].getCharacteristics();
+            String a_value = String.valueOf(localCharacteristics.get(a_name));
+            String b_value = String.valueOf(localCharacteristics.get(b_name));
+
+            if(a_value.toLowerCase().equals("null")) {
+                a_values[i] = Double.NaN;
+            } else {
+                a_values[i] = Double.parseDouble(a_value);
+                mean_a += a_values[i];
+                a_values_size += 1;
+            }
+            if(b_value.toLowerCase().equals("null")) {
+                b_values[i] = Double.NaN;
+            } else {
+                b_values[i] = Double.parseDouble(b_value);
+                mean_b += b_values[i];
+                b_values_size += 1;
+            }
+        }
+        mean_a /= a_values_size;
+        mean_b /= b_values_size;
+
+        int non_nan_values = 0;
+        // replaces missing values with mean
+        for(int i = 0; i < a_values.length; i++) {
+            if(Double.isNaN(a_values[i])) {
+                if(!Double.isNaN((b_values[i]))) {
+                    a_values[i] = mean_a;
+                    non_nan_values += 1;
+                }
+            } else if(Double.isNaN((b_values[i]))) {
+                if(!Double.isNaN(a_values[i])) {
+                    b_values[i] = mean_b;
+                    non_nan_values += 1;
+                }
+            } else {
+                non_nan_values += 1;
+            }
+        }
+
+        // mutual information
+        double mi = 0;
+
+        // this computation is not originally in the paper. It forces the algorithm
+        // to choose a new value of k, if the previous value exceeds the number of
+        // available values
+        int k = Math.min(non_nan_values, this.nearest_neighbor + 1);
+
+        // now computes euclidean distances
+        Double[] distances = new Double [a_values.length];
+        for(int i = 0; i < a_values.length; i++) {
+            for(int j = 0; j < a_values.length; j++) {
+                distances[j] = Math.sqrt(
+                    Math.pow(a_values[i] - a_values[j], 2) + Math.pow(b_values[i] - b_values[j], 2)
+                );
+            }
+            // NaN values are placed at the end of the sorting
+            Integer[] sorted = Argsorter.crescent_argsort(distances);
+            // does not take into account position 0, since it's the same point
+            double max_a = a_values[sorted[k]];
+            double max_b = b_values[sorted[k]];
+
+            int a_count = 0;
+            int b_count = 0;
+            for(int j = 0; j < a_values.length; j++) {
+                if(Double.isNaN(a_values[j]) || Double.isNaN(b_values[j])) {
+                    break;
+                }
+                if(a_values[j] < max_a) {
+                    a_count += 1;
+                }
+                if(b_values[j] < max_b) {
+                    b_count += 1;
+                }
+            }
+            mi -= (Gamma.digamma(a_count + 1) + Gamma.digamma(b_count + 1));
+        }
+        // TODO not sure on the value
+        mi = (mi/non_nan_values) + Gamma.digamma(k) + Gamma.digamma(non_nan_values);
+        return mi;
+    }
+
+    private double discreteDiscreteMutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) {
         HashMap<String, Integer> a_counts = new HashMap<>(a.getUniqueValues().size());
         HashMap<String, Integer> b_counts = new HashMap<>(b.getUniqueValues().size());
         HashMap<String, Integer> joint_counts = new HashMap<>(
@@ -456,7 +567,8 @@ public class DependencyNetwork {
             );
         }
 
-        double mutual_information = 0;
+        // mutual information
+        double mi = 0;
         for(String joint_name : joint_counts.keySet()) {
             String a_value = joint_name.split(",")[0];
             String b_value = joint_name.split(",")[1];
@@ -466,15 +578,15 @@ public class DependencyNetwork {
             double b_prob = (double)b_counts.get(b_value) / (double)total_cases;
 
             double local = joint_prob * Math.log(joint_prob / (a_prob * b_prob));
-            mutual_information += Double.isNaN(local)? 0 : local;
+            mi += Double.isNaN(local)? 0 : local;
         }
-        return mutual_information;
+        return mi;
     }
 
     private double mutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) throws Exception {
         if(a instanceof DiscreteVariable) {
             if(b instanceof DiscreteVariable) {
-                return this.doubleDiscreteMutualInformation(a, b, fittest);
+                return this.discreteDiscreteMutualInformation(a, b, fittest);
             } else {  // b is instance of ContinuousVariable
                 return this.discreteContinuousMutualInformation((DiscreteVariable)a, (ContinuousVariable)b, fittest);
             }
@@ -482,13 +594,12 @@ public class DependencyNetwork {
             if(b instanceof DiscreteVariable) {
                 return this.discreteContinuousMutualInformation((DiscreteVariable)b, (ContinuousVariable)a, fittest);
             } else { // a and b are instances of ContinuousVariable
-                throw new Exception("unsupported case.");
+                return this.continuousContinuousMutualInformation((ContinuousVariable)a, (ContinuousVariable)b, fittest);
             }
         }
     }
 
     public void updateStructure(Individual[] fittest) throws Exception {
-        // TODO implement!
         // candidates to be parents of a variable
         HashSet<String> staticCandSet = new HashSet<>(variable_names.size());
         staticCandSet.addAll(this.variable_names);
@@ -503,7 +614,6 @@ public class DependencyNetwork {
                 double bestHeuristic = -1;
                 String bestCandidate = null;
                 for(String candidate : staticCandSet) {
-                    // TODO calculate mutual information, heuristic
                     double heuristic = this.heuristic(
                         this.variables.get(this_variable),
                         parentSet,
@@ -525,8 +635,7 @@ public class DependencyNetwork {
                 }
             }
             // TODO now add candidates as parents of this variable!
-            int z = 0;
-            z += 1;
+            throw new Exception("Implement!");
         }
     }
 
