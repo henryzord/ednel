@@ -40,7 +40,7 @@ public class FitnessCalculator {
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
             if(Utils.isMissingValue(evaluation.areaUnderROC(i))) {
-                unweighted += 0;
+                unweighted += 0;  // TODO check this code. not sure if this works
             } else {
               unweighted += evaluation.areaUnderROC(i);
             }
@@ -86,7 +86,6 @@ public class FitnessCalculator {
         for(int k = 0; k < n_individuals; k++) {
             trainEvaluations[k] /= n_folds;
         }
-
         return new Double[][]{trainEvaluations, testEvaluations};
     }
 

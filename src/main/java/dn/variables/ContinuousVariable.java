@@ -2,13 +2,16 @@ package dn.variables;
 
 import eda.individual.Individual;
 import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.apache.commons.math3.stat.correlation.Covariance;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 
+/**
+ * This class encodes a continuous variable, more precisely a normal distribution.
+ */
 public class ContinuousVariable extends AbstractVariable {
 
     protected ArrayList<HashMap<String, Float>> normalProperties;
@@ -122,6 +125,85 @@ public class ContinuousVariable extends AbstractVariable {
 
             this.normalDistributions.set((Integer)key, new NormalDistribution(this.mt, loc, scale));
         }
+    }
+
+    @Override
+    public void updateStructure(VariableStructure[] parents, Individual[] fittest) throws Exception {
+        throw new Exception("not implemented yet!");
+
+//        super.updateStructure(parents, fittest);
+//
+//        int countDiscrete = countDiscreteParents(parents);
+//
+//        if(countDiscrete == parents.length) {
+//            // all parents are discrete variables
+//             throw new Exception("not implemented yet!");
+//        } else if (countDiscrete == 0) {
+//            // multivariate normal distribution
+//
+//            String[] queryNames = new String [parents.length + 1];
+//            for(int i = 0; i < parents.length; i++) {
+//                queryNames[i] = parents[i].getName();
+//            }
+//            queryNames[parents.length] = this.getName();
+//            int min_size = fittest.length + 1;
+//
+//            for(int i = 0; i < queryNames.length; i++) {
+//                int cur_size = 0;
+//                for(int j = 0; j < fittest.length; j++) {
+//                    HashMap<String, String> characteristics = fittest[j].getCharacteristics();
+//                    String val = String.valueOf(characteristics.get(queryNames[i]));
+//
+//                    cur_size += (!val.toLowerCase().equals("null"))? 1 : 0;
+//                }
+//                min_size = Math.min(min_size, cur_size);
+//            }
+//            if(min_size == 0) {
+//                throw new Exception("remove other variable from parents.");
+//            }
+//
+//            double[][] values = new double[queryNames.length][];
+//            for(int i = 0; i < queryNames.length; i++) {
+//                values[i] = new double [min_size];
+//
+//                int counter = 0;
+//                for(int j = 0; j < fittest.length; j++) {
+//                    HashMap<String, String> characteristics = fittest[j].getCharacteristics();
+//                    String val = String.valueOf(characteristics.get(queryNames[i]));
+//
+//                    if(!val.toLowerCase().equals("null")) {
+//                        values[i][counter] = Double.parseDouble(val);
+//                        counter += 1;
+//                    }
+//
+//                }
+//            }
+//
+//            Covariance cov = new Covariance();
+//            double covariance = cov.covariance(values[0], values[1]);
+//            RealMatrix covarianceMatrix = cov.getCovarianceMatrix();
+//
+//            int z = 0;
+//
+//
+//            // TODo implement!
+//            throw new Exception("not implemented yet!");
+//        } else {
+//            throw new Exception("not implemented yet!");
+//        }
+    }
+
+    public static void main(String[] args) {
+        double[] x = {0, 1, 2, 3, 4, 5};
+        double[] y = {6, 7, 8, 9, 10, 11};
+
+        Covariance cov = new Covariance();
+        double covariance = cov.covariance(x, y);
+        RealMatrix covarianceMatrix = cov.getCovarianceMatrix();
+
+
+
+        int z = 0;
     }
 
 }

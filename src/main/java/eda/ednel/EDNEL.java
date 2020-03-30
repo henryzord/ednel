@@ -91,7 +91,6 @@ public class EDNEL extends AbstractClassifier {
         BaselineIndividual bi = new BaselineIndividual(data);
         this.currentGenBest = bi;
 
-        System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax"));
         for(int c = 0; c < this.n_generations; c++) {
             if(this.earlyStop.isStopping()) {
                 break;

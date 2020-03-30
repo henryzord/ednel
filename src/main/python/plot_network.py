@@ -192,7 +192,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='script for collapsing metrics'
+        description='script for ploting a plotly graph of the graphical model'
     )
 
     parser.add_argument(

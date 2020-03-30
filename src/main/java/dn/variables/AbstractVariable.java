@@ -8,78 +8,26 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
-public abstract  class AbstractVariable {
+public abstract class AbstractVariable extends VariableStructure {
     protected float learningRate;
     protected int n_generations;
-    protected String name;
-    protected String[] parents;
-    protected HashMap<String, HashMap<String, ArrayList<Integer>>> table;
-    protected ArrayList<Float> probabilities;
     protected MersenneTwister mt;
-    protected ArrayList<String> values;
-    protected HashSet<String> uniqueValues;
 
     public AbstractVariable(
             String name, String[] parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
             ArrayList<String> values, ArrayList<Float> probabilities, MersenneTwister mt,
             float learningRate, int n_generations) throws Exception {
-        this.name = name;
-        this.parents = parents;
-        this.table = table;
-        this.values = values;
-        this.probabilities = probabilities;
+
+        super(name, parents, table, values, probabilities);
+
         this.mt = mt;
         this.learningRate = learningRate;
         this.n_generations = n_generations;
-
-        this.uniqueValues = new HashSet<>(this.values);
     }
 
     public abstract String[] unconditionalSampling(int sample_size) throws Exception;
 
-    /**
-     *
-     * @param conditions
-     * @param variableValue
-     * @param locOnVariable
-     * @return
-     */
-    protected HashSet<Integer> getSetOfIndices(HashMap<String, String> conditions, String variableValue, boolean locOnVariable) {
-        HashSet<Integer> intersection = new HashSet<>();
-        for(int i = 0; i < this.probabilities.size(); i++) {
-            intersection.add(i);
-        }
 
-        ArrayList<Integer> localIndices;
-        for(int i = 0; i < this.parents.length; i++) {
-            localIndices = this.table.get(this.parents[i]).get(conditions.get(this.parents[i]));
-            if(localIndices != null) {
-                intersection.retainAll(new HashSet<>(localIndices));
-            }
-        }
-        if(locOnVariable) {
-            localIndices = this.table.get(this.name).get(variableValue);
-            intersection.retainAll(new HashSet<>(localIndices));
-        }
-        return intersection;
-    }
-
-    /**
-     * Get indices in the table object that correspond to a given assignment of values to the set
-     * of parents for this variable.
-     * @return
-     */
-    protected int[] getIndices(HashMap<String, String> conditions, String variableValue, boolean locOnVariable) {
-        HashSet<Integer> intersection = this.getSetOfIndices(conditions, variableValue, locOnVariable);
-
-        Object[] indices = intersection.toArray();
-        int[] intIndices = new int [indices.length];
-        for(int i = 0; i < indices.length; i++) {
-            intIndices[i] = (int)indices[i];
-        }
-
-        return intIndices;
-    }
 
     protected int conditionalSamplingIndex(HashMap<String, String> lastStart) {
         int[] indices = this.getIndices(lastStart, null, false);
@@ -197,20 +145,12 @@ public abstract  class AbstractVariable {
         }
 
         // clears NaN values
+        // TODO throw away this code later
         for(int i = 0; i < probabilities.size(); i++) {
             if(Double.isNaN(probabilities.get(i)) || probabilities.get(i) < 0) {
                 probabilities.set(i, (float)0);
-//                throw new Exception("found NaN value!");  // TODO throw away this code later
             }
         }
-    }
-
-    /**
-     * Updates the parent set of this variable, based on the fittest individuals from a generation.
-     * @param fittest
-     * @throws Exception
-     */
-    public void updateStructure(Individual[] fittest) throws Exception {
     }
 
     /**
@@ -223,19 +163,4 @@ public abstract  class AbstractVariable {
         return values.get(this.conditionalSamplingIndex(lastStart));
     }
 
-    public String[] getParents() {
-        return parents;
-    }
-
-    /**
-     * Gets the values that this variable can assume.
-     * @return
-     */
-    public HashSet<String> getUniqueValues() {
-        return this.uniqueValues;
-    }
-
-    public String getName() {
-        return name;
-    }
 }

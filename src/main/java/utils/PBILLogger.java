@@ -381,6 +381,10 @@ public class PBILLogger {
     }
 
     public void print() {
+        if(this.curGen == 0) {
+            System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax"));
+        }
+
         System.out.println(String.format(
                 "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f",
                 this.curGen,

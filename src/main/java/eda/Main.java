@@ -37,16 +37,6 @@ public class Main {
                 .build()
         );
 
-//        options.addOption(Option.builder()
-//                .longOpt("classifiers_path")
-//                .required(true)
-//                .type(String.class)
-//                .hasArg()
-//                .numberOfArgs(1)
-//                .desc("Path to file with eda classifiers and their hyper-parameters.")
-//                .build()
-//        );
-
         options.addOption(Option.builder()
                 .longOpt("metadata_path")
                 .required(true)
@@ -250,11 +240,12 @@ public class Main {
                                 Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
                                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                                 Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
-                            Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
+                                Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
                                 commandLine.getOptionValue("variables_path"),
                                 commandLine.getOptionValue("options_path"),
                                 pbilLogger,
-                                commandLine.getOptionValue("seed") == null? null : Integer.parseInt(commandLine.getOptionValue("seed"))
+                                commandLine.getOptionValue("seed") == null?
+                                    null : Integer.parseInt(commandLine.getOptionValue("seed"))
                         );
 
                         ednel.buildClassifier(train_data);

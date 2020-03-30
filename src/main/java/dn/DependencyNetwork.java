@@ -3,7 +3,9 @@ package dn;
 import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
+import dn.variables.VariableStructure;
 import eda.individual.Individual;
+import org.apache.commons.math3.analysis.function.Abs;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -133,6 +135,7 @@ public class DependencyNetwork {
             }
         }
 
+        // creates sampling order
         Integer[] indices = new Integer [variables.size()];
         for(int i = 0; i < indices.length; i++) {
             indices[i] = i;
@@ -232,17 +235,6 @@ public class DependencyNetwork {
         return individuals;
     }
 
-    void generatePermutations(List<List<Character>> lists, List<String> result, int depth, String current) {
-        if (depth == lists.size()) {
-            result.add(current);
-            return;
-        }
-
-        for (int i = 0; i < lists.get(depth).size(); i++) {
-            generatePermutations(lists, result, depth + 1, current + lists.get(depth).get(i));
-        }
-    }
-
     /**
      * Generates all possible combinations of values between a surrogate variable and its parents.
      *
@@ -287,7 +279,9 @@ public class DependencyNetwork {
         }
 
         this.updateStructure(fittest);  // TODO implement
+        System.out.println("structure ok!");
         this.updateProbabilities(fittest);
+        System.out.println("probabilities ok!");
 
     }
 
@@ -306,7 +300,7 @@ public class DependencyNetwork {
         double mutualInformation = this.mutualInformation(pivot, candidate, fittest);
         double localMIs = 0;
         for(String parent : parentSet) {
-            localMIs += this.mutualInformation(this.variables.get(parent), candidate, fittest);
+            localMIs += this.mutualInformation(candidate, this.variables.get(parent), fittest);
         }
         return mutualInformation - (localMIs / (parentSet.size() + 1));
     }
@@ -600,22 +594,30 @@ public class DependencyNetwork {
     }
 
     public void updateStructure(Individual[] fittest) throws Exception {
-        // candidates to be parents of a variable
-        HashSet<String> staticCandSet = new HashSet<>(variable_names.size());
-        staticCandSet.addAll(this.variable_names);
-
         for(int index : this.sampling_order) {
-            String this_variable = this.variable_names.get(index);
-            HashSet<String> localCandSet = (HashSet<String>)staticCandSet.clone();
-            localCandSet.remove(this_variable);
+
+            this.variables.get("J48_confidenceFactorValue").updateStructure(new VariableStructure[]{this.variables.get("PART_confidenceFactorValue")}, fittest);
+
+            // TODO remove this!
+            System.out.println("TODO remove this!!!");
+
+            String variableName = this.variable_names.get(index);
+            System.out.println("on variable " + variableName);  // TODo remove!
+            // candidates to be parents of a variable
+            HashSet<String> candSet = new HashSet<>(variable_names.size());
+            candSet.addAll(this.variable_names);
+            candSet.remove(variableName);
             HashSet<String> parentSet = new HashSet<>();
 
-            while(staticCandSet.size() > 0) {
+            while(candSet.size() > 0) {
                 double bestHeuristic = -1;
                 String bestCandidate = null;
-                for(String candidate : staticCandSet) {
+
+                HashSet<String> toRemove = new HashSet<>();
+
+                for(String candidate : candSet) {
                     double heuristic = this.heuristic(
-                        this.variables.get(this_variable),
+                        this.variables.get(variableName),
                         parentSet,
                         this.variables.get(candidate),
                         fittest
@@ -626,16 +628,24 @@ public class DependencyNetwork {
                             bestCandidate = candidate;
                         }
                     } else {
-                        localCandSet.remove(candidate);
+                        toRemove.add(candidate);
                     }
                 }
+                candSet.removeAll(toRemove);
+
                 if(bestHeuristic > 0) {
                     parentSet.add(bestCandidate);
-                    localCandSet.remove(bestCandidate);
+                    candSet.remove(bestCandidate);
                 }
             }
-            // TODO now add candidates as parents of this variable!
-            throw new Exception("Implement!");
+            AbstractVariable thisVariable = this.variables.get(variableName);
+            AbstractVariable[] parents = new AbstractVariable [parentSet.size()];
+            Object[] parentList = parentSet.toArray();
+            for(int i = 0; i < parentSet.size(); i++) {
+                parents[i] = this.variables.get((String)parentList[i]);
+            }
+
+            thisVariable.updateStructure(parents, fittest);
         }
     }
 
