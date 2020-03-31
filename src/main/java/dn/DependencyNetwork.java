@@ -3,7 +3,6 @@ package dn;
 import dn.variables.AbstractVariable;
 import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
-import dn.variables.VariableStructure;
 import eda.individual.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
@@ -43,11 +42,9 @@ public class DependencyNetwork {
             MersenneTwister mt, String variables_path, String options_path,
             int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor
     ) throws Exception {
-        Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
-
         this.mt = mt;
         this.variables = new HashMap<>();
-        this.variable_names = new ArrayList<>((int)Math.pow(algorithms.length, 2));
+        this.variable_names = new ArrayList<>();
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
@@ -55,18 +52,24 @@ public class DependencyNetwork {
 
         this.lastStart = null;
 
+        this.readVariablesFromFiles(variables_path, options_path, learningRate, n_generations);
+
+        this.createInitialSamplingOrder(variables.size());
+    }
+
+    private void readVariablesFromFiles(String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
+        Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
+
         JSONParser jsonParser = new JSONParser();
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(options_path));
 
         String row;
-
         for(int i = 0; i < algorithms.length; i++) {
             Object[] variables_names  = Files.list(new File(algorithms[i].toString()).toPath()).toArray();
             for(int j = 0; j < variables_names.length; j++) {
                 BufferedReader csvReader = new BufferedReader(new FileReader(variables_names[j].toString()));
 
                 row = csvReader.readLine();
-
                 String[] header = row.split(",(?![^(]*\\))");
 
                 HashMap<String, Boolean> isContinuous = new HashMap<>();
@@ -78,18 +81,18 @@ public class DependencyNetwork {
                 ArrayList<String> parentNames = new ArrayList<>();
 
                 HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(header.length);
-                table.put(variableName, new HashMap<String, ArrayList<Integer>>());
+                table.put(variableName, new HashMap<>());
 
                 if(header.length > 2) {
                     n_variables_table = n_variables_table + header.length - 2;
                     for(int k = 0; k < header.length - 2; k++) {
                         parentNames.add(header[k]);
                         isContinuous.put(header[k], false);
-                        table.put(header[k], new HashMap<String, ArrayList<Integer>>((int)Math.pow(2, n_variables_table)));
+                        table.put(header[k], new HashMap<>());
                     }
                 }
 
-                ArrayList<Float> probabilities = new ArrayList<>((int)Math.pow(2, n_variables_table));
+                ArrayList<Double> probabilities = new ArrayList<>((int)Math.pow(2, n_variables_table));
                 ArrayList<String> values = new ArrayList<>((int)Math.pow(2, n_variables_table));
 
                 int index = 0;
@@ -97,14 +100,14 @@ public class DependencyNetwork {
                 while ((row = csvReader.readLine()) != null) {
                     String[] this_data = row.split(",(?![^(]*\\))");
 
-                    probabilities.add(Float.valueOf(this_data[this_data.length - 1]));
+                    probabilities.add(Double.valueOf(this_data[this_data.length - 1]));
                     values.add(this_data[this_data.length - 2]);
 
                     for(int k = 0; k < this_data.length - 1; k++) {
                         isContinuous.replace(
-                                header[k],
-                                isContinuous.get(header[k]) ||
-                                        (this_data[k].contains("loc") && this_data[k].contains("scale"))
+                            header[k],
+                            isContinuous.get(header[k]) ||
+                                (this_data[k].contains("loc") && this_data[k].contains("scale"))
                         );
                         if(this_data[k].toLowerCase().equals("null")) {
                             this_data[k] = null;
@@ -117,14 +120,14 @@ public class DependencyNetwork {
                     }
                     index++;
                 }
-                csvReader.close();
+                csvReader.close();  // finishes reading this file
 
                 for(int k = 0; k < values.size(); k++) {
                     if(values.get(k).toLowerCase().equals("null")) {
                         values.set(k, null);
                     }
                 }
-                
+
                 if(isContinuous.get(variableName)) {
                     variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt, learningRate, n_generations));
                 } else {
@@ -132,9 +135,15 @@ public class DependencyNetwork {
                 }
             }
         }
+    }
 
-        // creates sampling order
-        Integer[] indices = new Integer [variables.size()];
+    /**
+     * Creates a simple initial sampling order, with range [0, size).
+     * @param size The number of variables in the graphical model.
+     * @return
+     */
+    private void createInitialSamplingOrder(int size) {
+        Integer[] indices = new Integer [size];
         for(int i = 0; i < indices.length; i++) {
             indices[i] = i;
         }

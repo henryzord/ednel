@@ -15,51 +15,53 @@ import java.util.*;
  */
 public class ContinuousVariable extends AbstractVariable {
 
-    protected ArrayList<HashMap<String, Float>> normalProperties;
-    protected ArrayList<NormalDistribution> normalDistributions;
-    protected MultivariateNormalDistribution mvNormalDistribution;
-    protected double a_min, a_max, scale_init;
+    public ContinuousVariable(String name, ArrayList<String> parents_names, ArrayList<Boolean> isParentDiscrete,
+                              HashMap<String, HashMap<String, ArrayList<Integer>>> table,
+                              ArrayList<String> values, ArrayList<Double> probabilities,
+                              MersenneTwister mt, double learningRate, int n_generations) throws Exception {
 
+        super(name, parents_names, isParentDiscrete, table,
+            null, null, probabilities, mt, learningRate, n_generations
+        );
 
-    private HashMap<String, Float> fromStringToProperty(String str) {
+        this.values = new ArrayList<>(values.size());
+        this.uniqueValues = new HashSet<>();
+
+        for(int i = 0; i < values.size(); i++) {
+            if(values.get(i) != null) {
+                HashMap<String, Double> properties = this.fromStringToProperty(values.get(i));
+                ShadowValue sv;
+                if(properties.containsKey("covariance_matrix")) {
+                    // TODO implement
+                    sv = new ShadowMultivariateNormalDistribution(null, null);
+                } else {
+                    sv = new ShadowNormalDistribution(this.mt, properties);
+                }
+                this.values.add(sv);
+                this.uniqueValues.add(sv);
+            } else {
+                this.values.add(null);
+                this.uniqueValues.add(null);
+            }
+        }
+    }
+
+    /**
+     * Converts a string that denotes a normal distribution (or a multivariate normal distribution)
+     * into a dictionary.
+     * @param str The string.
+     * @return A dictionary.
+     */
+    private HashMap<String, Double> fromStringToProperty(String str) {
         String[] property = str.replaceAll("[\\(\\)\"]", "").split(",");
 
-        HashMap<String, Float> thisProperty = new HashMap<>(property.length);
+        HashMap<String, Double> thisProperty = new HashMap<>(property.length);
 
         for(int j = 0; j < property.length; j++) {
             String[] pair = property[j].split("=");
-            thisProperty.put(pair[0], Float.valueOf(pair[1]));
+            thisProperty.put(pair[0], Double.valueOf(pair[1]));
         }
         return thisProperty;
-    }
-
-    public ContinuousVariable(String name, ArrayList<String> parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-                              ArrayList<String> values, ArrayList<Float> probabilities, MersenneTwister mt,
-                              float learningRate, int n_generations) throws Exception {
-        super(name, parents, table, values, probabilities, mt, learningRate, n_generations);
-
-        normalProperties = new ArrayList<>(values.size());
-        normalDistributions = new ArrayList<>(values.size());
-        mvNormalDistribution = null;
-
-        for(int i = 0; i < values.size(); i++) {
-            if(values.get(i) != null){
-                HashMap<String, Float> thisProperty = this.fromStringToProperty(values.get(i));
-
-                a_min = thisProperty.get("a_min");
-                a_max = thisProperty.get("a_max");
-                scale_init = thisProperty.get("scale_init");
-
-                normalProperties.add(thisProperty);
-                normalDistributions.add(
-                        new NormalDistribution(this.mt, thisProperty.get("loc"), thisProperty.get("scale"))
-                );
-
-            } else {
-                normalProperties.add(null);
-                normalDistributions.add(null);
-            }
-        }
     }
 
     @Override
@@ -67,35 +69,15 @@ public class ContinuousVariable extends AbstractVariable {
         throw new Exception("not implemented yet!");
     }
 
-    @Override
-    public String conditionalSampling(HashMap<String, String> lastStart) throws Exception {
-        int idx = this.conditionalSamplingIndex(lastStart);
-
-        if(this.values.get(idx) != null) {
-            HashMap<String, Float> thisNormal = normalProperties.get(idx);
-            NormalDistribution nd = normalDistributions.get(idx);
-            double sampled = Math.max(
-                    thisNormal.get("a_min"),
-                    Math.min(thisNormal.get("a_max"), nd.sample())
-            );
-            return String.valueOf(sampled);
-        }
-        return null;
-    }
-
-    @Override
-    public void updateProbabilities(Individual[] fittest) throws Exception {
-        super.updateProbabilities(fittest);
-        if(this.mvNormalDistribution == null) {
-            this.updateNormalDistributions(fittest);
-        } else {
-            updateMultivariateNormalDistribution(fittest);
-        }
-    }
-
-    private void updateMultivariateNormalDistribution(Individual[] fittest) throws Exception {
-        throw new Exception("not implemented yet!");
-    }
+//    @Override
+//    public void updateProbabilities(Individual[] fittest) throws Exception {
+//        super.updateProbabilities(fittest);
+//        if(this.mvNormalDistribution == null) {
+//            this.updateNormalDistributions(fittest);
+//        } else {
+//            updateMultivariateNormalDistribution(fittest);
+//        }
+//    }
 
     /**
      * Updates both the probability of the table entry, and the Gaussian of each entry (if any).
@@ -230,7 +212,7 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public void updateStructure(VariableStructure[] parents, Individual[] fittest) throws Exception {
+    public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
         super.updateStructure(parents, fittest);
 
         int countDiscrete = countDiscreteParents(parents);
@@ -259,7 +241,7 @@ public class ContinuousVariable extends AbstractVariable {
             this.uniqueValues.addAll(rawUniqueValues);
 
             this.updateTableEntries(combRawOver);
-            
+
             // now place normal distribution in correct position
             this.mvNormalDistribution = this.generateMvNormalDistribution(doubleValues);
 

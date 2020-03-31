@@ -11,10 +11,27 @@ import java.util.HashSet;
 public class DiscreteVariable extends AbstractVariable {
 
     public DiscreteVariable(
-            String name, ArrayList<String> parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-            ArrayList<String> values, ArrayList<Float> probabilities, MersenneTwister mt,
-            float learningRate, int n_generations) throws Exception {
-        super(name, parents, table, values, probabilities, mt, learningRate, n_generations);
+        String name, ArrayList<String> parents_names, ArrayList<Boolean> isParentDiscrete,
+        HashMap<String, HashMap<String, ArrayList<Integer>>> table,
+        ArrayList<String> values, ArrayList<Double> probabilities,
+        MersenneTwister mt, double learningRate, int n_generations) throws Exception {
+
+        super(name, parents_names, isParentDiscrete, table,
+            null, null, probabilities, mt, learningRate, n_generations
+        );
+
+        this.values = new ArrayList<>(values.size());
+        this.uniqueValues = new HashSet<>();
+
+        for(int i = 0; i < values.size(); i++) {
+            ShadowValue sv = new ShadowValue(
+                String.class.getMethod("toString"),
+                values.get(i)
+            );
+            this.values.add(sv);
+            this.uniqueValues.add(sv);
+        }
+
     }
 
     @Override
@@ -22,14 +39,14 @@ public class DiscreteVariable extends AbstractVariable {
         float sum, num, spread = 1000;  // spread is used to guarantee that numbers up to third decimal will be sampled
 
         String[] sampled = new String [sample_size];
-        float uniformProbability = (float)(1. / this.values.size());
+        double uniformProbability = (1. / this.values.size());
         for(int i = 0; i < sample_size; i++) {
             num = mt.nextInt((int)spread) / spread;
             sum = 0;
 
             for(int k = 0; k < values.size(); k++) {
                 if((sum < num) && (num <= (sum + uniformProbability))) {
-                    sampled[i] = values.get(k);
+                    sampled[i] = values.get(k).getValue();
                     break;
                 } else {
                     sum += uniformProbability;
@@ -46,9 +63,9 @@ public class DiscreteVariable extends AbstractVariable {
      * @throws Exception
      */
     @Override
-    public void updateStructure(VariableStructure[] parents, Individual[] fittest) throws Exception {
+    public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
         super.updateStructure(parents, fittest);
-        VariableStructure[] discreteParents = this.removeContinuousParents(parents);
+        AbstractVariable[] discreteParents = this.removeContinuousParents(parents);
 
         HashMap<String, HashSet<String>> eoUniqueValues = this.getUniqueValuesFromVariables(discreteParents, true);
         this.updateTableEntries(eoUniqueValues);
