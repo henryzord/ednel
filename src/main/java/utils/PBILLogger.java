@@ -30,7 +30,7 @@ public class PBILLogger {
 
     protected String dataset_overall_path;
     protected String dataset_thisrun_path;
-    protected HashMap<String, String[]> pastDependencyStructures = null;
+    protected HashMap<String, ArrayList<String>> pastDependencyStructures = null;
     protected String dataset_metadata_path;
     protected Individual overall;
     protected Individual last;
@@ -168,7 +168,7 @@ public class PBILLogger {
             for(Object variable : variableNames) {
                 this.pastDependencyStructures.put(
                         String.format("gen_%03d_var_%s", this.curGen, variable),
-                        variables.get(variable).getParents()
+                        variables.get(variable).getParentsNames()
                 );
             }
         }

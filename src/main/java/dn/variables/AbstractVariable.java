@@ -14,7 +14,7 @@ public abstract class AbstractVariable extends VariableStructure {
     protected MersenneTwister mt;
 
     public AbstractVariable(
-            String name, String[] parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
+            String name, ArrayList<String> parents, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
             ArrayList<String> values, ArrayList<Float> probabilities, MersenneTwister mt,
             float learningRate, int n_generations) throws Exception {
 
@@ -98,7 +98,7 @@ public abstract class AbstractVariable extends VariableStructure {
             local.put(this.name, null);
             combinations.add(local);
         }
-        for(String parent : this.parents) {
+        for(String parent : this.parents_names) {
             ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>();
             for(int i = 0; i < combinations.size(); i++) {
                 Object[] parentUniqueVals = this.table.get(parent).keySet().toArray();

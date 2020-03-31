@@ -5,7 +5,6 @@ import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
 import dn.variables.VariableStructure;
 import eda.individual.Individual;
-import org.apache.commons.math3.analysis.function.Abs;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -76,18 +75,17 @@ public class DependencyNetwork {
                 isContinuous.put(variableName, false);
                 this.variable_names.add(variableName);
                 int n_variables_table = 1;
-                String[] parentNames = new String [0];
+                ArrayList<String> parentNames = new ArrayList<>();
 
                 HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(header.length);
                 table.put(variableName, new HashMap<String, ArrayList<Integer>>());
 
                 if(header.length > 2) {
-                    parentNames = new String [header.length - 2];
-                    n_variables_table = n_variables_table + parentNames.length;
+                    n_variables_table = n_variables_table + header.length - 2;
                     for(int k = 0; k < header.length - 2; k++) {
-                        parentNames[k] = header[k];
-                        isContinuous.put(parentNames[k], false);
-                        table.put(parentNames[k], new HashMap<String, ArrayList<Integer>>((int)Math.pow(2, n_variables_table)));
+                        parentNames.add(header[k]);
+                        isContinuous.put(header[k], false);
+                        table.put(header[k], new HashMap<String, ArrayList<Integer>>((int)Math.pow(2, n_variables_table)));
                     }
                 }
 
@@ -242,12 +240,12 @@ public class DependencyNetwork {
      * @return
      */
     private ArrayList<HashMap<String, String>> generateCombinations(String variableName) {
-        String[] parents = this.variables.get(variableName).getParents();
+        ArrayList<String> parents = this.variables.get(variableName).getParentsNames();
 
-        ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.length + 1);
+        ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.size() + 1);
         Object[] thisUniqueValues = this.variables.get(variableName).getUniqueValues().toArray();
         for(Object value : thisUniqueValues) {
-            HashMap<String, String> data = new HashMap<>(parents.length + 1);
+            HashMap<String, String> data = new HashMap<>(parents.size() + 1);
             data.put(variableName, (String)value);
             combinations.add(data);
         }
@@ -597,6 +595,8 @@ public class DependencyNetwork {
         for(int index : this.sampling_order) {
 
             this.variables.get("J48_confidenceFactorValue").updateStructure(new VariableStructure[]{this.variables.get("PART_confidenceFactorValue")}, fittest);
+            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
+            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 
             // TODO remove this!
             System.out.println("TODO remove this!!!");
