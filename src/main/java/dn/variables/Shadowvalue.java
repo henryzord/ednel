@@ -5,7 +5,7 @@ import org.apache.commons.math3.distribution.NormalDistribution;
 
 import java.lang.reflect.Method;
 
-public class ShadowValue implements Comparable<String> {
+public class Shadowvalue implements Comparable<String> {
     protected Method method;
     protected Object obj;
 
@@ -14,20 +14,22 @@ public class ShadowValue implements Comparable<String> {
      * @param method Method to call when this class getValue method is called.
      * @param obj Object used to call method.
      */
-    public ShadowValue(Method method, Object obj) {
+    public Shadowvalue(Method method, Object obj) {
         this.method = method;
         this.obj = obj;
     }
 
     public String getValue() {
-        try {
-            return String.valueOf(method.invoke(obj, null));
-        } catch(Exception e) {
-            // TODO double check!
-            System.out.println("Deu erro aqui!!!");
-            return null;
+        if(obj != null) {
+            try {
+                return String.valueOf(method.invoke(obj, null));
+            } catch(Exception e) {
+                // TODO double check!
+                System.out.println("Deu erro aqui!!!");
+                return null;
+            }
         }
-
+        return null;
     }
 
     @Override
@@ -37,6 +39,9 @@ public class ShadowValue implements Comparable<String> {
 
     @Override
     public String toString() {
+        if(obj == null) {
+            return null;
+        }
         return obj.toString();
     }
 }

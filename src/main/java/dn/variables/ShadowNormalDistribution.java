@@ -6,7 +6,7 @@ import org.apache.commons.math3.random.MersenneTwister;
 import java.util.HashMap;
 import java.util.Locale;
 
-public class ShadowNormalDistribution extends ShadowValue {
+public class ShadowNormalDistribution extends Shadowvalue {
 
     protected double loc;
     protected double scale;

@@ -22,6 +22,7 @@ public class DependencyNetwork {
     private JSONObject classifiersResources;
     private int burn_in;
     private int thinning_factor;
+    private int n_variables;
 
     /**
      * The number of nearest neighbors to consider when
@@ -55,6 +56,7 @@ public class DependencyNetwork {
         this.readVariablesFromFiles(variables_path, options_path, learningRate, n_generations);
 
         this.createInitialSamplingOrder(variables.size());
+        this.n_variables = this.sampling_order.size();
     }
 
     private void readVariablesFromFiles(String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
@@ -78,7 +80,7 @@ public class DependencyNetwork {
                 isContinuous.put(variableName, false);
                 this.variable_names.add(variableName);
                 int n_variables_table = 1;
-                ArrayList<String> parentNames = new ArrayList<>();
+                ArrayList<String> parents_names = new ArrayList<>();
 
                 HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(header.length);
                 table.put(variableName, new HashMap<>());
@@ -86,7 +88,7 @@ public class DependencyNetwork {
                 if(header.length > 2) {
                     n_variables_table = n_variables_table + header.length - 2;
                     for(int k = 0; k < header.length - 2; k++) {
-                        parentNames.add(header[k]);
+                        parents_names.add(header[k]);
                         isContinuous.put(header[k], false);
                         table.put(header[k], new HashMap<>());
                     }
@@ -129,9 +131,9 @@ public class DependencyNetwork {
                 }
 
                 if(isContinuous.get(variableName)) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parentNames, table, values, probabilities, this.mt, learningRate, n_generations));
+                    variables.put(variableName, new ContinuousVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parentNames, table, values, probabilities, this.mt, learningRate, n_generations));
+                    variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
                 }
             }
         }
@@ -153,11 +155,11 @@ public class DependencyNetwork {
     private void sampleIndividual() throws Exception {
         optionTable = new HashMap<>(this.variable_names.size());
 
+        // shuffles sampling order
         Collections.shuffle(this.sampling_order, new Random(mt.nextInt()));
 
-        for(int i = 0; i < this.sampling_order.size(); i++) {
-            String variableName = this.variable_names.get(this.sampling_order.get(i));
-
+        for(int idx : this.sampling_order) {
+            String variableName = this.variable_names.get(idx);
             String algorithmName = variableName.split("_")[0];
 
             if(optionTable.getOrDefault(algorithmName, null) == null) {
@@ -533,15 +535,16 @@ public class DependencyNetwork {
         String a_name = a.getName();
         String b_name = b.getName();
 
+        // uses additive correction
         for(String value : a.getUniqueValues()) {
-            a_counts.put(String.valueOf(value), 0);
+            a_counts.put(String.valueOf(value), 1);
         }
         for(String value : b.getUniqueValues()) {
-            b_counts.put(String.valueOf(value), 0);
+            b_counts.put(String.valueOf(value), 1);
         }
         for(String a_value : a.getUniqueValues()) {
             for(String b_value : b.getUniqueValues()) {
-                joint_counts.put(String.format("%s,%s", a_value, b_value), 0);
+                joint_counts.put(String.format("%s,%s", a_value, b_value), 1);
             }
         }
 
@@ -578,8 +581,9 @@ public class DependencyNetwork {
             double a_prob = (double)a_counts.get(a_value) / (double)total_cases;
             double b_prob = (double)b_counts.get(b_value) / (double)total_cases;
 
-            double local = joint_prob * Math.log(joint_prob / (a_prob * b_prob));
-            mi += Double.isNaN(local)? 0 : local;
+            mi += joint_prob * (
+                Math.log10(joint_prob / (a_prob * b_prob)) / Math.log10(2)
+            );
         }
         return mi;
     }
@@ -603,15 +607,18 @@ public class DependencyNetwork {
     public void updateStructure(Individual[] fittest) throws Exception {
         for(int index : this.sampling_order) {
 
-            this.variables.get("J48_confidenceFactorValue").updateStructure(new VariableStructure[]{this.variables.get("PART_confidenceFactorValue")}, fittest);
-            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
-            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
-
             // TODO remove this!
             System.out.println("TODO remove this!!!");
+            System.out.println("come back to me later!");
+
+            this.variables.get("J48_confidenceFactorValue").updateStructure(
+                new AbstractVariable[]{this.variables.get("PART_confidenceFactorValue"), this.variables.get("PART")},
+                fittest
+            );
+//            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
+//            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 
             String variableName = this.variable_names.get(index);
-            System.out.println("on variable " + variableName);  // TODo remove!
             // candidates to be parents of a variable
             HashSet<String> candSet = new HashSet<>(variable_names.size());
             candSet.addAll(this.variable_names);

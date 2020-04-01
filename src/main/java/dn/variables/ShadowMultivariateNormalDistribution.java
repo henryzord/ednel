@@ -2,7 +2,7 @@ package dn.variables;
 
 import java.lang.reflect.Method;
 
-public class ShadowMultivariateNormalDistribution extends ShadowValue {
+public class ShadowMultivariateNormalDistribution extends Shadowvalue {
     protected double[] means;
     protected double[][] covMatrix;
 

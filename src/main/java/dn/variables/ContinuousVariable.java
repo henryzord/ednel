@@ -15,12 +15,12 @@ import java.util.*;
  */
 public class ContinuousVariable extends AbstractVariable {
 
-    public ContinuousVariable(String name, ArrayList<String> parents_names, ArrayList<Boolean> isParentDiscrete,
+    public ContinuousVariable(String name, ArrayList<String> parents_names, HashMap<String, Boolean> isParentContinuous,
                               HashMap<String, HashMap<String, ArrayList<Integer>>> table,
                               ArrayList<String> values, ArrayList<Double> probabilities,
                               MersenneTwister mt, double learningRate, int n_generations) throws Exception {
 
-        super(name, parents_names, isParentDiscrete, table,
+        super(name, parents_names, isParentContinuous, table,
             null, null, probabilities, mt, learningRate, n_generations
         );
 
@@ -30,7 +30,7 @@ public class ContinuousVariable extends AbstractVariable {
         for(int i = 0; i < values.size(); i++) {
             if(values.get(i) != null) {
                 HashMap<String, Double> properties = this.fromStringToProperty(values.get(i));
-                ShadowValue sv;
+                Shadowvalue sv;
                 if(properties.containsKey("covariance_matrix")) {
                     // TODO implement
                     sv = new ShadowMultivariateNormalDistribution(null, null);
@@ -38,7 +38,7 @@ public class ContinuousVariable extends AbstractVariable {
                     sv = new ShadowNormalDistribution(this.mt, properties);
                 }
                 this.values.add(sv);
-                this.uniqueValues.add(sv);
+                this.uniqueValues.add(sv.toString());
             } else {
                 this.values.add(null);
                 this.uniqueValues.add(null);
@@ -64,11 +64,6 @@ public class ContinuousVariable extends AbstractVariable {
         return thisProperty;
     }
 
-    @Override
-    public String[] unconditionalSampling(int sample_size) throws Exception {
-        throw new Exception("not implemented yet!");
-    }
-
 //    @Override
 //    public void updateProbabilities(Individual[] fittest) throws Exception {
 //        super.updateProbabilities(fittest);
@@ -79,109 +74,109 @@ public class ContinuousVariable extends AbstractVariable {
 //        }
 //    }
 
-    /**
-     * Updates both the probability of the table entry, and the Gaussian of each entry (if any).
-     * @param fittest Fittest individuals in the population, used to update the probabilities.
-     * @throws Exception
-     */
-    private void updateNormalDistributions(Individual[] fittest) throws Exception {
-        HashSet<Integer> nullSet = new HashSet<>(this.values.size());
-        nullSet.addAll(this.table.get(this.name).get(null));
+//    /**
+//     * Updates both the probability of the table entry, and the Gaussian of each entry (if any).
+//     * @param fittest Fittest individuals in the population, used to update the probabilities.
+//     * @throws Exception
+//     */
+//    private void updateNormalDistributions(Individual[] fittest) throws Exception {
+//        HashSet<Integer> nullSet = new HashSet<>(this.values.size());
+//        nullSet.addAll(this.table.get(this.name).get(null));
+//
+//        HashMap<Integer, DescriptiveStatistics> sampledValues = new HashMap<>(this.values.size());
+//
+//        for(int i = 0; i < fittest.length; i++) {
+//            // local characteristics
+//            HashMap<String, String> localCars = fittest[i].getCharacteristics();
+//            // this variable is not set for this individual; continue
+//            // if this individual does not use this variable, then do not do anything
+//            if(localCars.get(this.name) == null) {
+//                continue;
+//            }
+//
+//            HashSet<Integer> nullSetLocal = (HashSet<Integer>) nullSet.clone();
+//            // gets all indices where variable is null
+//            HashSet<Integer> parentIndices = getSetOfIndices(
+//                    fittest[i].getCharacteristics(), null, false
+//            );
+//            parentIndices.removeAll(nullSetLocal);  // now parentIndices has all the indices which should be updated
+//            if(parentIndices.size() != 1) {
+//                throw new Exception("selection is wrong!");
+//            }
+//            int onlyIndex = (int) parentIndices.toArray()[0];
+//
+//            if(!sampledValues.containsKey(onlyIndex)) {
+//                DescriptiveStatistics stats = new DescriptiveStatistics();
+//                stats.addValue((Float.valueOf((String)localCars.get(this.name))));
+//                sampledValues.put(onlyIndex, stats);
+//            } else {
+//                sampledValues.get(onlyIndex).addValue((Float.valueOf((String)localCars.get(this.name))));
+//            }
+//        }
+//
+//        for(Object key: sampledValues.keySet().toArray()) {
+//            float loc = (float)this.normalDistributions.get((Integer)key).getMean();
+//
+//            float diff = loc - (float)sampledValues.get(key).getMean();
+//            loc = loc + (diff * this.learningRate);
+//            float scale = Math.max(
+//                    0,
+//                    (float)this.normalDistributions.get((Integer)key).getStandardDeviation() -
+//                            (Float.valueOf(this.normalProperties.get((Integer)key).get("scale_init")) / this.n_generations)
+//            );
+//            this.normalProperties.get((Integer)key).put("loc", loc);
+//            this.normalProperties.get((Integer)key).put("scale", scale);
+//
+//            this.normalDistributions.set((Integer)key, new NormalDistribution(this.mt, loc, scale));
+//        }
+//    }
 
-        HashMap<Integer, DescriptiveStatistics> sampledValues = new HashMap<>(this.values.size());
+//    protected HashMap<String, double[]> getContinuousVariablesValues(VariableStructure[] parents, Individual[] fittest) {
+//        HashMap<String, double[]> values = new HashMap<>(parents.length + 1);
+//
+//        ArrayList<String> queryNames = new ArrayList<String>(parents.length + 1);
+//        for(int i = 0; i < parents.length; i++) {
+//            if(parents[i] instanceof ContinuousVariable) {
+//                queryNames.add(parents[i].getName());
+//            }
+//        }
+//        queryNames.add(this.getName());
+//
+//        for(int i = 0; i < queryNames.size(); i++) {
+//            ArrayList<Double> tempValues = new ArrayList<>(fittest.length);
+//            for(int j = 0; j < fittest.length; j++) {
+//                String val = String.valueOf(fittest[j].getCharacteristics().get(queryNames.get(i))).toLowerCase();
+//                if(!val.equals("null")) {
+//                    tempValues.add(Double.parseDouble(val));
+//                }
+//            }
+//            Double[] rawValues = new Double[tempValues.size()];
+//            tempValues.toArray(rawValues);
+//
+//            values.put(queryNames.get(i), ArrayUtils.toPrimitive(rawValues));
+//        }
+//        return values;
+//    }
 
-        for(int i = 0; i < fittest.length; i++) {
-            // local characteristics
-            HashMap<String, String> localCars = fittest[i].getCharacteristics();
-            // this variable is not set for this individual; continue
-            // if this individual does not use this variable, then do not do anything
-            if(localCars.get(this.name) == null) {
-                continue;
-            }
-
-            HashSet<Integer> nullSetLocal = (HashSet<Integer>) nullSet.clone();
-            // gets all indices where variable is null
-            HashSet<Integer> parentIndices = getSetOfIndices(
-                    fittest[i].getCharacteristics(), null, false
-            );
-            parentIndices.removeAll(nullSetLocal);  // now parentIndices has all the indices which should be updated
-            if(parentIndices.size() != 1) {
-                throw new Exception("selection is wrong!");
-            }
-            int onlyIndex = (int) parentIndices.toArray()[0];
-
-            if(!sampledValues.containsKey(onlyIndex)) {
-                DescriptiveStatistics stats = new DescriptiveStatistics();
-                stats.addValue((Float.valueOf((String)localCars.get(this.name))));
-                sampledValues.put(onlyIndex, stats);
-            } else {
-                sampledValues.get(onlyIndex).addValue((Float.valueOf((String)localCars.get(this.name))));
-            }
-        }
-
-        for(Object key: sampledValues.keySet().toArray()) {
-            float loc = (float)this.normalDistributions.get((Integer)key).getMean();
-
-            float diff = loc - (float)sampledValues.get(key).getMean();
-            loc = loc + (diff * this.learningRate);
-            float scale = Math.max(
-                    0,
-                    (float)this.normalDistributions.get((Integer)key).getStandardDeviation() -
-                            (Float.valueOf(this.normalProperties.get((Integer)key).get("scale_init")) / this.n_generations)
-            );
-            this.normalProperties.get((Integer)key).put("loc", loc);
-            this.normalProperties.get((Integer)key).put("scale", scale);
-
-            this.normalDistributions.set((Integer)key, new NormalDistribution(this.mt, loc, scale));
-        }
-    }
-
-    protected HashMap<String, double[]> getContinuousVariablesValues(VariableStructure[] parents, Individual[] fittest) {
-        HashMap<String, double[]> values = new HashMap<>(parents.length + 1);
-
-        ArrayList<String> queryNames = new ArrayList<String>(parents.length + 1);
-        for(int i = 0; i < parents.length; i++) {
-            if(parents[i] instanceof ContinuousVariable) {
-                queryNames.add(parents[i].getName());
-            }
-        }
-        queryNames.add(this.getName());
-
-        for(int i = 0; i < queryNames.size(); i++) {
-            ArrayList<Double> tempValues = new ArrayList<>(fittest.length);
-            for(int j = 0; j < fittest.length; j++) {
-                String val = String.valueOf(fittest[j].getCharacteristics().get(queryNames.get(i))).toLowerCase();
-                if(!val.equals("null")) {
-                    tempValues.add(Double.parseDouble(val));
-                }
-            }
-            Double[] rawValues = new Double[tempValues.size()];
-            tempValues.toArray(rawValues);
-
-            values.put(queryNames.get(i), ArrayUtils.toPrimitive(rawValues));
-        }
-        return values;
-    }
-
-    protected HashMap<String, String> getContinuousVariablesUniqueValues(HashMap<String, double[]> doubleValues) {
-
-        Object[] keys = doubleValues.keySet().toArray();
-        HashMap<String, String> descriptiveString = new HashMap<>(keys.length);
-
-        for(int i = 0; i < keys.length; i++) {
-            double[] fullValues = doubleValues.get((String)keys[i]);
-            DescriptiveStatistics fS = new DescriptiveStatistics(fullValues);
-            descriptiveString.put(
-                (String)keys[i],
-                String.format(
-                    Locale.US,
-                    "(loc=%01.6f,scale=%01.6f,a_min=%01.6f,a_max=%01.6f,scale_init=%01.6f)",
-                    fS.getMean(), fS.getStandardDeviation(), this.a_min, this.a_max, this.scale_init
-                )
-            );
-        }
-        return descriptiveString;
-    }
+//    protected HashMap<String, String> getContinuousVariablesUniqueValues(HashMap<String, double[]> doubleValues) {
+//
+//        Object[] keys = doubleValues.keySet().toArray();
+//        HashMap<String, String> descriptiveString = new HashMap<>(keys.length);
+//
+//        for(int i = 0; i < keys.length; i++) {
+//            double[] fullValues = doubleValues.get((String)keys[i]);
+//            DescriptiveStatistics fS = new DescriptiveStatistics(fullValues);
+//            descriptiveString.put(
+//                (String)keys[i],
+//                String.format(
+//                    Locale.US,
+//                    "(loc=%01.6f,scale=%01.6f,a_min=%01.6f,a_max=%01.6f,scale_init=%01.6f)",
+//                    fS.getMean(), fS.getStandardDeviation(), this.a_min, this.a_max, this.scale_init
+//                )
+//            );
+//        }
+//        return descriptiveString;
+//    }
 
     private MultivariateNormalDistribution generateMvNormalDistribution(HashMap<String, double[]> doubleValues) {
         int min_size = Integer.MAX_VALUE;
@@ -215,59 +210,73 @@ public class ContinuousVariable extends AbstractVariable {
     public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
         super.updateStructure(parents, fittest);
 
-        int countDiscrete = countDiscreteParents(parents);
 
-        // all parents are discrete variables
-        if(countDiscrete == parents.length) {
-             throw new Exception("not implemented yet!");
-        // multivariate normal distribution
-        } else if ((countDiscrete == 0) && (parents.length == 1)) {
-            HashMap<String, double[]> doubleValues = this.getContinuousVariablesValues(parents, fittest);
-            HashMap<String, String> descriptiveString = this.getContinuousVariablesUniqueValues(doubleValues);
 
-            HashMap<String, HashSet<String>> combRawOver = new HashMap<>(parents.length + 1);
-            for(int i = 0; i < parents.length; i++) {
-                HashSet<String> rawUniqueValues = new HashSet<>();
-                rawUniqueValues.add(null);
-                rawUniqueValues.add(descriptiveString.get(parents[i].getName()));
-                combRawOver.put(parents[i].getName(), rawUniqueValues);
-            }
-            HashSet<String> rawUniqueValues = new HashSet<>();
-            rawUniqueValues.add(null);
-            rawUniqueValues.add(descriptiveString.get(this.getName()));
-            combRawOver.put(this.getName(), rawUniqueValues);
+        // TODo update unique values before!!!
 
-            this.uniqueValues = new HashSet<>();
-            this.uniqueValues.addAll(rawUniqueValues);
+//        int countDiscrete = countDiscrete(parents);
+//
+//        // all parents are discrete variables
+//        if(countDiscrete == parents.length) {
+//             throw new Exception("not implemented yet!");
+//        // multivariate normal distribution
+//        } else if ((countDiscrete == 0) && (parents.length == 1)) {
+//            HashMap<String, double[]> doubleValues = this.getContinuousVariablesValues(parents, fittest);
+//            HashMap<String, String> descriptiveString = this.getContinuousVariablesUniqueValues(doubleValues);
+//
+//            HashMap<String, HashSet<String>> combRawOver = new HashMap<>(parents.length + 1);
+//            for(int i = 0; i < parents.length; i++) {
+//                HashSet<String> rawUniqueValues = new HashSet<>();
+//                rawUniqueValues.add(null);
+//                rawUniqueValues.add(descriptiveString.get(parents[i].getName()));
+//                combRawOver.put(parents[i].getName(), rawUniqueValues);
+//            }
+//            HashSet<String> rawUniqueValues = new HashSet<>();
+//            rawUniqueValues.add(null);
+//            rawUniqueValues.add(descriptiveString.get(this.getName()));
+//            combRawOver.put(this.getName(), rawUniqueValues);
+//
+//            this.uniqueValues = new HashSet<>();
+//            this.uniqueValues.addAll(rawUniqueValues);
+//
+//            this.updateTableEntries(combRawOver);
+//
+//            // now place normal distribution in correct position
+//            this.mvNormalDistribution = this.generateMvNormalDistribution(doubleValues);
+//
+//            // null, not null must be 1-st row of table (starting at zero)
+//            this.normalDistributions.clear();
+//            this.normalProperties.clear();
+//
+//            HashMap<String, String> lastStart = new HashMap<>();
+//            for(int i = 0; i < parents.length; i++) {
+//                lastStart.put(parents[i].getName(), null);
+//            }
+//            HashSet<Integer> idx = this.getSetOfIndices(lastStart, descriptiveString.get(this.getName()),true);
+//            int index = (Integer)idx.toArray()[0];
+//
+//            for(int i = 0; i < this.values.size(); i++) {
+//                if(i == index) {
+//                    DescriptiveStatistics fS = new DescriptiveStatistics(doubleValues.get(this.getName()));
+//                    this.normalDistributions.add(new NormalDistribution(fS.getMean(), fS.getStandardDeviation()));
+//                    this.normalProperties.add(this.fromStringToProperty(descriptiveString.get(this.getName())));
+//                } else {
+//                    this.normalDistributions.add(null);
+//                    this.normalProperties.add(null);
+//                }
+//            }
+//        } else {
+//            throw new Exception("not implemented yet!");
+//        }
 
-            this.updateTableEntries(combRawOver);
+        HashMap<String, HashSet<String>> eoUniqueValues = Combinator.getUniqueValuesFromVariables(parents);
+        // adds unique values of this variable
+        eoUniqueValues.put(this.getName(), this.getUniqueValues());
 
-            // now place normal distribution in correct position
-            this.mvNormalDistribution = this.generateMvNormalDistribution(doubleValues);
+        this.updateTable(eoUniqueValues);
+    }
 
-            // null, not null must be 1-st row of table (starting at zero)
-            this.normalDistributions.clear();
-            this.normalProperties.clear();
-
-            HashMap<String, String> lastStart = new HashMap<>();
-            for(int i = 0; i < parents.length; i++) {
-                lastStart.put(parents[i].getName(), null);
-            }
-            HashSet<Integer> idx = this.getSetOfIndices(lastStart, descriptiveString.get(this.getName()),true);
-            int index = (Integer)idx.toArray()[0];
-
-            for(int i = 0; i < this.values.size(); i++) {
-                if(i == index) {
-                    DescriptiveStatistics fS = new DescriptiveStatistics(doubleValues.get(this.getName()));
-                    this.normalDistributions.add(new NormalDistribution(fS.getMean(), fS.getStandardDeviation()));
-                    this.normalProperties.add(this.fromStringToProperty(descriptiveString.get(this.getName())));
-                } else {
-                    this.normalDistributions.add(null);
-                    this.normalProperties.add(null);
-                }
-            }
-        } else {
-            throw new Exception("not implemented yet!");
-        }
+    public void updateUniqueValues(Individual[] fittest) {
+        throw new Exception("not implemented yet!");
     }
 }
