@@ -2,7 +2,9 @@ package dn.variables;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 
@@ -24,6 +26,38 @@ public class ShadowNormalDistribution extends Shadowvalue {
         this.a_min = normalProperties.get("a_min");
         this.a_max = normalProperties.get("a_max");
         this.scale_init = normalProperties.get("scale_init");
+
+        this.dist = new NormalDistribution(mt, loc, scale);
+
+        this.method = this.dist.getClass().getMethod("sample");
+        this.obj = this.dist;
+    }
+
+    public ShadowNormalDistribution(MersenneTwister mt, double loc, double scale, double a_min, double a_max, double scale_init) throws Exception {
+        super(null, null);
+
+        this.loc = loc;
+        this.scale = scale;
+        this.a_min = a_min;
+        this.a_max = a_max;
+        this.scale_init = scale_init;
+
+        this.dist = new NormalDistribution(mt, loc, scale);
+
+        this.method = this.dist.getClass().getMethod("sample");
+        this.obj = this.dist;
+    }
+
+    public ShadowNormalDistribution(MersenneTwister mt, double[] data, double a_min, double a_max, double scale_init) throws Exception {
+        super(null, null);
+
+        DescriptiveStatistics ds = new DescriptiveStatistics(data);
+
+        this.loc = ds.getMean();
+        this.scale = ds.getStandardDeviation();
+        this.a_min = a_min;
+        this.a_max = a_max;
+        this.scale_init = scale_init;
 
         this.dist = new NormalDistribution(mt, loc, scale);
 

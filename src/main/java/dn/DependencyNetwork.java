@@ -611,15 +611,15 @@ public class DependencyNetwork {
 
         for(int index : this.sampling_order) {
 
-            // TODO remove this!
-            System.out.println("TODO remove this!!!");
-            System.out.println("come back to me later!");
-
-            this.variables.get("J48_confidenceFactorValue").updateStructure(
-                new AbstractVariable[]{this.variables.get("PART_confidenceFactorValue"), this.variables.get("PART")},
-                fittest
-            );
-            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
+//            // TODO remove this!
+//            System.out.println("TODO remove this!!!");
+//            System.out.println("come back to me later!");
+//
+//            this.variables.get("J48_confidenceFactorValue").updateStructure(
+//                new AbstractVariable[]{this.variables.get("PART_confidenceFactorValue"), this.variables.get("PART")},
+//                fittest
+//            );
+//            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
 //            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
 //            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 

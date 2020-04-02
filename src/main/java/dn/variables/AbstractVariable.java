@@ -94,7 +94,12 @@ public abstract class AbstractVariable {
         return intIndices;
     }
 
-    private ArrayList<Integer> inverseLoc(String variableName) {
+    /**
+     * Returns the indices on this variable table where variableName is NOT null.
+     * @param variableName Variable queried
+     * @return All the indices in this.table where variableNmae is not null.
+     */
+    private ArrayList<Integer> notNullLoc(String variableName) {
         ArrayList<Integer> localIndices = new ArrayList<>();
         HashMap<String, ArrayList<Integer>> subKeys = this.table.get(variableName);
         for(String key : subKeys.keySet()) {
@@ -135,7 +140,7 @@ public abstract class AbstractVariable {
 
             if(this.isParentContinuous.get(parentName)) {
                 if(parentVal != null) {
-                    localIndices = this.inverseLoc(parentName);
+                    localIndices = this.notNullLoc(parentName);
                 } else {
                     localIndices = this.table.get(parentName).get(parentVal);
                 }
@@ -149,7 +154,7 @@ public abstract class AbstractVariable {
         if(locOnVariable) {
             if(this instanceof ContinuousVariable) {
                 if(variableValue != null) {
-                    localIndices = this.inverseLoc(this.getName());
+                    localIndices = this.notNullLoc(this.getName());
                 } else {
                     localIndices = this.table.get(this.name).get(variableValue);
                 }
@@ -276,15 +281,16 @@ public abstract class AbstractVariable {
 
     /**
      * Update probabilities of this Variable based on the fittest population of a generation.
-     * @param fittest
-     * @throws Exception
+     * @param fittest Fittest individuals from the last population
+     * @throws Exception If any exception occurs
      */
     public void updateProbabilities(Individual[] fittest) throws Exception {
         HashMap<String, ArrayList<Integer>> thisVariable = this.table.get(this.getName());
         Object[] vals = thisVariable.keySet().toArray();
 
+        // counts how many combinations of values there is for this variable
+        // also updates shadow values
         int n_combinations = 0;
-
         for(Object val : vals) {
             ArrayList<Integer> indices = thisVariable.get((String)val);
             Shadowvalue thissv = null;
@@ -308,14 +314,49 @@ public abstract class AbstractVariable {
         }
         n_combinations += 1;
 
-        for(Individual fit : fittest) {
-            int[] indices = this.getArrayOfIndices(fit.getCharacteristics(), fit.getCharacteristics().get(this.getName()), true);
+        HashMap<String, Integer> ddd = new HashMap<>();
+        int n_continuous = 0;
+        for(String par : this.parents_names) {
+            if(this.isParentContinuous.get(par)) {
+                ddd.put(par, n_continuous);
+                n_continuous += 1;
+            }
+        }
+        if(this instanceof ContinuousVariable) {
+            ddd.put(this.getName(), n_continuous);
+            n_continuous += 1;
+        }
+
+        // keeps track of floats values for each one of the
+        // combination of values in the fittest population
+        double[][][] dda = new double[n_continuous][n_combinations][fittest.length];
+        int[][] ddc = new int[n_continuous][n_combinations];
+        for(int i = 0; i < n_continuous; i++) {
+            for(int j = 0; j < n_combinations; j++) {
+                ddc[i][j] = 0;
+            }
+        }
+
+        for(int i = 0; i < fittest.length; i++) {
+            int[] indices = this.getArrayOfIndices(fittest[i].getCharacteristics(), fittest[i].getCharacteristics().get(this.getName()), true);
+
             if(indices.length > 1) {
                 throw new Exception("unexpected behaviour!");
+            }
+
+            // annotates float values
+            for(String var : ddd.keySet()) {
+                String val = fittest[i].getCharacteristics().get(var);
+                if(val != null) {
+                    dda[ddd.get(var)][indices[0]][ddc[ddd.get(var)][indices[0]]] = Double.parseDouble(val);
+                    ddc[ddd.get(var)][indices[0]] += 1;
+                }
             }
             this.probabilities.set(indices[0], this.probabilities.get(indices[0]) + 1);
         }
 
+        // updates probabilities
+        // also updates normal distributions, if this variable is continuous
         HashMap<String, Object[]> uniqueValues = new HashMap<>();
         int[] sizes = new int [this.parents_names.size()];
         int[] carousel = new int [this.parents_names.size()];
@@ -350,10 +391,76 @@ public abstract class AbstractVariable {
                     break;
                 }
             }
-
             counter += 1;
 
-            int indices[] = this.getArrayOfIndices(cond, null, false);
+            HashSet<Integer> indices = this.getSetOfIndices(cond, null, false);
+
+            // updates normal distributions
+            if(this instanceof ContinuousVariable) {
+                HashSet<Integer> nnSet = new HashSet<>(this.notNullLoc(this.getName()));
+                nnSet.retainAll(indices);
+                int idx = (int)nnSet.toArray()[0];
+
+                int multivariate = 0;
+                Object[] keys = ddd.keySet().toArray();
+                boolean[] insert = new boolean[ddd.size()];
+                int min_size = Integer.MAX_VALUE;
+                for(int i = 0; i < ddd.size(); i++) {
+                    if(ddc[ddd.get((String)keys[i])][idx] > 0) {
+                        multivariate += 1;
+                        insert[i] = true;
+
+                        min_size = Math.min(
+                            min_size,
+                            ddc[ddd.get((String)keys[i])][idx]
+                        );
+                    } else {
+                        insert[i] = false;
+                    }
+                }
+                if(multivariate > 1) {
+                    double[][] toProcess = new double[multivariate][];
+
+                    int adder = 0;
+                    for(int i = 0; i < ddd.size(); i++) {
+                        if(insert[i]) {
+                            toProcess[adder] = Arrays.copyOfRange(
+                                dda[ddd.get((String)keys[i])][idx],
+                                0,
+                                min_size
+                            );
+                            adder += 1;
+                        }
+
+                    }
+                    this.values.set(
+                        idx,
+                        new ShadowMultivariateNormalDistribution(
+                            this.mt,
+                            toProcess,
+                            ((ContinuousVariable) this).a_min,
+                            ((ContinuousVariable) this).a_max,
+                            ((ContinuousVariable) this).scale_init
+                        )
+                    );
+                } else {
+                    this.values.set(
+                        idx,
+                        new ShadowNormalDistribution(
+                            this.mt,
+                            Arrays.copyOfRange(
+                                dda[ddd.get(this.getName())][idx],
+                                0,
+                                ddc[ddd.get(this.getName())][idx]
+                            ),
+                            ((ContinuousVariable) this).a_min,
+                            ((ContinuousVariable) this).a_max,
+                            ((ContinuousVariable) this).scale_init
+                        )
+                    );
+                }
+            }
+
             double sum = 0;
             for(int index : indices) {
                 sum += this.probabilities.get(index);
@@ -362,139 +469,6 @@ public abstract class AbstractVariable {
                 this.probabilities.set(index, this.probabilities.get(index) / sum);
             }
         }
-        // TODO now generate combinations of parents values.
-        // sum all probability values in the indices, and divide each one of the values
-        // by the sum
-
-
-        //        int n_combinations = new_table.size();
-//
-//        ArrayList<String> indices = new ArrayList<>(dictUnique.size());
-//
-//        for(int i = 0; i < new_table.size(); i++) {
-//            ArrayList<String> values = new_table.get(i);
-//            int j;
-//
-//            for(j = 0; j < values.size() - 1; j++) {
-//                table.get(indices.get(j)).get(values.get(j)).add(i);
-//            }
-//            j = values.size() - 1;
-//            this.values.add(
-//                new Shadowvalue(
-//                    String.class.getMethod("toString"),
-//                    values.get(j)
-//                )
-//            );
-//            this.probabilities.add(0.0);
-//            table.get(indices.get(j)).get(values.get(j)).add(i);
-//        }
-        
-//        ArrayList<Double> occurs = new ArrayList<>();
-//        for(int i = 0; i < probabilities.size(); i++) {
-//            occurs.add(0.0);
-//        }
-//
-//        // updates a continuous variable
-//        if(this.getClass().equals(ContinuousVariable.class)) {
-//            // gets the count of occurrences
-//            for(int i = 0; i < fittest.length; i++) {
-//                HashSet<Integer> parentIndices = this.getSetOfIndices(
-//                    fittest[i].getCharacteristics(),
-//                    null,
-//                    false
-//                );
-//                HashSet<Integer> nullIndices = this.getSetOfIndices(
-//                    fittest[i].getCharacteristics(),
-//                    null,
-//                    true
-//                );
-//
-//                parentIndices.retainAll(nullIndices);
-//
-//                for(Object index : parentIndices.toArray()) {
-//                    occurs.set((int)index, occurs.get((int)index) + 1);
-//                }
-//            }
-//        } else {  // updates a discrete variable
-//            // gets the count of occurrences
-//            for(int i = 0; i < fittest.length; i++) {
-//                int[] indices = this.getArrayOfIndices(
-//                    fittest[i].getCharacteristics(),
-//                    fittest[i].getCharacteristics().get(this.name),
-//                    true
-//                );
-//                for(int index : indices) {
-//                    occurs.set(index, occurs.get(index) + 1);
-//                }
-//            }
-//        }
-//
-//        // TODO update this!
-////        throw new Exception("update this!");
-//
-//        // generates combinations of values
-//        ArrayList<HashMap<String, String>> combinations = new ArrayList<>();
-//        for(Object value : this.getUniqueValues().toArray()) {
-//            HashMap<String, String> local = new HashMap<>();
-//            local.put(this.name, null);
-//            combinations.add(local);
-//        }
-//        for(String parent : this.parents_names) {
-//            ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>();
-//            for(int i = 0; i < combinations.size(); i++) {
-//                Object[] parentUniqueVals = this.table.get(parent).keySet().toArray();
-//                for(int j = 0; j < parentUniqueVals.length; j++) {
-//                    HashMap<String, String> local = (HashMap<String, String>)combinations.get(i).clone();
-//                    local.put(parent, (String)parentUniqueVals[j]);
-//                    new_combinations.add(local);
-//                }
-//            }
-//            combinations = new_combinations;
-//        }
-//
-//        // calculates the sum
-//        for(int i = 0; i < combinations.size(); i++) {
-//            int[] indices = this.getArrayOfIndices(combinations.get(i), null, false);
-//            double  sum = 0, newSum = 0, newValue, rest;
-//            for(int j = 0; j < indices.length; j++) {
-//                sum += occurs.get(indices[j]);
-//            }
-//
-//            if(sum > 0) {
-//                // updates probabilities using learning rate and relative frequencies
-//                for(int j = 0; j < indices.length; j++) {
-//                    newValue = ((1.0 - this.learningRate) * this.probabilities.get(indices[j]) +
-//                        this.learningRate * occurs.get(indices[j]) / sum);
-//                    newSum += newValue;
-//                    this.probabilities.set(
-//                        indices[j],
-//                        newValue
-//
-//                    );
-//                }
-//                rest = 1 - newSum;
-//                newSum = 0;
-//                for(int j = 0; j < indices.length; j++) {
-//                    this.probabilities.set(
-//                        indices[j],
-//                        this.probabilities.get(indices[j]) + rest / indices.length
-//                    );
-//                    newSum += this.probabilities.get(indices[j]);
-//                }
-//
-//                if(Math.abs(1 - newSum) > 0.01) {
-//                    throw new Exception("does not sum up to 1!");
-//                }
-//            }
-//        }  // ends calculating the sum
-//
-//        // clears NaN values
-//        // TODO throw away this code later
-//        for(int i = 0; i < probabilities.size(); i++) {
-//            if(Double.isNaN(probabilities.get(i)) || probabilities.get(i) < 0) {
-//                probabilities.set(i, 0.0);
-//            }
-//        }
     }
 
     // setters and updaters

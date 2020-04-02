@@ -77,56 +77,18 @@ public class ContinuousVariable extends AbstractVariable {
     @Override
     public void updateProbabilities(Individual[] fittest) throws Exception {
         super.updateProbabilities(fittest);
-        throw new Exception("now update shadow unique values and values of normal distributions!");
-        // TODO as well as multivariate normal distribution
 
-//            HashMap<String, double[]> doubleValues = this.getContinuousVariablesValues(parents, fittest);
-//            HashMap<String, String> descriptiveString = this.getContinuousVariablesUniqueValues(doubleValues);
-//
-//            HashMap<String, HashSet<String>> combRawOver = new HashMap<>(parents.length + 1);
-//            for(int i = 0; i < parents.length; i++) {
-//                HashSet<String> rawUniqueValues = new HashSet<>();
-//                rawUniqueValues.add(null);
-//                rawUniqueValues.add(descriptiveString.get(parents[i].getName()));
-//                combRawOver.put(parents[i].getName(), rawUniqueValues);
-//            }
-//            HashSet<String> rawUniqueValues = new HashSet<>();
-//            rawUniqueValues.add(null);
-//            rawUniqueValues.add(descriptiveString.get(this.getName()));
-//            combRawOver.put(this.getName(), rawUniqueValues);
-//
-//            this.uniqueValues = new HashSet<>();
-//            this.uniqueValues.addAll(rawUniqueValues);
-//
-//            this.updateTableEntries(combRawOver);
-//
-//            // now place normal distribution in correct position
-//            this.mvNormalDistribution = this.generateMvNormalDistribution(doubleValues);
-//
-//            // null, not null must be 1-st row of table (starting at zero)
-//            this.normalDistributions.clear();
-//            this.normalProperties.clear();
-//
-//            HashMap<String, String> lastStart = new HashMap<>();
-//            for(int i = 0; i < parents.length; i++) {
-//                lastStart.put(parents[i].getName(), null);
-//            }
-//            HashSet<Integer> idx = this.getSetOfIndices(lastStart, descriptiveString.get(this.getName()),true);
-//            int index = (Integer)idx.toArray()[0];
-//
-//            for(int i = 0; i < this.values.size(); i++) {
-//                if(i == index) {
-//                    DescriptiveStatistics fS = new DescriptiveStatistics(doubleValues.get(this.getName()));
-//                    this.normalDistributions.add(new NormalDistribution(fS.getMean(), fS.getStandardDeviation()));
-//                    this.normalProperties.add(this.fromStringToProperty(descriptiveString.get(this.getName())));
-//                } else {
-//                    this.normalDistributions.add(null);
-//                    this.normalProperties.add(null);
-//                }
-//            }
-//        } else {
-//            throw new Exception("not implemented yet!");
-//        }
+        ArrayList<String> uniqueArray = new ArrayList<>();
+        for(Shadowvalue val : this.values) {
+            uniqueArray.add(val.toString());
+        }
+        this.uniqueValues = new HashSet<>(uniqueArray);
+        this.uniqueShadowvalues = new HashSet<>();
+        for(Shadowvalue val : this.values) {
+            if(this.uniqueValues.contains(val.toString())) {
+                this.uniqueShadowvalues.add(val);
+            }
+        }
     }
 
 //    /**
@@ -232,36 +194,6 @@ public class ContinuousVariable extends AbstractVariable {
 //        }
 //        return descriptiveString;
 //    }
-
-    private MultivariateNormalDistribution generateMvNormalDistribution(HashMap<String, double[]> doubleValues) {
-        int min_size = Integer.MAX_VALUE;
-        for(String key : doubleValues.keySet()) {
-            double[] local_values = doubleValues.get(key);
-            min_size = Math.min(local_values.length, min_size);
-        }
-
-        Object[] keys = doubleValues.keySet().toArray();
-        double[] reducedMeans = new double [keys.length];
-        double[][] data = new double[keys.length][min_size];
-
-        for(int i = 0; i < keys.length; i++) {
-            double[] fullValues = doubleValues.get((String)keys[i]);
-            data[i] = Arrays.copyOfRange(fullValues, 0, min_size);
-            DescriptiveStatistics rS = new DescriptiveStatistics(data[i]);
-            reducedMeans[i] = rS.getMean();
-        }
-        double[][] covMatrix = new double[keys.length][keys.length];
-        Covariance cov = new Covariance();
-        for(int i = 0; i < keys.length; i++) {
-            for(int j = 0; j < keys.length; j++) {
-                covMatrix[i][j] = cov.covariance(data[i], data[j]);
-            }
-        }
-        MultivariateNormalDistribution mv = new MultivariateNormalDistribution(mt, reducedMeans, covMatrix);
-        return mv;
-    }
-
-
 
     @Override
     public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
