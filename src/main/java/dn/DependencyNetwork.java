@@ -605,6 +605,10 @@ public class DependencyNetwork {
     }
 
     public void updateStructure(Individual[] fittest) throws Exception {
+        for(String varName : this.variable_names) {
+            this.variables.get(varName).updateUniqueValues(fittest);
+        }
+
         for(int index : this.sampling_order) {
 
             // TODO remove this!
@@ -615,6 +619,7 @@ public class DependencyNetwork {
                 new AbstractVariable[]{this.variables.get("PART_confidenceFactorValue"), this.variables.get("PART")},
                 fittest
             );
+            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
 //            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
 //            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 

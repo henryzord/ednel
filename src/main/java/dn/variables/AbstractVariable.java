@@ -4,10 +4,7 @@ import eda.individual.Individual;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.*;
 
 public abstract class AbstractVariable {
     protected String name;
@@ -15,6 +12,7 @@ public abstract class AbstractVariable {
     protected HashMap<String, Boolean> isParentContinuous;
 
     protected HashSet<String> uniqueValues;
+    protected HashSet<Shadowvalue> uniqueShadowvalues;
 
     protected ArrayList<Shadowvalue> values;
     protected ArrayList<Double> probabilities;
@@ -29,7 +27,8 @@ public abstract class AbstractVariable {
     public AbstractVariable(
         String name, ArrayList<String> parents_names, HashMap<String, Boolean> isParentContinuous,
         HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-        HashSet<String> uniqueValues, ArrayList<Shadowvalue> values, ArrayList<Double> probabilities,
+        HashSet<String> uniqueValues, HashSet<Shadowvalue> uniqueshadowValues,
+        ArrayList<Shadowvalue> values, ArrayList<Double> probabilities,
         MersenneTwister mt, double learningRate, int n_generations) throws Exception {
 
         this.name = name;
@@ -37,6 +36,7 @@ public abstract class AbstractVariable {
         this.isParentContinuous = isParentContinuous;
 
         this.uniqueValues = uniqueValues;
+        this.uniqueShadowvalues = uniqueshadowValues;
 
         this.values = values;
         this.probabilities = probabilities;
@@ -77,14 +77,14 @@ public abstract class AbstractVariable {
      * @param conditions A HashMap where each entry is a parent name, and each value its value in
      *                   The Gibbs sampling process.
      * @param variableValue Value of the current variable.
-     * @param locOnVariable Whether to take into account the value of the current variable or not.
+     * @param useVariableValue Whether to take into account the value of the current variable or not.
      *                      If true, this method will search for the table index that matches exactly the
      *                      parent values PLUS this variable value. If false, will returh a set of indices
      *                      where parent values match.
      * @return An array of indices
      */
-    protected int[] getArrayOfIndices(HashMap<String, String> conditions, String variableValue, boolean locOnVariable) {
-        HashSet<Integer> intersection = this.getSetOfIndices(conditions, variableValue, locOnVariable);
+    protected int[] getArrayOfIndices(HashMap<String, String> conditions, String variableValue, boolean useVariableValue) {
+        HashSet<Integer> intersection = this.getSetOfIndices(conditions, variableValue, useVariableValue);
 
         int[] intIndices = new int [intersection.size()];
         Object[] values = intersection.toArray();
@@ -92,6 +92,17 @@ public abstract class AbstractVariable {
             intIndices[i] = (int)values[i];
         }
         return intIndices;
+    }
+
+    private ArrayList<Integer> inverseLoc(String variableName) {
+        ArrayList<Integer> localIndices = new ArrayList<>();
+        HashMap<String, ArrayList<Integer>> subKeys = this.table.get(variableName);
+        for(String key : subKeys.keySet()) {
+            if(key != null) {
+                localIndices.addAll(subKeys.get(key));
+            }
+        }
+        return localIndices;
     }
 
     /**
@@ -111,8 +122,10 @@ public abstract class AbstractVariable {
                                                String variableValue, boolean locOnVariable) {
 
         HashSet<Integer> intersection = new HashSet<>();
+        HashSet<Integer> allNumbers = new HashSet<>();
         for(int i = 0; i < this.probabilities.size(); i++) {
             intersection.add(i);
+            allNumbers.add(i);
         }
 
         ArrayList<Integer> localIndices = null;
@@ -122,13 +135,7 @@ public abstract class AbstractVariable {
 
             if(this.isParentContinuous.get(parentName)) {
                 if(parentVal != null) {
-                    localIndices = new ArrayList<>();
-                    HashMap<String, ArrayList<Integer>> subKeys = this.table.get(parentName);
-                    for(String key : subKeys.keySet()) {
-                        if(key != null) {
-                            localIndices.addAll(subKeys.get(key));
-                        }
-                    }
+                    localIndices = this.inverseLoc(parentName);
                 } else {
                     localIndices = this.table.get(parentName).get(parentVal);
                 }
@@ -140,7 +147,15 @@ public abstract class AbstractVariable {
             }
         }
         if(locOnVariable) {
-            localIndices = this.table.get(this.name).get(variableValue);
+            if(this instanceof ContinuousVariable) {
+                if(variableValue != null) {
+                    localIndices = this.inverseLoc(this.getName());
+                } else {
+                    localIndices = this.table.get(this.name).get(variableValue);
+                }
+            } else {
+                localIndices = this.table.get(this.name).get(variableValue);
+            }
             intersection.retainAll(new HashSet<>(localIndices));
         }
         return intersection;
@@ -220,7 +235,7 @@ public abstract class AbstractVariable {
         int[] n_unique = new int [dictUnique.size()];
         int[] repeat_every = new int [dictUnique.size()];
 
-        HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(dictUnique.size());
+        this.table = new HashMap<>(dictUnique.size());
         for(int i = dictUnique.size() - 1; i >= 0; i--) {
             HashMap<String, ArrayList<Integer>> variableDict = new HashMap<>(dictUnique.get((String)keys[i]).size());
 
@@ -265,6 +280,93 @@ public abstract class AbstractVariable {
      * @throws Exception
      */
     public void updateProbabilities(Individual[] fittest) throws Exception {
+        HashMap<String, ArrayList<Integer>> thisVariable = this.table.get(this.getName());
+        Object[] vals = thisVariable.keySet().toArray();
+
+        int n_combinations = 0;
+
+        for(Object val : vals) {
+            ArrayList<Integer> indices = thisVariable.get((String)val);
+            Shadowvalue thissv = null;
+            for (Iterator<Shadowvalue> it = this.uniqueShadowvalues.iterator(); it.hasNext(); ) {
+                Shadowvalue sv = it.next();
+                if(sv != null && sv.toString().equals(val)) {
+                    thissv = sv;
+                    break;
+                }
+            }
+
+            int max_index = Collections.max(indices);
+            n_combinations = Math.max(max_index, n_combinations);
+            for(int i = this.values.size(); i <= max_index; i++) {
+                this.values.add(null);
+                this.probabilities.add(1.0);
+            }
+            for(Integer index : indices) {
+                this.values.set(index, thissv);
+            }
+        }
+        n_combinations += 1;
+
+        for(Individual fit : fittest) {
+            int[] indices = this.getArrayOfIndices(fit.getCharacteristics(), fit.getCharacteristics().get(this.getName()), true);
+            if(indices.length > 1) {
+                throw new Exception("unexpected behaviour!");
+            }
+            this.probabilities.set(indices[0], this.probabilities.get(indices[0]) + 1);
+        }
+
+        HashMap<String, Object[]> uniqueValues = new HashMap<>();
+        int[] sizes = new int [this.parents_names.size()];
+        int[] carousel = new int [this.parents_names.size()];
+
+        for(int i = 0; i < this.parents_names.size(); i++) {
+            Object[] parentUnVal = this.table.get(this.parents_names.get(i)).keySet().toArray();
+            uniqueValues.put(
+                this.parents_names.get(i),
+                parentUnVal
+            );
+            sizes[i] = parentUnVal.length;
+            carousel[i] = 0;
+        }
+
+        n_combinations /= this.uniqueValues.size();
+        int counter = 0;
+        while(counter < n_combinations) {
+            HashMap<String, String> cond = new HashMap<>();
+
+            for(int i = 0; i < parents_names.size(); i++) {
+                String parentName = this.parents_names.get(i);
+                cond.put(
+                    parentName,
+                    (String)uniqueValues.get(parentName)[carousel[i]]
+                );
+            }
+            for(int j = sizes.length - 1; j >= 0; j--) {
+                carousel[j] += 1;
+                if(carousel[j] >= sizes[j]) {
+                    carousel[j] = 0;
+                } else {
+                    break;
+                }
+            }
+
+            counter += 1;
+
+            int indices[] = this.getArrayOfIndices(cond, null, false);
+            double sum = 0;
+            for(int index : indices) {
+                sum += this.probabilities.get(index);
+            }
+            for(int index : indices) {
+                this.probabilities.set(index, this.probabilities.get(index) / sum);
+            }
+        }
+        // TODO now generate combinations of parents values.
+        // sum all probability values in the indices, and divide each one of the values
+        // by the sum
+
+
         //        int n_combinations = new_table.size();
 //
 //        ArrayList<String> indices = new ArrayList<>(dictUnique.size());

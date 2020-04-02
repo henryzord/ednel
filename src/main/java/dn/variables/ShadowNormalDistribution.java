@@ -45,4 +45,24 @@ public class ShadowNormalDistribution extends Shadowvalue {
             this.loc, this.scale, this.a_min, this.a_max, this.scale_init
         );
     }
+
+    public double getLoc() {
+        return loc;
+    }
+
+    public double getScale() {
+        return scale;
+    }
+
+    public double getA_min() {
+        return a_min;
+    }
+
+    public double getA_max() {
+        return a_max;
+    }
+
+    public double getScale_init() {
+        return scale_init;
+    }
 }

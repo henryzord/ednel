@@ -14,6 +14,9 @@ import java.util.*;
  * This class encodes a continuous variable, more precisely a normal distribution.
  */
 public class ContinuousVariable extends AbstractVariable {
+    protected double a_min;
+    protected double a_max;
+    protected double scale_init;
 
     public ContinuousVariable(String name, ArrayList<String> parents_names, HashMap<String, Boolean> isParentContinuous,
                               HashMap<String, HashMap<String, ArrayList<Integer>>> table,
@@ -21,27 +24,34 @@ public class ContinuousVariable extends AbstractVariable {
                               MersenneTwister mt, double learningRate, int n_generations) throws Exception {
 
         super(name, parents_names, isParentContinuous, table,
-            null, null, probabilities, mt, learningRate, n_generations
+            null, null, null, probabilities, mt, learningRate, n_generations
         );
 
         this.values = new ArrayList<>(values.size());
         this.uniqueValues = new HashSet<>();
+        this.uniqueShadowvalues = new HashSet<>();
 
         for(int i = 0; i < values.size(); i++) {
             if(values.get(i) != null) {
                 HashMap<String, Double> properties = this.fromStringToProperty(values.get(i));
+                this.a_max = properties.get("a_max");
+                this.a_min = properties.get("a_min");
+                this.scale_init = properties.get("scale_init");
+
                 Shadowvalue sv;
                 if(properties.containsKey("covariance_matrix")) {
-                    // TODO implement
-                    sv = new ShadowMultivariateNormalDistribution(null, null);
+                    throw new Exception("not implemented yet!");
+//                    sv = new ShadowMultivariateNormalDistribution(null, null);  // TODO implement
                 } else {
                     sv = new ShadowNormalDistribution(this.mt, properties);
                 }
                 this.values.add(sv);
                 this.uniqueValues.add(sv.toString());
+                this.uniqueShadowvalues.add(sv);
             } else {
                 this.values.add(null);
                 this.uniqueValues.add(null);
+                this.uniqueShadowvalues.add(null);
             }
         }
     }
@@ -64,15 +74,60 @@ public class ContinuousVariable extends AbstractVariable {
         return thisProperty;
     }
 
-//    @Override
-//    public void updateProbabilities(Individual[] fittest) throws Exception {
-//        super.updateProbabilities(fittest);
-//        if(this.mvNormalDistribution == null) {
-//            this.updateNormalDistributions(fittest);
+    @Override
+    public void updateProbabilities(Individual[] fittest) throws Exception {
+        super.updateProbabilities(fittest);
+        throw new Exception("now update shadow unique values and values of normal distributions!");
+        // TODO as well as multivariate normal distribution
+
+//            HashMap<String, double[]> doubleValues = this.getContinuousVariablesValues(parents, fittest);
+//            HashMap<String, String> descriptiveString = this.getContinuousVariablesUniqueValues(doubleValues);
+//
+//            HashMap<String, HashSet<String>> combRawOver = new HashMap<>(parents.length + 1);
+//            for(int i = 0; i < parents.length; i++) {
+//                HashSet<String> rawUniqueValues = new HashSet<>();
+//                rawUniqueValues.add(null);
+//                rawUniqueValues.add(descriptiveString.get(parents[i].getName()));
+//                combRawOver.put(parents[i].getName(), rawUniqueValues);
+//            }
+//            HashSet<String> rawUniqueValues = new HashSet<>();
+//            rawUniqueValues.add(null);
+//            rawUniqueValues.add(descriptiveString.get(this.getName()));
+//            combRawOver.put(this.getName(), rawUniqueValues);
+//
+//            this.uniqueValues = new HashSet<>();
+//            this.uniqueValues.addAll(rawUniqueValues);
+//
+//            this.updateTableEntries(combRawOver);
+//
+//            // now place normal distribution in correct position
+//            this.mvNormalDistribution = this.generateMvNormalDistribution(doubleValues);
+//
+//            // null, not null must be 1-st row of table (starting at zero)
+//            this.normalDistributions.clear();
+//            this.normalProperties.clear();
+//
+//            HashMap<String, String> lastStart = new HashMap<>();
+//            for(int i = 0; i < parents.length; i++) {
+//                lastStart.put(parents[i].getName(), null);
+//            }
+//            HashSet<Integer> idx = this.getSetOfIndices(lastStart, descriptiveString.get(this.getName()),true);
+//            int index = (Integer)idx.toArray()[0];
+//
+//            for(int i = 0; i < this.values.size(); i++) {
+//                if(i == index) {
+//                    DescriptiveStatistics fS = new DescriptiveStatistics(doubleValues.get(this.getName()));
+//                    this.normalDistributions.add(new NormalDistribution(fS.getMean(), fS.getStandardDeviation()));
+//                    this.normalProperties.add(this.fromStringToProperty(descriptiveString.get(this.getName())));
+//                } else {
+//                    this.normalDistributions.add(null);
+//                    this.normalProperties.add(null);
+//                }
+//            }
 //        } else {
-//            updateMultivariateNormalDistribution(fittest);
+//            throw new Exception("not implemented yet!");
 //        }
-//    }
+    }
 
 //    /**
 //     * Updates both the probability of the table entry, and the Gaussian of each entry (if any).
@@ -206,68 +261,16 @@ public class ContinuousVariable extends AbstractVariable {
         return mv;
     }
 
+
+
     @Override
     public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
         super.updateStructure(parents, fittest);
 
-
-
-        // TODo update unique values before!!!
-
-//        int countDiscrete = countDiscrete(parents);
-//
-//        // all parents are discrete variables
-//        if(countDiscrete == parents.length) {
-//             throw new Exception("not implemented yet!");
-//        // multivariate normal distribution
-//        } else if ((countDiscrete == 0) && (parents.length == 1)) {
-//            HashMap<String, double[]> doubleValues = this.getContinuousVariablesValues(parents, fittest);
-//            HashMap<String, String> descriptiveString = this.getContinuousVariablesUniqueValues(doubleValues);
-//
-//            HashMap<String, HashSet<String>> combRawOver = new HashMap<>(parents.length + 1);
-//            for(int i = 0; i < parents.length; i++) {
-//                HashSet<String> rawUniqueValues = new HashSet<>();
-//                rawUniqueValues.add(null);
-//                rawUniqueValues.add(descriptiveString.get(parents[i].getName()));
-//                combRawOver.put(parents[i].getName(), rawUniqueValues);
-//            }
-//            HashSet<String> rawUniqueValues = new HashSet<>();
-//            rawUniqueValues.add(null);
-//            rawUniqueValues.add(descriptiveString.get(this.getName()));
-//            combRawOver.put(this.getName(), rawUniqueValues);
-//
-//            this.uniqueValues = new HashSet<>();
-//            this.uniqueValues.addAll(rawUniqueValues);
-//
-//            this.updateTableEntries(combRawOver);
-//
-//            // now place normal distribution in correct position
-//            this.mvNormalDistribution = this.generateMvNormalDistribution(doubleValues);
-//
-//            // null, not null must be 1-st row of table (starting at zero)
-//            this.normalDistributions.clear();
-//            this.normalProperties.clear();
-//
-//            HashMap<String, String> lastStart = new HashMap<>();
-//            for(int i = 0; i < parents.length; i++) {
-//                lastStart.put(parents[i].getName(), null);
-//            }
-//            HashSet<Integer> idx = this.getSetOfIndices(lastStart, descriptiveString.get(this.getName()),true);
-//            int index = (Integer)idx.toArray()[0];
-//
-//            for(int i = 0; i < this.values.size(); i++) {
-//                if(i == index) {
-//                    DescriptiveStatistics fS = new DescriptiveStatistics(doubleValues.get(this.getName()));
-//                    this.normalDistributions.add(new NormalDistribution(fS.getMean(), fS.getStandardDeviation()));
-//                    this.normalProperties.add(this.fromStringToProperty(descriptiveString.get(this.getName())));
-//                } else {
-//                    this.normalDistributions.add(null);
-//                    this.normalProperties.add(null);
-//                }
-//            }
-//        } else {
-//            throw new Exception("not implemented yet!");
-//        }
+        for(AbstractVariable par : parents) {
+            this.parents_names.add(par.getName());
+            this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
+        }
 
         HashMap<String, HashSet<String>> eoUniqueValues = Combinator.getUniqueValuesFromVariables(parents);
         // adds unique values of this variable
@@ -277,6 +280,30 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     public void updateUniqueValues(Individual[] fittest) {
-        throw new Exception("not implemented yet!");
+        int counter = 0;
+        for(Individual fit : fittest) {
+            if(fit.getCharacteristics().get(this.getName()) != null) {
+                counter += 1;
+            }
+        }
+        double[] values = new double [counter];
+        counter = 0;
+        for(Individual fit : fittest) {
+            if(fit.getCharacteristics().get(this.getName()) != null) {
+                values[counter] = Double.parseDouble(fit.getCharacteristics().get(this.getName()));
+                counter += 1;
+            }
+        }
+        DescriptiveStatistics ds = new DescriptiveStatistics(values);
+
+        String descriptiveString = String.format(
+            Locale.US,
+            "(loc=%01.6f,scale=%01.6f,a_min=%01.6f,a_max=%01.6f,scale_init=%01.6f)",
+            ds.getMean(), ds.getStandardDeviation(), this.a_min, this.a_max, this.scale_init
+        );
+
+        this.uniqueValues.clear();
+        this.uniqueValues.add(null);
+        this.uniqueValues.add(descriptiveString);
     }
 }

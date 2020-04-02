@@ -16,11 +16,12 @@ public class DiscreteVariable extends AbstractVariable {
         MersenneTwister mt, double learningRate, int n_generations) throws Exception {
 
         super(name, parents_names, isParentContinuous, table,
-            null, null, probabilities, mt, learningRate, n_generations
+            null, null, null, probabilities, mt, learningRate, n_generations
         );
 
         this.values = new ArrayList<>(values.size());
         this.uniqueValues = new HashSet<>();
+        this.uniqueShadowvalues = new HashSet<>();
 
         for(int i = 0; i < values.size(); i++) {
             Shadowvalue sv = new Shadowvalue(
@@ -29,6 +30,7 @@ public class DiscreteVariable extends AbstractVariable {
             );
             this.values.add(sv);
             this.uniqueValues.add(sv.toString());
+            this.uniqueShadowvalues.add(sv);
         }
 
     }
