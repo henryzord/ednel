@@ -287,11 +287,8 @@ public class DependencyNetwork {
             fittest[i] = population[sortedIndices[i]];
         }
 
-        this.updateStructure(fittest);  // TODO implement
-        System.out.println("structure ok!");
+        this.updateStructure(fittest);
         this.updateProbabilities(fittest);
-        System.out.println("probabilities ok!");
-
     }
 
     public void updateProbabilities(Individual[] fittest) throws Exception {
@@ -303,15 +300,22 @@ public class DependencyNetwork {
     /**
      * A modified Mutual Information metric derived from
      * J.A. Gámez, J.L. Mateo, J.M. Puerta. EDNA: Estimation of Dependenc Networks Algorithm.
+     *
+     * @param child Current child variable
+     * @param parentSet Parents of this variable
+     * @param candidate Candidate parent for this variable
+     * @param fittest Fittest individuals from current generation
+     * @return A modified mutual information metric, which is greater than zero if the candidate parent
+     *         is significantly correlated to this variable, or negative otherwise
+     * @throws Exception If any exception occurs
      */
     private double heuristic(
-        AbstractVariable pivot, HashSet<String> parentSet, AbstractVariable candidate, Individual[] fittest) throws Exception {
-        double mutualInformation = this.mutualInformation(pivot, candidate, fittest);
+        AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate, Individual[] fittest) throws Exception {
         double localMIs = 0;
         for(String parent : parentSet) {
             localMIs += this.mutualInformation(candidate, this.variables.get(parent), fittest);
         }
-        return mutualInformation - (localMIs / (parentSet.size() + 1));
+        return this.mutualInformation(child, candidate, fittest) - (localMIs / (parentSet.size() + 1));
     }
 
     /**
@@ -321,6 +325,9 @@ public class DependencyNetwork {
      * Ross, Brian C. "Mutual information between discrete and continuous data sets." PloS one 9.2 (2014).
      *
      * The specific method is Equation 5 of the paper.
+     *
+     * Coincidentally, is the same method used by scikit-learn:
+     * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
      *
      * @param a Discrete variable a
      * @param b Continuous variable b
@@ -423,6 +430,9 @@ public class DependencyNetwork {
      * "Estimating mutual information." Physical review E 69.6 (2004): 066138.<br>
      *
      * The specific method is Equation 8 of the paper.<br>
+     *
+     * Coincidentally, is the same method used by scikit-learn:
+     * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
      *
      * @param a Continuous variable a
      * @param b Continuous variable b
@@ -531,22 +541,23 @@ public class DependencyNetwork {
                 a.getUniqueValues().size() * b.getUniqueValues().size()
         );
 
-        int total_cases = fittest.length;
         String a_name = a.getName();
         String b_name = b.getName();
 
         // uses additive correction
         for(String value : a.getUniqueValues()) {
-            a_counts.put(String.valueOf(value), 1);
+            a_counts.put(String.valueOf(value), b.getUniqueValues().size());
         }
         for(String value : b.getUniqueValues()) {
-            b_counts.put(String.valueOf(value), 1);
+            b_counts.put(String.valueOf(value), a.getUniqueValues().size());
         }
         for(String a_value : a.getUniqueValues()) {
             for(String b_value : b.getUniqueValues()) {
                 joint_counts.put(String.format("%s,%s", a_value, b_value), 1);
             }
         }
+
+        int total_cases = fittest.length + joint_counts.size();
 
         for(Individual fit : fittest) {
             HashMap<String, String> localCharacteristics = fit.getCharacteristics();
@@ -581,9 +592,7 @@ public class DependencyNetwork {
             double a_prob = (double)a_counts.get(a_value) / (double)total_cases;
             double b_prob = (double)b_counts.get(b_value) / (double)total_cases;
 
-            mi += joint_prob * (
-                Math.log10(joint_prob / (a_prob * b_prob)) / Math.log10(2)
-            );
+            mi += joint_prob * Math.log(joint_prob / (a_prob * b_prob));
         }
         return mi;
     }
@@ -610,7 +619,6 @@ public class DependencyNetwork {
         }
 
         for(int index : this.sampling_order) {
-
 //            // TODO remove this!
 //            System.out.println("TODO remove this!!!");
 //            System.out.println("come back to me later!");
@@ -624,6 +632,10 @@ public class DependencyNetwork {
 //            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 
             String variableName = this.variable_names.get(index);
+
+            System.out.println("on variable " + variableName);
+            // TODO remove!
+
             // candidates to be parents of a variable
             HashSet<String> candSet = new HashSet<>(variable_names.size());
             candSet.addAll(this.variable_names);
@@ -661,9 +673,14 @@ public class DependencyNetwork {
             }
             AbstractVariable thisVariable = this.variables.get(variableName);
             AbstractVariable[] parents = new AbstractVariable [parentSet.size()];
+
             Object[] parentList = parentSet.toArray();
+
+            // TODO reduce number of parents of a variable!!!
+
             for(int i = 0; i < parentSet.size(); i++) {
                 parents[i] = this.variables.get((String)parentList[i]);
+                System.out.println("\t" + parentList[i]); // TODO remove me!
             }
 
             thisVariable.updateStructure(parents, fittest);

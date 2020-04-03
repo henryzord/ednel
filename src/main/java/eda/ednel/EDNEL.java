@@ -11,6 +11,9 @@ import utils.PBILLogger;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 public class EDNEL extends AbstractClassifier {
 
     protected int burn_in;
@@ -90,8 +93,10 @@ public class EDNEL extends AbstractClassifier {
 
         BaselineIndividual bi = new BaselineIndividual(data);
         this.currentGenBest = bi;
-
+        LocalDateTime t1, t2;
         for(int c = 0; c < this.n_generations; c++) {
+             t1 = LocalDateTime.now();
+
             if(this.earlyStop.isStopping()) {
                 break;
             }
@@ -115,9 +120,9 @@ public class EDNEL extends AbstractClassifier {
             this.pbilLogger.log(
                     fitnesses[0], sortedIndices, population, this.overallBest, this.currentGenBest, this.dn
             );
-            this.pbilLogger.print();
-
             this.dn.update(population, sortedIndices, this.selection_share);
+            t2 = LocalDateTime.now();
+            this.pbilLogger.print(t1, t2);
         }
         this.fitted = true;
     }

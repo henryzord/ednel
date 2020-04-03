@@ -23,6 +23,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -380,18 +382,19 @@ public class PBILLogger {
         }
     }
 
-    public void print() {
+    public void print(LocalDateTime t1, LocalDateTime t2) {
         if(this.curGen == 0) {
-            System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax"));
+            System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)"));
         }
 
         System.out.println(String.format(
-                "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f",
+                "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f\t\t\t%04d",
                 this.curGen,
                 this.n_individuals,
                 this.minFitness.get(this.curGen - 1),
                 this.medianFitness.get(this.curGen - 1),
-                this.maxFitness.get(this.curGen - 1)
+                this.maxFitness.get(this.curGen - 1),
+                t1.until(t2, ChronoUnit.SECONDS)
         ));
     }
 
