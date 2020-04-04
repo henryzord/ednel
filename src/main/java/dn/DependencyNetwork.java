@@ -310,7 +310,8 @@ public class DependencyNetwork {
      * @throws Exception If any exception occurs
      */
     private double heuristic(
-        AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate, Individual[] fittest) throws Exception {
+        AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate, Individual[] fittest
+    ) throws Exception {
         double localMIs = 0;
         for(String parent : parentSet) {
             localMIs += this.mutualInformation(candidate, this.variables.get(parent), fittest);
@@ -346,8 +347,9 @@ public class DependencyNetwork {
         Double[] continuousValues = new Double [fittest.length];
         String[] discreteValues = new String [fittest.length];
 
-        int continuous_values_size = 0;
+        int N = 0;
 
+        // captures information
         for(int i = 0; i < fittest.length; i++) {
             HashMap<String, String> localCharacteristics = fittest[i].getCharacteristics();
             String a_value = String.valueOf(localCharacteristics.get(a_name));
@@ -357,7 +359,7 @@ public class DependencyNetwork {
                 discreteValues[i] = a_value;
                 continuousValues[i] = Double.valueOf(b_value);
 
-                continuous_values_size += 1;
+                N += 1;
 
                 a_counts.put(
                     a_value,
@@ -371,55 +373,39 @@ public class DependencyNetwork {
         // mutual information
         double mi = 0;
 
-        // NaN values are placed at the end of the sorting
-        Integer[] sortedIndices = Argsorter.crescent_argsort(continuousValues);
-
-        for(int i = 0; i < sortedIndices.length; i++) {
-            int m = 0;
-            int neighbour_counter = 0;
-
-            Double thisValue = continuousValues[sortedIndices[i]];
+        for(int i = 0; i < continuousValues.length; i++) {
+            Double thisValue = continuousValues[i];
+            String thisClass = discreteValues[i];
 
             if(!Double.isNaN(thisValue)) {
-                String thisClass = discreteValues[sortedIndices[i]];
-                // looks forward
-                for(int j = i + 1; j < sortedIndices.length; j++) {
-                    int localIndex = sortedIndices[j];
-
-                    if(!Double.isNaN(continuousValues[localIndex])) {
-                        m += 1;
-                        if(discreteValues[localIndex].equals(thisClass)) {
-                            neighbour_counter += 1;
-                            if(neighbour_counter == this.nearest_neighbor) {
-                                break;
-                            }
-                        }
+                Double[] dists = new Double [continuousValues.length];
+                for(int j = 0; j < continuousValues.length; j++) {
+                    if(i == j || Double.isNaN(continuousValues[j])) {
+                        dists[j] = Double.NaN;
                     } else {
-                        break;
+                        dists[j] = Math.abs(thisValue - continuousValues[j]);
                     }
                 }
-                // looks backwards
-                for(int j = i - 1; j >= 0; j--) {
-                    int localIndex = sortedIndices[j];
-                    if(!Double.isNaN(continuousValues[localIndex])) {
-                        m += 1;
-                        if(discreteValues[localIndex].equals(thisClass)) {
-                            neighbour_counter += 1;
-                            if(neighbour_counter == this.nearest_neighbor) {
-                                break;
-                            }
-                        }
+                // NaN values are placed at the end of the list
+                Integer[] sortedIndices = Argsorter.crescent_argsort(dists);
+                int m = 0;
+                int counter = 0;
+                int neighbor_counter = 0;
+                while(!Double.isNaN(continuousValues[sortedIndices[counter]]) && (neighbor_counter < this.nearest_neighbor)) {
+                    if(discreteValues[sortedIndices[counter]].equals(thisClass)) {
+                        neighbor_counter += 1;
                     }
+                    m += 1;
+                    counter += 1;
                 }
-                if((m > 0) && (a_counts.get(thisClass) > 0)) {
-                    mi -= (Gamma.digamma(a_counts.get(thisClass)) + Gamma.digamma(m));
+                if((m > 0) && a_counts.get(thisClass) > 0) {
+                    mi -= (
+                        Gamma.digamma(a_counts.get(thisClass)) + Gamma.digamma(m)
+                    ) * (1.0/(double)N);
                 }
-            } else {
-                break; // reached end of array
             }
         }
-        mi = (mi/continuous_values_size) + Gamma.digamma(continuous_values_size) + Gamma.digamma(this.nearest_neighbor);
-        return mi;
+        return Math.max(0, Gamma.digamma(N) + mi + Gamma.digamma(this.nearest_neighbor));
     }
 
     /**
@@ -602,10 +588,16 @@ public class DependencyNetwork {
             if(b instanceof DiscreteVariable) {
                 return this.discreteDiscreteMutualInformation(a, b, fittest);
             } else {  // b is instance of ContinuousVariable
+                // TODO maybe compute discrete mutual information
+                // TODO between discrete variable and continuous, but
+                // TODO treat continuous variable as (NULL, NOT NULL)
                 return this.discreteContinuousMutualInformation((DiscreteVariable)a, (ContinuousVariable)b, fittest);
             }
         } else {  // a is instance of ContinuousVariable
             if(b instanceof DiscreteVariable) {
+                // TODO maybe compute discrete mutual information
+                // TODO between discrete variable and continuous, but
+                // TODO treat continuous variable as (NULL, NOT NULL)
                 return this.discreteContinuousMutualInformation((DiscreteVariable)b, (ContinuousVariable)a, fittest);
             } else { // a and b are instances of ContinuousVariable
                 return this.continuousContinuousMutualInformation((ContinuousVariable)a, (ContinuousVariable)b, fittest);
