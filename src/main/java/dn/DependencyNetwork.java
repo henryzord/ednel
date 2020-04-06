@@ -327,9 +327,8 @@ public class DependencyNetwork {
      *
      * The specific method is Equation 5 of the paper.
      *
-     * Coincidentally, is the same method used by scikit-learn:
+     * It has the same behavior as the method used by scikit-learn:
      * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
-     * Even though there is a small difference in how instances in the vicinity are computed.
      *
      * @param a Values of discrete variable a
      * @param b Values of continuous variable b
@@ -377,21 +376,24 @@ public class DependencyNetwork {
             }
 
             Integer[] sortedIndices = Argsorter.crescent_argsort(dists);
-            int m = 0;
-            int neighbor_counter = 0;
             double maxDist = Double.MAX_VALUE;
-
-            while((dists[sortedIndices[m]] <= maxDist) && (m < a.length)) {
-                if(a[sortedIndices[m]].equals(a[i])) {
+            int neighbor_counter = 0;
+            for(int j = 0; j < a.length; j++) {
+                if(a[sortedIndices[j]].equals(a[i])) {
                     neighbor_counter += 1;
                     if(neighbor_counter == k) {
-                        maxDist = dists[sortedIndices[m]];
+                        maxDist = Math.nextAfter(dists[sortedIndices[j]], 0);
+                        break;
                     }
                 }
+            }
+
+            int m = 0;
+            while((dists[sortedIndices[m]] <= maxDist) && (m < a.length)) {
                 m += 1;
             }
             k_all += Gamma.digamma(neighbor_counter);
-            m_all += Gamma.digamma(m);
+            m_all += Gamma.digamma(m + 1);
             label_counts += Gamma.digamma(a_counts.get(a[i]));
         }
 
@@ -408,9 +410,8 @@ public class DependencyNetwork {
      *
      * The specific method is Equation 8 of the paper.<br>
      *
-     * Coincidentally, is the same method used by scikit-learn:
+     * It has the same behavior as the method used by scikit-learn:
      * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
-     * Even though there is a small difference in how instances in the vicinity are computed.
      *
      * @param a Values of continuous variable a
      * @param b Values of continuous variable b
@@ -669,15 +670,5 @@ public class DependencyNetwork {
 
     public HashMap<String, AbstractVariable> getVariables() {
         return this.variables;
-    }
-
-    public static void main(String[] args) {
-        String[] a = new String[]{"false","true","true","false","true","false","false","true","true","false","true","false","false","true","true","true","true","false","true","false","false","true","true","false","false","false","false","false","false","false","false","false","false","false","true","false","false","true","false","true","true","true","true","true","true","false","false","true","false","false"};
-        Double[] b = new Double[]{-0.95,-0.95,-0.95,-0.95,-0.95,0.5,-0.95,-0.95,0.2836353481917059,-0.95,-0.95,-0.95,-0.95,0.5,0.2714168810147557,-0.95,-0.95,-0.95,0.1195340566685375,0.40497822020201396,-0.95,-0.95,0.1256216282017591,-0.95,-0.95,-0.95,-0.95,-0.95,-0.95,-0.95,-0.95,-0.95,-0.95,0.30999812932144455,0.5,0.49625597985935654,-0.95,-0.95,-0.95,-0.95,0.1591610674462277,0.3566677342087775,-0.95,0.4037848041263532,-0.95,-0.95,-0.95,0.2643984755587378,-0.95,0.15139780420618898};
-
-        // correct value per scikit-learn: 0.04598461
-        // even though it oscilates a lot (never ABOVE 0.1)
-        double mi = continuousContinuousMutualInformation(b, b, 3);
-        System.out.println("mutual information: " + mi);
     }
 }
