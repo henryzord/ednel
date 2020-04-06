@@ -238,4 +238,16 @@ public class ContinuousVariable extends AbstractVariable {
         this.uniqueValues.add(null);
         this.uniqueValues.add(descriptiveString);
     }
+
+    public double getMinValue() {
+        return a_min;
+    }
+
+    public double getMaxValue() {
+        return a_max;
+    }
+
+    public double getInitialStandardDeviation() {
+        return scale_init;
+    }
 }
