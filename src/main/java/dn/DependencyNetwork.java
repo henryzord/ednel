@@ -333,6 +333,7 @@ public class DependencyNetwork {
      *
      * @param a Values of discrete variable a
      * @param b Values of continuous variable b
+     * @param k number of neighbors to consider
      * @return The mutual information between these two variables, given data points.
      */
     public static double discreteContinuousMutualInformation(String[] a, Double[] b, int k) {
@@ -409,105 +410,53 @@ public class DependencyNetwork {
      *
      * Coincidentally, is the same method used by scikit-learn:
      * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
+     * Even though there is a small difference in how instances in the vicinity are computed.
      *
-     * @param a Continuous variable a
-     * @param b Continuous variable b
-     * @param fittest data points to use for calculating mutual information
+     * @param a Values of continuous variable a
+     * @param b Values of continuous variable b
+     * @param k number of neighbors to consider
      * @return The mutual information between these two variables, given data points.
      */
-    private double continuousContinuousMutualInformation(ContinuousVariable a, ContinuousVariable b, Individual[] fittest) throws Exception {
-        String a_name = a.getName();
-        String b_name = b.getName();
+    public static double continuousContinuousMutualInformation(Double[] a, Double[] b, int k) {
 
-        Double[] a_values = new Double [fittest.length];
-        Double[] b_values = new Double [fittest.length];
+        int N = a.length;
+        double a_counts = 0;
+        double b_counts = 0;
+        for(int i = 0; i < a.length; i++) {
+            Double[] dists = new Double [a.length];
 
-        Double mean_a = 0.;
-        Double mean_b = 0.;
-        int a_values_size = 0;
-        int b_values_size = 0;
-
-        for(int i = 0; i < fittest.length; i++) {
-            HashMap<String, String> localCharacteristics = fittest[i].getCharacteristics();
-            String a_value = String.valueOf(localCharacteristics.get(a_name));
-            String b_value = String.valueOf(localCharacteristics.get(b_name));
-
-            if(a_value.toLowerCase().equals("null")) {
-                a_values[i] = Double.NaN;
-            } else {
-                a_values[i] = Double.parseDouble(a_value);
-                mean_a += a_values[i];
-                a_values_size += 1;
-            }
-            if(b_value.toLowerCase().equals("null")) {
-                b_values[i] = Double.NaN;
-            } else {
-                b_values[i] = Double.parseDouble(b_value);
-                mean_b += b_values[i];
-                b_values_size += 1;
-            }
-        }
-        mean_a /= a_values_size;
-        mean_b /= b_values_size;
-
-        int non_nan_values = 0;
-        // replaces missing values with mean
-        for(int i = 0; i < a_values.length; i++) {
-            if(Double.isNaN(a_values[i])) {
-                if(!Double.isNaN((b_values[i]))) {
-                    a_values[i] = mean_a;
-                    non_nan_values += 1;
+            for(int j = 0; j < a.length; j++) {
+                if(i == j) {
+                    dists[j] = Double.MAX_VALUE;
+                } else {
+                    // Chebyshev distance
+                    dists[j] = Math.max(
+                        Math.abs(a[i] - a[j]),
+                        Math.abs(b[i] - b[j])
+                    );
                 }
-            } else if(Double.isNaN((b_values[i]))) {
-                if(!Double.isNaN(a_values[i])) {
-                    b_values[i] = mean_b;
-                    non_nan_values += 1;
-                }
-            } else {
-                non_nan_values += 1;
             }
+            Integer[] sortedIndices = Argsorter.crescent_argsort(dists);
+            double kth_distance = Math.nextAfter(dists[sortedIndices[k - 1]], 0);
+            int nx = 0;
+            int ny = 0;
+
+            for(int j = 0; j < N; j++) {
+                // does that for a
+                if(Math.abs(a[i] - a[j]) <= kth_distance) {
+                    nx += 1;
+                }
+                // now does that for b
+                if(Math.abs(b[i] - b[j]) <= kth_distance) {
+                    ny += 1;
+                }
+            }
+            a_counts += Gamma.digamma(nx);
+            b_counts += Gamma.digamma(ny);
         }
 
-        // mutual information
-        double mi = 0;
-
-        // this computation is not originally in the paper. It forces the algorithm
-        // to choose a new value of k, if the previous value exceeds the number of
-        // available values
-        int k = Math.min(non_nan_values, this.nearest_neighbor + 1);
-
-        // now computes euclidean distances
-        Double[] distances = new Double [a_values.length];
-        for(int i = 0; i < a_values.length; i++) {
-            for(int j = 0; j < a_values.length; j++) {
-                distances[j] = Math.sqrt(
-                    Math.pow(a_values[i] - a_values[j], 2) + Math.pow(b_values[i] - b_values[j], 2)
-                );
-            }
-            // NaN values are placed at the end of the sorting
-            Integer[] sorted = Argsorter.crescent_argsort(distances);
-            // does not take into account position 0, since it's the same point
-            double max_a = a_values[sorted[k]];
-            double max_b = b_values[sorted[k]];
-
-            int a_count = 0;
-            int b_count = 0;
-            for(int j = 0; j < a_values.length; j++) {
-                if(Double.isNaN(a_values[j]) || Double.isNaN(b_values[j])) {
-                    break;
-                }
-                if(a_values[j] < max_a) {
-                    a_count += 1;
-                }
-                if(b_values[j] < max_b) {
-                    b_count += 1;
-                }
-            }
-            mi -= (Gamma.digamma(a_count + 1) + Gamma.digamma(b_count + 1));
-        }
-        // TODO not sure on the value
-        mi = (mi/non_nan_values) + Gamma.digamma(k) + Gamma.digamma(non_nan_values);
-        return mi;
+        double before = Gamma.digamma(N) + Gamma.digamma(k) - (a_counts/N) - (b_counts/N);
+        return Math.max(0, before);
     }
 
     /**
@@ -632,16 +581,10 @@ public class DependencyNetwork {
             if(b instanceof DiscreteVariable) {
                 return this.discreteDiscreteMutualInformation(aDiscrete, bDiscrete);
             } else {  // b is instance of ContinuousVariable
-                // TODO maybe compute discrete mutual information
-                // TODO between discrete variable and continuous, but
-                // TODO treat continuous variable as (NULL, NOT NULL)
                 return discreteContinuousMutualInformation(aDiscrete, bContinuous, this.nearest_neighbor);
             }
         } else {  // a is instance of ContinuousVariable
             if(b instanceof DiscreteVariable) {
-                // TODO maybe compute discrete mutual information
-                // TODO between discrete variable and continuous, but
-                // TODO treat continuous variable as (NULL, NOT NULL)
                 return discreteContinuousMutualInformation(bDiscrete, aContinuous, this.nearest_neighbor);
             } else { // a and b are instances of ContinuousVariable
                 throw new Exception("not implemented yet!");
@@ -734,7 +677,7 @@ public class DependencyNetwork {
 
         // correct value per scikit-learn: 0.04598461
         // even though it oscilates a lot (never ABOVE 0.1)
-        double mi = discreteContinuousMutualInformation(a, b, 3);
+        double mi = continuousContinuousMutualInformation(b, b, 3);
         System.out.println("mutual information: " + mi);
     }
 }
