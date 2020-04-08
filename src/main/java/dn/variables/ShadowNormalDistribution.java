@@ -48,23 +48,6 @@ public class ShadowNormalDistribution extends Shadowvalue {
         this.obj = this.dist;
     }
 
-    public ShadowNormalDistribution(MersenneTwister mt, double[] data, double a_min, double a_max, double scale_init) throws Exception {
-        super(null, null);
-
-        DescriptiveStatistics ds = new DescriptiveStatistics(data);
-
-        this.loc = ds.getMean();
-        this.scale = ds.getStandardDeviation();
-        this.a_min = a_min;
-        this.a_max = a_max;
-        this.scale_init = scale_init;
-
-        this.dist = new NormalDistribution(mt, loc, scale);
-
-        this.method = this.dist.getClass().getMethod("sample");
-        this.obj = this.dist;
-    }
-
     @Override
     public String getValue() {
         Double clipped = Math.max(this.a_min, Math.min(this.a_max, this.dist.sample()));

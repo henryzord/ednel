@@ -23,16 +23,15 @@ public class DiscreteVariable extends AbstractVariable {
         this.uniqueValues = new HashSet<>();
         this.uniqueShadowvalues = new HashSet<>();
 
-        for(int i = 0; i < values.size(); i++) {
+        for (String value : values) {
             Shadowvalue sv = new Shadowvalue(
                 String.class.getMethod("toString"),
-                values.get(i)
+                value
             );
             this.values.add(sv);
             this.uniqueValues.add(sv.toString());
             this.uniqueShadowvalues.add(sv);
         }
-
     }
 
     /**

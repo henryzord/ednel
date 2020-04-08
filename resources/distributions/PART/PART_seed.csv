@@ -1,9 +1,9 @@
 PART_pruning,PART_seed,probability
-PART_unpruned,1,0.0
-PART_unpruned,null,1.0
-PART_reducedErrorPruning,1,1.0
-PART_reducedErrorPruning,null,0.0
-PART_confidenceFactor,1,0.0
-PART_confidenceFactor,null,1.0
+unpruned,1,0.0
+unpruned,null,1.0
+reducedErrorPruning,1,1.0
+reducedErrorPruning,null,0.0
+confidenceFactor,1,0.0
+confidenceFactor,null,1.0
 null,1,0.0
 null,null,1.0

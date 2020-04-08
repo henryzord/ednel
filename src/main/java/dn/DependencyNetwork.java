@@ -22,7 +22,6 @@ public class DependencyNetwork {
     private JSONObject classifiersResources;
     private int burn_in;
     private int thinning_factor;
-    private int n_variables;
 
     /**
      * The number of nearest neighbors to consider when
@@ -56,7 +55,7 @@ public class DependencyNetwork {
         this.readVariablesFromFiles(variables_path, options_path, learningRate, n_generations);
 
         this.createInitialSamplingOrder(variables.size());
-        this.n_variables = this.sampling_order.size();
+        int n_variables = this.sampling_order.size();
     }
 
     private void readVariablesFromFiles(String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
@@ -77,7 +76,7 @@ public class DependencyNetwork {
                 HashMap<String, Boolean> isContinuous = new HashMap<>();
 
                 String variableName = header[header.length - 2];
-                isContinuous.put(variableName, false);
+                // isContinuous.put(variableName, false);
                 this.variable_names.add(variableName);
                 int n_variables_table = 1;
                 ArrayList<String> parents_names = new ArrayList<>();
@@ -85,11 +84,11 @@ public class DependencyNetwork {
                 HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(header.length);
                 table.put(variableName, new HashMap<>());
 
+                // if there are more entries than simply the name of this variable plus column "probability"
                 if(header.length > 2) {
                     n_variables_table = n_variables_table + header.length - 2;
                     for(int k = 0; k < header.length - 2; k++) {
                         parents_names.add(header[k]);
-                        isContinuous.put(header[k], false);
                         table.put(header[k], new HashMap<>());
                     }
                 }
@@ -106,16 +105,14 @@ public class DependencyNetwork {
                     values.add(this_data[this_data.length - 2]);
 
                     for(int k = 0; k < this_data.length - 1; k++) {
-                        isContinuous.replace(
+                        isContinuous.put(
                             header[k],
-                            isContinuous.get(header[k]) ||
-                                (this_data[k].contains("loc") && this_data[k].contains("scale"))
+                            (this_data[k].contains("loc") && this_data[k].contains("scale")) ||  // univariate normal distribution
+                                (this_data[k].contains("means"))  // multivariate normal distribution
                         );
-                        if(this_data[k].toLowerCase().equals("null")) {
-                            this_data[k] = null;
-                        }
 
-                        if(!table.get(header[k]).containsKey(this_data[k])) {  // if this variable does not have this value
+                        // if this variable does not have this value
+                        if(!table.get(header[k]).containsKey(this_data[k])) {
                             table.get(header[k]).put(this_data[k], new ArrayList<>());
                         }
                         table.get(header[k]).get(this_data[k]).add(index);
@@ -124,13 +121,10 @@ public class DependencyNetwork {
                 }
                 csvReader.close();  // finishes reading this file
 
-                for(int k = 0; k < values.size(); k++) {
-                    if(values.get(k).toLowerCase().equals("null")) {
-                        values.set(k, null);
-                    }
-                }
+                boolean amIContinuous = isContinuous.get(variableName);
+                isContinuous.remove(variableName);
 
-                if(isContinuous.get(variableName)) {
+                if(amIContinuous) {
                     variables.put(variableName, new ContinuousVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
                 } else {
                     variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
@@ -561,7 +555,7 @@ public class DependencyNetwork {
             } else {
                 // adds noise, as suggested by Kraskov et al
                 double noise = (double)mt.nextInt(10) / 10e-10;
-                if(a_value != null) {
+                if(!a_value.toLowerCase().equals("null")) {
                     aContinuous[i] = Double.parseDouble(a_value) + noise;
                 } else {
                     aContinuous[i] = (((ContinuousVariable)a).getMinValue() - 1)  + noise;
@@ -570,7 +564,7 @@ public class DependencyNetwork {
             if(b instanceof DiscreteVariable) {
                 bDiscrete[i] = b_name;
             } else {
-                if(b_value != null) {
+                if(!b_value.toLowerCase().equals("null")) {
                     bContinuous[i] = Double.parseDouble(b_value);
                 } else {
                     bContinuous[i] = ((ContinuousVariable)b).getMinValue() - 1;
@@ -588,8 +582,7 @@ public class DependencyNetwork {
             if(b instanceof DiscreteVariable) {
                 return discreteContinuousMutualInformation(bDiscrete, aContinuous, this.nearest_neighbor);
             } else { // a and b are instances of ContinuousVariable
-                throw new Exception("not implemented yet!");
-//                return this.continuousContinuousMutualInformation(aContinuous, bContinuous, this.nearest_neighbor);
+                return continuousContinuousMutualInformation(aContinuous, bContinuous, this.nearest_neighbor);
             }
         }
     }
@@ -613,9 +606,6 @@ public class DependencyNetwork {
 //            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 
             String variableName = this.variable_names.get(index);
-
-            System.out.println("on variable " + variableName);
-            // TODO remove!
 
             // candidates to be parents of a variable
             HashSet<String> candSet = new HashSet<>(variable_names.size());
@@ -656,8 +646,6 @@ public class DependencyNetwork {
             AbstractVariable[] parents = new AbstractVariable [parentSet.size()];
 
             Object[] parentList = parentSet.toArray();
-
-            // TODO reduce number of parents of a variable!!!
 
             for(int i = 0; i < parentSet.size(); i++) {
                 parents[i] = this.variables.get((String)parentList[i]);

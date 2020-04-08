@@ -3,6 +3,7 @@ package dn.variables;
 import eda.individual.Individual;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import java.util.*;
 
@@ -11,12 +12,43 @@ public abstract class AbstractVariable {
     protected ArrayList<String> parents_names;
     protected HashMap<String, Boolean> isParentContinuous;
 
+    /**
+     * Should not contain any null values.
+     * If there is a null value, cast it to String:
+     * String.valueOf(null)
+     */
     protected HashSet<String> uniqueValues;
+
+    /**
+     * Should not contain any null values.
+     * If there is a null value among the values, create a new
+     * Shadowvalue for it:
+     *
+     * Shadowvalue sv = new Shadowvalue(
+     *     String.class.getMethod("toString"),
+     *     null
+     * );
+     *
+     */
     protected HashSet<Shadowvalue> uniqueShadowvalues;
 
+    /**
+     * Should not contain any null values.
+     * If there is a null value among the values, create a new
+     * Shadowvalue for it:
+     *
+     * Shadowvalue sv = new Shadowvalue(
+     *     String.class.getMethod("toString"),
+     *     null
+     * );
+     *
+     */
     protected ArrayList<Shadowvalue> values;
     protected ArrayList<Double> probabilities;
 
+    /**
+     * Can contain null values.
+     */
     protected HashMap<String, HashMap<String, ArrayList<Integer>>> table;
 
     protected MersenneTwister mt;
@@ -64,7 +96,7 @@ public abstract class AbstractVariable {
         EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
         Shadowvalue val = this.values.get(localDist.sample());
 
-        if(val != null) {
+        if(!val.toString().equals("null")) {
             return val.getValue();
         }
         return null;
@@ -139,27 +171,27 @@ public abstract class AbstractVariable {
             String parentVal = conditions.get(this.parents_names.get(i));
 
             if(this.isParentContinuous.get(parentName)) {
-                if(parentVal != null) {
+                if(!String.valueOf(parentVal).equals("null")) {
                     localIndices = this.notNullLoc(parentName);
                 } else {
                     localIndices = this.table.get(parentName).get(parentVal);
                 }
             } else {
-                localIndices = this.table.get(parentName).get(parentVal);
+                localIndices = this.table.get(parentName).get(String.valueOf(parentVal));
             }
-            if(localIndices != null) {
-                intersection.retainAll(new HashSet<>(localIndices));
-            }
+//            if(localIndices != null) {
+            intersection.retainAll(new HashSet<>(localIndices));
+//            }
         }
         if(locOnVariable) {
             if(this instanceof ContinuousVariable) {
-                if(variableValue != null) {
+                if(!String.valueOf(variableValue).equals("null")) {
                     localIndices = this.notNullLoc(this.getName());
                 } else {
                     localIndices = this.table.get(this.name).get(variableValue);
                 }
             } else {
-                localIndices = this.table.get(this.name).get(variableValue);
+                localIndices = this.table.get(this.name).get(String.valueOf(variableValue));
             }
             intersection.retainAll(new HashSet<>(localIndices));
         }
@@ -296,7 +328,7 @@ public abstract class AbstractVariable {
             Shadowvalue thissv = null;
             for (Iterator<Shadowvalue> it = this.uniqueShadowvalues.iterator(); it.hasNext(); ) {
                 Shadowvalue sv = it.next();
-                if(sv != null && sv.toString().equals(val)) {
+                if(sv.toString().equals(String.valueOf(val))) {
                     thissv = sv;
                     break;
                 }
@@ -444,15 +476,25 @@ public abstract class AbstractVariable {
                         )
                     );
                 } else {
+                    double[] data = Arrays.copyOfRange(
+                        dda[ddd.get(this.getName())][idx],
+                        0,
+                        ddc[ddd.get(this.getName())][idx]
+                    );
+                    DescriptiveStatistics ds = new DescriptiveStatistics(data);
+                    double loc = ds.getMean();
+                    double scale = ((ContinuousVariable) this).scale - ((ContinuousVariable) this).scale_init / ((ContinuousVariable) this).n_generations;
+                    if(Double.isNaN(loc)) {
+                        // this is an extreme case, where the normal distribution is reset
+                        loc = ((ContinuousVariable) this).loc_init;
+                    }
+
                     this.values.set(
                         idx,
                         new ShadowNormalDistribution(
                             this.mt,
-                            Arrays.copyOfRange(
-                                dda[ddd.get(this.getName())][idx],
-                                0,
-                                ddc[ddd.get(this.getName())][idx]
-                            ),
+                            loc,
+                            scale,
                             ((ContinuousVariable) this).a_min,
                             ((ContinuousVariable) this).a_max,
                             ((ContinuousVariable) this).scale_init
