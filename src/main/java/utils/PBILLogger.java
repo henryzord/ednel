@@ -383,7 +383,7 @@ public class PBILLogger {
     }
 
     public void print(LocalDateTime t1, LocalDateTime t2) {
-        if(this.curGen == 0) {
+        if(this.curGen == 1) {
             System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)"));
         }
 

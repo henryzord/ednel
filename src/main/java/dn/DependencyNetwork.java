@@ -649,7 +649,6 @@ public class DependencyNetwork {
 
             for(int i = 0; i < parentSet.size(); i++) {
                 parents[i] = this.variables.get((String)parentList[i]);
-                System.out.println("\t" + parentList[i]); // TODO remove me!
             }
 
             thisVariable.updateStructure(parents, fittest);

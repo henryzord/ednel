@@ -254,7 +254,13 @@ public class Main {
                         toReport.put("overall", ednel.getOverallBest());
                         toReport.put("last", ednel.getCurrentGenBest());
 
-                        ednel.getPbilLogger().toFile(ednel.getDependencyNetwork(), toReport, train_data, test_data);
+                        try {
+                            ednel.getPbilLogger().toFile(ednel.getDependencyNetwork(), toReport, train_data, test_data);
+                        } catch(Exception e) {
+                            System.err.println("An error occurred. Could not write metadata to files:");
+                            System.err.println(e.getCause());
+                        }
+
 
                         overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest()) / 10;
                         lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest()) / 10;
