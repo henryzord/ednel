@@ -22,7 +22,7 @@ public class Shadowvalue implements Comparable<String> {
     public String getValue() {
         if(obj != null) {
             try {
-                return String.valueOf(method.invoke(obj, null));
+                return String.valueOf(method.invoke(obj));
             } catch(Exception e) {
                 // TODO double check!
                 System.out.println("Deu erro aqui!!!");
