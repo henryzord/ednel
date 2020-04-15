@@ -1,9 +1,9 @@
 PART_pruning,PART_confidenceFactorValue,probability
-PART_reducedErrorPruning,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
-PART_reducedErrorPruning,null,1.0
-PART_unpruned,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
-PART_unpruned,null,1.0
-PART_confidenceFactor,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",1.0
-PART_confidenceFactor,null,1.0
-null,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.100000)",0.0
+reducedErrorPruning,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.200000)",0.0
+reducedErrorPruning,null,1.0
+unpruned,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.200000)",0.0
+unpruned,null,1.0
+confidenceFactor,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.200000)",1.0
+confidenceFactor,null,1.0
+null,"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.200000)",0.0
 null,null,1.0

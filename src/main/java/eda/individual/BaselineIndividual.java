@@ -53,7 +53,7 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("J48_useMDLcorrection", "false");
         this.characteristics.put("J48_collapseTree", "true");
         this.characteristics.put("J48_doNotMakeSplitPointActualValue", "false");
-        this.characteristics.put("J48_pruning", "J48_confidenceFactor");
+        this.characteristics.put("J48_pruning", "confidenceFactor");
         this.characteristics.put("J48_numFolds", null);
         this.characteristics.put("J48_subtreeRaising", "true");
         this.characteristics.put("J48_seed", null);
@@ -78,7 +78,7 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("PART_minNumObj", "2");
         this.characteristics.put("PART_binarySplits", "false");
         this.characteristics.put("PART_useMDLcorrection", "true");
-        this.characteristics.put("PART_pruning", "PART_confidenceFactor");
+        this.characteristics.put("PART_pruning", "confidenceFactor");
         this.characteristics.put("PART_confidenceFactorValue", "0.25");
         this.characteristics.put("PART_seed", null);
         this.characteristics.put("PART_numFolds", null);
@@ -87,7 +87,7 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("DecisionTable_displayRules", "true");
         this.characteristics.put("DecisionTable_crossVal", "1");
         this.characteristics.put("DecisionTable_evaluationMeasure", "auc");
-        this.characteristics.put("DecisionTable_search", "BestFirst");
+        this.characteristics.put("DecisionTable_search", "weka.attributeSelection.BestFirst");
         this.characteristics.put("BestFirst_direction", "1");
         this.characteristics.put("BestFirst_searchTermination", "5");
         this.characteristics.put("GreedyStepwise_conservativeForwardSelection", null);

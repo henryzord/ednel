@@ -1,9 +1,7 @@
 package dn.variables;
 
-import org.apache.commons.math3.distribution.MultivariateNormalDistribution;
-import org.apache.commons.math3.distribution.NormalDistribution;
-
 import java.lang.reflect.Method;
+import java.util.Objects;
 
 public class Shadowvalue implements Comparable<String> {
     protected Method method;
@@ -29,19 +27,25 @@ public class Shadowvalue implements Comparable<String> {
                 return null;
             }
         }
-        return null;
     }
 
     @Override
     public int compareTo(String o) {
-        return this.getValue().compareTo(o);
+        return this.toString().compareTo(o);
     }
 
     @Override
     public String toString() {
-        if(obj == null) {
-            return null;
-        }
-        return obj.toString();
+        return String.valueOf(obj);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this.toString().equals(String.valueOf(o));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.toString());
     }
 }

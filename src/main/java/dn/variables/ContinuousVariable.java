@@ -1,14 +1,13 @@
 package dn.variables;
 
 import eda.individual.Individual;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.math3.distribution.MultivariateNormalDistribution;
-import org.apache.commons.math3.distribution.NormalDistribution;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.random.MersenneTwister;
-import org.apache.commons.math3.stat.correlation.Covariance;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 
 /**
  * This class encodes a continuous variable, more precisely a normal distribution.
@@ -16,6 +15,8 @@ import java.util.*;
 public class ContinuousVariable extends AbstractVariable {
     protected double a_min;
     protected double a_max;
+    protected double loc_init;
+    protected double scale;
     protected double scale_init;
 
     public ContinuousVariable(String name, ArrayList<String> parents_names, HashMap<String, Boolean> isParentContinuous,
@@ -32,16 +33,17 @@ public class ContinuousVariable extends AbstractVariable {
         this.uniqueShadowvalues = new HashSet<>();
 
         for(int i = 0; i < values.size(); i++) {
-            if(values.get(i) != null) {
+            if(!values.get(i).equals("null")) {
                 HashMap<String, Double> properties = this.fromStringToProperty(values.get(i));
                 this.a_max = properties.get("a_max");
                 this.a_min = properties.get("a_min");
+                this.scale = properties.get("scale");
+                this.loc_init = properties.get("loc");
                 this.scale_init = properties.get("scale_init");
 
                 Shadowvalue sv;
-                if(properties.containsKey("covariance_matrix")) {
-                    throw new Exception("not implemented yet!");
-//                    sv = new ShadowMultivariateNormalDistribution(null, null);  // TODO implement
+                if(properties.containsKey("means")) {
+                    throw new Exception("not implemented yet!");  // TODO implement
                 } else {
                     sv = new ShadowNormalDistribution(this.mt, properties);
                 }
@@ -49,9 +51,14 @@ public class ContinuousVariable extends AbstractVariable {
                 this.uniqueValues.add(sv.toString());
                 this.uniqueShadowvalues.add(sv);
             } else {
-                this.values.add(null);
-                this.uniqueValues.add(null);
-                this.uniqueShadowvalues.add(null);
+                Shadowvalue sv = new Shadowvalue(
+                    String.class.getMethod("toString"),
+                    "null"
+                );
+
+                this.values.add(sv);
+                this.uniqueValues.add(sv.toString());
+                this.uniqueShadowvalues.add(sv);
             }
         }
     }
@@ -77,17 +84,11 @@ public class ContinuousVariable extends AbstractVariable {
     @Override
     public void updateProbabilities(Individual[] fittest) throws Exception {
         super.updateProbabilities(fittest);
-
-        ArrayList<String> uniqueArray = new ArrayList<>();
-        for(Shadowvalue val : this.values) {
-            uniqueArray.add(val.toString());
-        }
-        this.uniqueValues = new HashSet<>(uniqueArray);
-        this.uniqueShadowvalues = new HashSet<>();
-        for(Shadowvalue val : this.values) {
-            if(this.uniqueValues.contains(val.toString())) {
-                this.uniqueShadowvalues.add(val);
-            }
+        // updates shadow values
+        this.uniqueShadowvalues = new HashSet<>(this.values);
+        this.uniqueValues = new HashSet<>();
+        for(Shadowvalue val : this.uniqueShadowvalues) {
+            this.uniqueValues.add(val.toString());
         }
     }
 
@@ -237,5 +238,17 @@ public class ContinuousVariable extends AbstractVariable {
         this.uniqueValues.clear();
         this.uniqueValues.add(null);
         this.uniqueValues.add(descriptiveString);
+    }
+
+    public double getMinValue() {
+        return a_min;
+    }
+
+    public double getMaxValue() {
+        return a_max;
+    }
+
+    public double getInitialStandardDeviation() {
+        return scale_init;
     }
 }

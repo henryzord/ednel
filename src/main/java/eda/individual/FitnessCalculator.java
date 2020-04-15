@@ -45,7 +45,6 @@ public class FitnessCalculator {
               unweighted += evaluation.areaUnderROC(i);
             }
         }
-
         return unweighted / n_classes;
     }
 
