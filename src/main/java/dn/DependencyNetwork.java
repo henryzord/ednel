@@ -37,6 +37,9 @@ public class DependencyNetwork {
     private HashMap<String, String> optionTable;
     private HashMap<String, String> lastStart;
 
+    private int currentGenDiscardedIndividuals;
+    private int currentGenEvals;
+    private int currentGenConnections;
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path,
@@ -50,6 +53,10 @@ public class DependencyNetwork {
         this.thinning_factor = thinning_factor;
         this.nearest_neighbor = nearest_neighbor;
 
+        this.currentGenEvals = 0;
+        this.currentGenDiscardedIndividuals = 0;
+        this.currentGenConnections = 0;
+
         this.lastStart = null;
 
         this.readVariablesFromFiles(variables_path, options_path, learningRate, n_generations);
@@ -60,6 +67,8 @@ public class DependencyNetwork {
 
     private void readVariablesFromFiles(String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
+
+        this.currentGenConnections = 0;
 
         JSONParser jsonParser = new JSONParser();
         classifiersResources = (JSONObject)jsonParser.parse(new FileReader(options_path));
@@ -129,6 +138,7 @@ public class DependencyNetwork {
                 } else {
                     variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
                 }
+                this.currentGenConnections += this.variables.get(variableName).getParentsNames().size();
             }
         }
     }
@@ -199,8 +209,8 @@ public class DependencyNetwork {
         Individual[] individuals = new Individual [sampleSize];
 
         this.lastStart = lastStart;
-
-        // TODO use laplace correction; check edna paper for this
+        this.currentGenDiscardedIndividuals = 0;
+        this.currentGenEvals = 0;
 
         int outerCounter = 0;
         int individualCounter = 0;
@@ -210,6 +220,7 @@ public class DependencyNetwork {
             // updates currentLastStart and currentOptionTable
             this.sampleIndividual();
         }
+        this.currentGenDiscardedIndividuals += burn_in;
 
         while(individualCounter < sampleSize) {
             this.sampleIndividual();
@@ -229,9 +240,12 @@ public class DependencyNetwork {
                     outerCounter = 0;
                     individuals[individualCounter] = individual;
                     individualCounter += 1;
+                    this.currentGenEvals += 1;
+                } else {
+                    this.currentGenDiscardedIndividuals += 1;
                 }
-            } catch(Exception e) {
-
+            } catch(Exception e) {  // invalid individual generated
+                this.currentGenDiscardedIndividuals += 1;
             }
         }
         this.lastStart = null;
@@ -383,7 +397,7 @@ public class DependencyNetwork {
             }
 
             int m = 0;
-            while((dists[sortedIndices[m]] <= maxDist) && (m < a.length)) {
+            while((m < a.length) && (dists[sortedIndices[m]] <= maxDist)) {
                 m += 1;
             }
             k_all += Gamma.digamma(neighbor_counter);
@@ -551,7 +565,7 @@ public class DependencyNetwork {
             String b_value = String.valueOf(localCharacteristics.get(b_name));
 
             if(a instanceof DiscreteVariable) {
-                aDiscrete[i] = a_name;
+                aDiscrete[i] = a_value;
             } else {
                 // adds noise, as suggested by Kraskov et al
                 double noise = (double)mt.nextInt(10) / 10e-10;
@@ -562,12 +576,14 @@ public class DependencyNetwork {
                 }
             }
             if(b instanceof DiscreteVariable) {
-                bDiscrete[i] = b_name;
+                bDiscrete[i] = b_value;
             } else {
+                // adds noise, as suggested by Kraskov et al
+                double noise = (double)mt.nextInt(10) / 10e-10;
                 if(!b_value.toLowerCase().equals("null")) {
-                    bContinuous[i] = Double.parseDouble(b_value);
+                    bContinuous[i] = Double.parseDouble(b_value) + noise;
                 } else {
-                    bContinuous[i] = ((ContinuousVariable)b).getMinValue() - 1;
+                    bContinuous[i] = (((ContinuousVariable)b).getMinValue() - 1) + noise;
                 }
             }
         }
@@ -588,6 +604,8 @@ public class DependencyNetwork {
     }
 
     public void updateStructure(Individual[] fittest) throws Exception {
+        this.currentGenConnections = 0;
+
         for(String varName : this.variable_names) {
             this.variables.get(varName).updateUniqueValues(fittest);
         }
@@ -652,10 +670,24 @@ public class DependencyNetwork {
             }
 
             thisVariable.updateStructure(parents, fittest);
+
+            this.currentGenConnections += thisVariable.getParentsNames().size();
         }
+    }
+
+    public int getCurrentGenDiscardedIndividuals() {
+        return currentGenDiscardedIndividuals;
     }
 
     public HashMap<String, AbstractVariable> getVariables() {
         return this.variables;
+    }
+
+    public Integer getCurrentGenEvals() {
+        return this.currentGenEvals;
+    }
+
+    public Integer getCurrentGenConnections() {
+        return this.currentGenConnections;
     }
 }

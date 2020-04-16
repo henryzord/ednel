@@ -27,6 +27,7 @@ public class Shadowvalue implements Comparable<String> {
                 return null;
             }
         }
+        return null;
     }
 
     @Override

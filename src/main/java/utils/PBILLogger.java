@@ -46,6 +46,10 @@ public class PBILLogger {
     protected ArrayList<Double> minFitness;
     protected ArrayList<Double> maxFitness;
     protected ArrayList<Double> medianFitness;
+    protected ArrayList<Integer> discardedIndividuals;
+    protected ArrayList<Integer> lapTimes;
+    protected ArrayList<Integer> nevals;
+    protected ArrayList<Integer> dnConnections;
 
     protected HashMap<String, String> pastPopulations = null;
 
@@ -124,16 +128,25 @@ public class PBILLogger {
         this.minFitness = new ArrayList<>();
         this.medianFitness = new ArrayList<>();
         this.maxFitness = new ArrayList<>();
+        this.discardedIndividuals = new ArrayList<>();
+        this.lapTimes = new ArrayList<>();
+        this.nevals = new ArrayList<>();
+        this.dnConnections = new ArrayList<>();
 
         this.curGen = 0;
     }
 
     public void log(Double[] fitnesses, Integer[] sortedIndices,
                     Individual[] population, Individual overall, Individual last,
-                    DependencyNetwork dn
+                    DependencyNetwork dn, LocalDateTime t1, LocalDateTime t2
     ) {
         this.overall = overall;
         this.last = last;
+        this.nevals.add(dn.getCurrentGenEvals());
+        this.discardedIndividuals.add(dn.getCurrentGenDiscardedIndividuals());
+        this.dnConnections.add(dn.getCurrentGenConnections());
+
+        this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
         this.logPopulation(fitnesses, sortedIndices, population, overall, last);
         this.logDependencyStructure(dn);
@@ -265,7 +278,32 @@ public class PBILLogger {
         PBILLogger.createFolder(dataset_thisrun_path);
         individualsCharacteristicsToFile(individuals, fitnesses);
         individualsClassifiersToFile(individuals);
+        loggerDataToFile();
         dependencyNetworkStructureToFile(dn);
+    }
+
+    private void loggerDataToFile() throws Exception {
+        if(this.log) {
+            BufferedWriter bw = new BufferedWriter(new FileWriter(dataset_thisrun_path + File.separator + "loggerData.csv"));
+
+            // writes header
+            bw.write("gen,nevals,min,median,max,lap time(seconds),discarded individuals (including burn-in),dependency network connections\n");
+
+            for(int i = 0; i < this.curGen; i++) {
+                bw.write(String.format(
+                        "%d,%d,%.8f,%.8f,%.8f,%04d,%04d",
+                        i,
+                        this.nevals.get(i),
+                        this.minFitness.get(i),
+                        this.medianFitness.get(i),
+                        this.maxFitness.get(i),
+                        this.lapTimes.get(i),
+                        this.discardedIndividuals.get(i),
+                        this.dnConnections.get(i)
+                ));
+            }
+            bw.close();
+        }
     }
 
     private void dependencyNetworkStructureToFile(DependencyNetwork dn) throws IOException {
@@ -382,19 +420,21 @@ public class PBILLogger {
         }
     }
 
-    public void print(LocalDateTime t1, LocalDateTime t2) {
+    public void print() {
         if(this.curGen == 1) {
-            System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)"));
+            System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)\t\tDiscarded Individuals (w/ burn-in)\t\tDN Connections"));
         }
 
         System.out.println(String.format(
-                "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f\t\t\t%04d",
+                "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f\t\t%04d\t\t\t\t%04d\t\t\t\t\t\t\t\t\t%04d",
                 this.curGen,
-                this.n_individuals,
+                this.nevals.get(this.curGen - 1),
                 this.minFitness.get(this.curGen - 1),
                 this.medianFitness.get(this.curGen - 1),
                 this.maxFitness.get(this.curGen - 1),
-                t1.until(t2, ChronoUnit.SECONDS)
+                this.lapTimes.get(this.curGen - 1),
+                this.discardedIndividuals.get(this.curGen - 1),
+                this.dnConnections.get(this.curGen - 1)
         ));
     }
 
@@ -520,3 +560,4 @@ public class PBILLogger {
     }
 
 }
+
