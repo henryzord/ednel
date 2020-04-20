@@ -5,8 +5,10 @@ import dn.variables.ContinuousVariable;
 import dn.variables.DiscreteVariable;
 import eda.individual.Individual;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import utils.Argsorter;
 import weka.core.Instances;
 import org.apache.commons.math3.special.Gamma;
@@ -30,7 +32,7 @@ public class DependencyNetwork {
      */
     private int nearest_neighbor = 3;
 
-    private List<Integer> sampling_order = null;
+    private ArrayList<ArrayList<Integer>> samplingOrder = null;
 
     private ArrayList<HashMap<String, AbstractVariable>> pastVariables;
 
@@ -42,7 +44,7 @@ public class DependencyNetwork {
     private int currentGenConnections;
 
     public DependencyNetwork(
-            MersenneTwister mt, String variables_path, String options_path,
+            MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
             int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor
     ) throws Exception {
         this.mt = mt;
@@ -61,8 +63,24 @@ public class DependencyNetwork {
 
         this.readVariablesFromFiles(variables_path, options_path, learningRate, n_generations);
 
-        this.createInitialSamplingOrder(variables.size());
-        int n_variables = this.sampling_order.size();
+        this.samplingOrder = this.readSamplingOrderPath(sampling_order_path, variable_names);
+
+    }
+
+    private static ArrayList<ArrayList<Integer>> readSamplingOrderPath(String sampling_order_path, ArrayList<String> variable_names) throws IOException, ParseException {
+        JSONParser jsonParser = new JSONParser();
+        JSONObject jobj = (JSONObject)jsonParser.parse(new FileReader(sampling_order_path));
+
+        ArrayList<ArrayList<Integer>> clusters = new ArrayList<>(jobj.size());
+        for(Object key : jobj.keySet()) {
+            JSONArray jarr = (JSONArray)jobj.get(key);
+            ArrayList<Integer> localCluster = new ArrayList<>();
+            for(Object localKey : jarr.toArray()) {
+                localCluster.add(variable_names.indexOf(localKey));
+            }
+            clusters.add(localCluster);
+        }
+        return clusters;
     }
 
     private void readVariablesFromFiles(String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
@@ -76,6 +94,7 @@ public class DependencyNetwork {
         String row;
         for(int i = 0; i < algorithms.length; i++) {
             Object[] variables_names  = Files.list(new File(algorithms[i].toString()).toPath()).toArray();
+
             for(int j = 0; j < variables_names.length; j++) {
                 BufferedReader csvReader = new BufferedReader(new FileReader(variables_names[j].toString()));
 
@@ -143,62 +162,48 @@ public class DependencyNetwork {
         }
     }
 
-    /**
-     * Creates a simple initial sampling order, with range [0, size).
-     * @param size The number of variables in the graphical model.
-     * @return
-     */
-    private void createInitialSamplingOrder(int size) {
-        Integer[] indices = new Integer [size];
-        for(int i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-        sampling_order = Arrays.asList(indices);
-    }
-
     private void sampleIndividual() throws Exception {
         optionTable = new HashMap<>(this.variable_names.size());
 
-        // shuffles sampling order
-        Collections.shuffle(this.sampling_order, new Random(mt.nextInt()));
+        for(ArrayList<Integer> cluster : this.samplingOrder) {
+            for(int idx : cluster) {
+                String variableName = this.variable_names.get(idx);
+                String algorithmName = variableName.split("_")[0];
 
-        for(int idx : this.sampling_order) {
-            String variableName = this.variable_names.get(idx);
-            String algorithmName = variableName.split("_")[0];
-
-            if(optionTable.getOrDefault(algorithmName, null) == null) {
-                optionTable.put(algorithmName, "");
-            }
-
-            lastStart.put(
-                    variableName,
-                    this.variables.get(variableName).conditionalSampling(lastStart)
-            );
-
-            if(lastStart.get(variableName) != null) {
-                JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
-                if(optionObj == null) {
-                    optionObj = (JSONObject)classifiersResources.getOrDefault(lastStart.get(variableName), null);
+                if(optionTable.getOrDefault(algorithmName, null) == null) {
+                    optionTable.put(algorithmName, "");
                 }
 
-                // checks whether this is an option
-                if(optionObj != null) {
-                    boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
-                    String optionName = (String)optionObj.get("optionName");
-                    String dtype = (String)optionObj.get("dtype");
+                lastStart.put(
+                        variableName,
+                        this.variables.get(variableName).conditionalSampling(lastStart)
+                );
 
-                    if(dtype.equals("np.bool")) {
-                        if(lastStart.get(variableName).toLowerCase().equals("false")) {
-                            if(!presenceMeans) {
-                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                if(lastStart.get(variableName) != null) {
+                    JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
+                    if(optionObj == null) {
+                        optionObj = (JSONObject)classifiersResources.getOrDefault(lastStart.get(variableName), null);
+                    }
+
+                    // checks whether this is an option
+                    if(optionObj != null) {
+                        boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
+                        String optionName = (String)optionObj.get("optionName");
+                        String dtype = (String)optionObj.get("dtype");
+
+                        if(dtype.equals("np.bool")) {
+                            if(lastStart.get(variableName).toLowerCase().equals("false")) {
+                                if(!presenceMeans) {
+                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                                }
+                            } else {
+                                if(presenceMeans) {
+                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
+                                }
                             }
                         } else {
-                            if(presenceMeans) {
-                                optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
-                            }
+                            optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
                         }
-                    } else {
-                        optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
                     }
                 }
             }
@@ -214,6 +219,9 @@ public class DependencyNetwork {
 
         int outerCounter = 0;
         int individualCounter = 0;
+
+        // shuffles sampling order
+        Collections.shuffle(this.samplingOrder, new Random(mt.nextInt()));
 
         // burns some individuals
         for(int i = 0; i < burn_in; i++) {
@@ -610,7 +618,8 @@ public class DependencyNetwork {
             this.variables.get(varName).updateUniqueValues(fittest);
         }
 
-        for(int index : this.sampling_order) {
+        for(ArrayList<Integer> cluster : this.samplingOrder) {
+            for (int index : cluster) {
 //            // TODO remove this!
 //            System.out.println("TODO remove this!!!");
 //            System.out.println("come back to me later!");
@@ -623,55 +632,56 @@ public class DependencyNetwork {
 //            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
 //            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
 
-            String variableName = this.variable_names.get(index);
+                String variableName = this.variable_names.get(index);
 
-            // candidates to be parents of a variable
-            HashSet<String> candSet = new HashSet<>(variable_names.size());
-            candSet.addAll(this.variable_names);
-            candSet.remove(variableName);
-            HashSet<String> parentSet = new HashSet<>();
+                // candidates to be parents of a variable
+                HashSet<String> candSet = new HashSet<>(variable_names.size());
+                candSet.addAll(this.variable_names);
+                candSet.remove(variableName);
+                HashSet<String> parentSet = new HashSet<>();
 
-            while(candSet.size() > 0) {
-                double bestHeuristic = -1;
-                String bestCandidate = null;
+                while (candSet.size() > 0) {
+                    double bestHeuristic = -1;
+                    String bestCandidate = null;
 
-                HashSet<String> toRemove = new HashSet<>();
+                    HashSet<String> toRemove = new HashSet<>();
 
-                for(String candidate : candSet) {
-                    double heuristic = this.heuristic(
-                        this.variables.get(variableName),
-                        parentSet,
-                        this.variables.get(candidate),
-                        fittest
-                    );
-                    if(heuristic > 0) {
-                        if(heuristic > bestHeuristic) {
-                            bestHeuristic = heuristic;
-                            bestCandidate = candidate;
+                    for (String candidate : candSet) {
+                        double heuristic = this.heuristic(
+                                this.variables.get(variableName),
+                                parentSet,
+                                this.variables.get(candidate),
+                                fittest
+                        );
+                        if (heuristic > 0) {
+                            if (heuristic > bestHeuristic) {
+                                bestHeuristic = heuristic;
+                                bestCandidate = candidate;
+                            }
+                        } else {
+                            toRemove.add(candidate);
                         }
-                    } else {
-                        toRemove.add(candidate);
+                    }
+                    candSet.removeAll(toRemove);
+
+                    if (bestHeuristic > 0) {
+                        parentSet.add(bestCandidate);
+                        candSet.remove(bestCandidate);
                     }
                 }
-                candSet.removeAll(toRemove);
+                AbstractVariable thisVariable = this.variables.get(variableName);
+                AbstractVariable[] parents = new AbstractVariable[parentSet.size()];
 
-                if(bestHeuristic > 0) {
-                    parentSet.add(bestCandidate);
-                    candSet.remove(bestCandidate);
+                Object[] parentList = parentSet.toArray();
+
+                for (int i = 0; i < parentSet.size(); i++) {
+                    parents[i] = this.variables.get((String) parentList[i]);
                 }
+
+                thisVariable.updateStructure(parents, fittest);
+
+                this.currentGenConnections += thisVariable.getParentsNames().size();
             }
-            AbstractVariable thisVariable = this.variables.get(variableName);
-            AbstractVariable[] parents = new AbstractVariable [parentSet.size()];
-
-            Object[] parentList = parentSet.toArray();
-
-            for(int i = 0; i < parentSet.size(); i++) {
-                parents[i] = this.variables.get((String)parentList[i]);
-            }
-
-            thisVariable.updateStructure(parents, fittest);
-
-            this.currentGenConnections += thisVariable.getParentsNames().size();
         }
     }
 

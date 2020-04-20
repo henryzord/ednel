@@ -65,6 +65,15 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
+                .longOpt("sampling_order_path")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Path to sampling order file.")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("seed")
                 .required(false)
                 .type(Integer.class)
@@ -243,6 +252,7 @@ public class Main {
                                 Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
                                 commandLine.getOptionValue("variables_path"),
                                 commandLine.getOptionValue("options_path"),
+                                commandLine.getOptionValue("sampling_order_path"),
                                 pbilLogger,
                                 commandLine.getOptionValue("seed") == null?
                                     null : Integer.parseInt(commandLine.getOptionValue("seed"))
