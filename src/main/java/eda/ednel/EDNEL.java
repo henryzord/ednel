@@ -28,6 +28,7 @@ public class EDNEL extends AbstractClassifier {
     protected int n_generations;
 
     protected int nearest_neighbor;
+    protected int max_parents;
 
     protected PBILLogger pbilLogger;
     protected Integer seed;
@@ -47,7 +48,7 @@ public class EDNEL extends AbstractClassifier {
 
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
                  int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
-                 int nearest_neighbor,
+                 int nearest_neighbor, int max_parents,
                  String variables_path, String options_path, String sampling_order_path, PBILLogger pbilLogger,
                  Integer seed) throws Exception {
 
@@ -60,6 +61,7 @@ public class EDNEL extends AbstractClassifier {
         this.early_stop_generations = early_stop_generations;
         this.early_stop_tolerance = early_stop_tolerance;
         this.nearest_neighbor = nearest_neighbor;
+        this.max_parents = max_parents;
 
         this.pbilLogger = pbilLogger;
         this.variables_path = variables_path;
@@ -83,7 +85,7 @@ public class EDNEL extends AbstractClassifier {
             mt, variables_path, options_path, sampling_order_path,
             this.burn_in, this.thinning_factor,
             this.learning_rate, this.n_generations,
-            this.nearest_neighbor
+            this.nearest_neighbor, this.max_parents
         );
     }
 
@@ -91,8 +93,7 @@ public class EDNEL extends AbstractClassifier {
     public void buildClassifier(Instances data) throws Exception {
         FitnessCalculator fc = new FitnessCalculator(5, data, null);
 
-        BaselineIndividual bi = new BaselineIndividual(data);
-        this.currentGenBest = bi;
+        this.currentGenBest = new BaselineIndividual(data);
         LocalDateTime t1, t2;
         for(int c = 0; c < this.n_generations; c++) {
              t1 = LocalDateTime.now();

@@ -115,22 +115,38 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
 
         if(j48Parameters.length > 1) {
-            j48.setOptions(j48Parameters);
+            try {
+                j48.setOptions(j48Parameters);
+            } catch(Exception e) {
+                throw new Exception("Exception found in Classifier J48: " + e.getMessage());
+            }
         } else {
             j48 = null;
         }
         if(simpleCartParameters.length > 1) {
-            simpleCart.setOptions(simpleCartParameters);
+            try {
+                simpleCart.setOptions(simpleCartParameters);
+            } catch(Exception e) {
+                throw new Exception("Exception found in Classifier SimpleCart: " + e.getMessage());
+            }
         } else {
             simpleCart = null;
         }
         if(partParameters.length > 1) {
-            part.setOptions(partParameters);
+            try {
+                part.setOptions(partParameters);
+            } catch(Exception e) {
+                throw new Exception("Exception found in Classifier PART: " + e.getMessage());
+            }
         } else {
             part = null;
         }
         if(jripParameters.length > 1) {
-            jrip.setOptions(jripParameters);
+            try {
+                jrip.setOptions(jripParameters);
+            } catch(Exception e) {
+                throw new Exception("Exception found in Classifier JRip: " + e.getMessage());
+            }
         } else {
             jrip = null;
         }
@@ -158,7 +174,11 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
                 newDtParams[counter] += " " + selectedSubParams[i];
             }
 
-            decisionTable.setOptions(newDtParams);
+            try {
+                decisionTable.setOptions(newDtParams);
+            } catch(Exception e) {
+                throw new Exception("Exception found in Classifier DecisionTable: " + e.getMessage());
+            }
         } else {
             decisionTable = null;
         }

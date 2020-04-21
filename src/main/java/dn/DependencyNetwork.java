@@ -30,7 +30,8 @@ public class DependencyNetwork {
      * calculating the mutual information between discrete and
      * continuous variables.
      */
-    private int nearest_neighbor = 3;
+    private int nearest_neighbor;
+    private int max_parents;
 
     private ArrayList<ArrayList<Integer>> samplingOrder = null;
 
@@ -45,7 +46,7 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
-            int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor
+            int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor, int max_parents
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
@@ -54,6 +55,7 @@ public class DependencyNetwork {
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
         this.nearest_neighbor = nearest_neighbor;
+        this.max_parents = max_parents;
 
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
@@ -135,8 +137,9 @@ public class DependencyNetwork {
                     for(int k = 0; k < this_data.length - 1; k++) {
                         isContinuous.put(
                             header[k],
-                            (this_data[k].contains("loc") && this_data[k].contains("scale")) ||  // univariate normal distribution
-                                (this_data[k].contains("means"))  // multivariate normal distribution
+                            isContinuous.getOrDefault(header[k], false) ||
+                                    (this_data[k].contains("loc") && this_data[k].contains("scale")) ||  // univariate normal distribution
+                                        this_data[k].contains("means")  // multivariate normal distribution
                         );
 
                         // if this variable does not have this value
@@ -242,6 +245,7 @@ public class DependencyNetwork {
                 options[counter + 1] = optionTable.get(algNames[j]);
                 counter += 2;
             }
+            String[] copyOptions = options.clone(); // TODo remove!
             try {
                 Individual individual = new Individual(options, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
@@ -620,7 +624,6 @@ public class DependencyNetwork {
 
         for(ArrayList<Integer> cluster : this.samplingOrder) {
             for (int index : cluster) {
-//            // TODO remove this!
 //            System.out.println("TODO remove this!!!");
 //            System.out.println("come back to me later!");
 //
@@ -640,7 +643,7 @@ public class DependencyNetwork {
                 candSet.remove(variableName);
                 HashSet<String> parentSet = new HashSet<>();
 
-                while (candSet.size() > 0) {
+                while ((candSet.size() > 0) && (parentSet.size() <= this.max_parents)) {
                     double bestHeuristic = -1;
                     String bestCandidate = null;
 

@@ -54,6 +54,8 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("J48_collapseTree", "true");
         this.characteristics.put("J48_doNotMakeSplitPointActualValue", "false");
         this.characteristics.put("J48_pruning", "confidenceFactor");
+        this.characteristics.put("J48_reducedErrorPruning", null);
+        this.characteristics.put("J48_unpruned", null);
         this.characteristics.put("J48_numFolds", null);
         this.characteristics.put("J48_subtreeRaising", "true");
         this.characteristics.put("J48_seed", null);
@@ -79,6 +81,8 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("PART_binarySplits", "false");
         this.characteristics.put("PART_useMDLcorrection", "true");
         this.characteristics.put("PART_pruning", "confidenceFactor");
+        this.characteristics.put("PART_unpruned", null);
+        this.characteristics.put("PART_reducedErrorPruning", null);
         this.characteristics.put("PART_confidenceFactorValue", "0.25");
         this.characteristics.put("PART_seed", null);
         this.characteristics.put("PART_numFolds", null);

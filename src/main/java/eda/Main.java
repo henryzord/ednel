@@ -189,6 +189,15 @@ public class Main {
             .build());
 
         options.addOption(Option.builder()
+                .longOpt("max_parents")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Maximum number of parents a variable is allowed to have.")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("log")
                 .type(Boolean.class)
                 .required(true)
@@ -250,6 +259,7 @@ public class Main {
                                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                                 Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
                                 Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
+                                Integer.parseInt(commandLine.getOptionValue("max_parents")),
                                 commandLine.getOptionValue("variables_path"),
                                 commandLine.getOptionValue("options_path"),
                                 commandLine.getOptionValue("sampling_order_path"),
