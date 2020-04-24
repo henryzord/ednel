@@ -183,7 +183,7 @@ public class PBILLogger {
             for(Object variable : variableNames) {
                 this.pastDependencyStructures.put(
                         String.format("gen_%03d_var_%s", this.curGen, variable),
-                        variables.get(variable).getParentsNames()
+                        variables.get(variable).getMutableParentsNames()
                 );
             }
         }

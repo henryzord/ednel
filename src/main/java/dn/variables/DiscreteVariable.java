@@ -36,28 +36,34 @@ public class DiscreteVariable extends AbstractVariable {
 
     /**
      * Updates the structure of the table of indices.
-     * @param parents Set of indices of this variable.
+     * @param mutableParents Parents to be added to mutable parents of this variable.
      * @param fittest Set of fittest individuals of current generation.
      * @throws Exception
      */
     @Override
-    public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
-        super.updateStructure(parents, fittest);
+    public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
+                                HashMap<String, ArrayList<String>> fittest) throws Exception {
+        super.updateStructure(mutableParents, fixedParents, fittest);
         // removes continuous parents from the set of parents of this variable.
-        AbstractVariable[] discreteParents = AbstractVariable.getOnlyDiscrete(parents);
+        AbstractVariable[] discreteParents = AbstractVariable.getOnlyDiscrete(mutableParents);
         for(AbstractVariable par : discreteParents) {
-            this.parents_names.add(par.getName());
-            this.isParentContinuous.put(par.getName(), false);
+            if(this.fixed_parents.indexOf(par.getName()) == -1) {
+                this.mutable_parents.add(par.getName());
+                this.isParentContinuous.put(par.getName(), false);
+            }
         }
 
-        HashMap<String, HashSet<String>> eoUniqueValues = Combinator.getUniqueValuesFromVariables(discreteParents);
-        // adds unique values of this variable
-        eoUniqueValues.put(this.getName(), this.getUniqueValues());
+        HashMap<String, HashSet<String>> mutableUniqueValues = Combinator.getUniqueValuesFromVariables(discreteParents);
 
-        this.updateTable(eoUniqueValues);
+        // adds unique values of fixed variables
+        mutableUniqueValues.putAll(Combinator.getUniqueValuesFromVariables(fixedParents));
+        // adds unique values of this variable
+        mutableUniqueValues.put(this.getName(), this.getUniqueValues());
+
+        this.updateTable(mutableUniqueValues);
     }
 
-    public void updateUniqueValues(Individual[] fittest) {
+    public void updateUniqueValues(HashMap<String, ArrayList<String>> fittest) {
         // nothing happens
     }
 }

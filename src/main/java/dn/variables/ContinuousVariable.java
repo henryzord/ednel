@@ -82,8 +82,8 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public void updateProbabilities(Individual[] fittest) throws Exception {
-        super.updateProbabilities(fittest);
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
+        super.updateProbabilities(fittestValues, fittest);
         // updates shadow values
         this.uniqueShadowvalues = new HashSet<>(this.values);
         this.uniqueValues = new HashSet<>();
@@ -197,33 +197,37 @@ public class ContinuousVariable extends AbstractVariable {
 //    }
 
     @Override
-    public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
-        super.updateStructure(parents, fittest);
+    public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
+                                HashMap<String, ArrayList<String>> fittest) throws Exception {
+        super.updateStructure(mutableParents, fixedParents, fittest);
 
-        for(AbstractVariable par : parents) {
-            this.parents_names.add(par.getName());
-            this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
+        for(AbstractVariable par : mutableParents) {
+            if(this.fixed_parents.indexOf(par.getName()) == -1) {
+                this.mutable_parents.add(par.getName());
+                this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
+            }
         }
 
-        HashMap<String, HashSet<String>> eoUniqueValues = Combinator.getUniqueValuesFromVariables(parents);
+        HashMap<String, HashSet<String>> eoUniqueValues = Combinator.getUniqueValuesFromVariables(mutableParents);
+        eoUniqueValues.putAll(Combinator.getUniqueValuesFromVariables(fixedParents));
         // adds unique values of this variable
         eoUniqueValues.put(this.getName(), this.getUniqueValues());
 
         this.updateTable(eoUniqueValues);
     }
 
-    public void updateUniqueValues(Individual[] fittest) {
+    public void updateUniqueValues(HashMap<String, ArrayList<String>> fittest) {
         int counter = 0;
-        for(Individual fit : fittest) {
-            if(fit.getCharacteristics().get(this.getName()) != null) {
+        for(String fit : fittest.get(this.getName())) {
+            if(fit != null) {
                 counter += 1;
             }
         }
         double[] values = new double [counter];
         counter = 0;
-        for(Individual fit : fittest) {
-            if(fit.getCharacteristics().get(this.getName()) != null) {
-                values[counter] = Double.parseDouble(fit.getCharacteristics().get(this.getName()));
+        for(String fit : fittest.get(this.getName())) {
+            if(fit != null) {
+                values[counter] = Double.parseDouble(fit);
                 counter += 1;
             }
         }

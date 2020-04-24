@@ -1,6 +1,7 @@
 package dn.variables;
 
 import org.apache.commons.math3.distribution.MultivariateNormalDistribution;
+import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.stat.correlation.Covariance;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -53,6 +54,7 @@ public class ShadowMultivariateNormalDistribution extends Shadowvalue {
         }
         this.cov_matrix_str = this.cov_matrix_str.substring(0, this.cov_matrix_str.lastIndexOf(",")) + "]";
 
+        throw new Exception("matrix is singular!");
         this.mv = new MultivariateNormalDistribution(mt, means, covMatrix);
 
         this.method = this.mv.getClass().getMethod("sample");

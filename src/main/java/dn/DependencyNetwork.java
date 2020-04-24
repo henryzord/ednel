@@ -160,7 +160,7 @@ public class DependencyNetwork {
                 } else {
                     variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
                 }
-                this.currentGenConnections += this.variables.get(variableName).getParentsNames().size();
+                this.currentGenConnections += this.variables.get(variableName).getParentCount();
             }
         }
     }
@@ -245,7 +245,6 @@ public class DependencyNetwork {
                 options[counter + 1] = optionTable.get(algNames[j]);
                 counter += 2;
             }
-            String[] copyOptions = options.clone(); // TODo remove!
             try {
                 Individual individual = new Individual(options, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
@@ -271,7 +270,7 @@ public class DependencyNetwork {
      * @return
      */
     private ArrayList<HashMap<String, String>> generateCombinations(String variableName) {
-        ArrayList<String> parents = this.variables.get(variableName).getParentsNames();
+        ArrayList<String> parents = this.variables.get(variableName).getMutableParentsNames();
 
         ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.size() + 1);
         Object[] thisUniqueValues = this.variables.get(variableName).getUniqueValues().toArray();
@@ -307,13 +306,22 @@ public class DependencyNetwork {
             fittest[i] = population[sortedIndices[i]];
         }
 
-        this.updateStructure(fittest);
-        this.updateProbabilities(fittest);
+        HashMap<String, ArrayList<String>> arrayValues = new HashMap<>();
+        for(String characteristic : this.variable_names) {
+            ArrayList<String> values = new ArrayList<>(fittest.length);
+            for(Individual fit : fittest) {
+                values.add(fit.getCharacteristics().get(characteristic));
+            }
+            arrayValues.put(characteristic, values);
+        }
+
+        this.updateStructure(arrayValues);
+        this.updateProbabilities(arrayValues, fittest);
     }
 
-    public void updateProbabilities(Individual[] fittest) throws Exception {
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
         for(String variableName : this.variable_names) {
-            this.variables.get(variableName).updateProbabilities(fittest);
+            this.variables.get(variableName).updateProbabilities(fittestValues, fittest);
         }
     }
 
@@ -330,8 +338,10 @@ public class DependencyNetwork {
      * @throws Exception If any exception occurs
      */
     private double heuristic(
-        AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate, Individual[] fittest
+        AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate,
+        HashMap<String, ArrayList<String>> fittest
     ) throws Exception {
+        throw new Exception("TODO take into consideration correlation between past parent!!!");
         double localMIs = 0;
         for(String parent : parentSet) {
             localMIs += this.mutualInformation(candidate, this.variables.get(parent), fittest);
@@ -517,14 +527,14 @@ public class DependencyNetwork {
         for(int i = 0; i < a.length; i++) {
             a_counts.put(
                 a[i],
-                a_counts.get(a[i]) + 1
+                a_counts.get(String.valueOf(a[i])) + 1
             );
             b_counts.put(
                 b[i],
-                b_counts.get(b[i]) + 1
+                b_counts.get(String.valueOf(b[i])) + 1
             );
 
-            String joint_name = String.format("%s,%s", a[i], b[i]);
+            String joint_name = String.format("%s,%s", String.valueOf(a[i]), String.valueOf(b[i]));
 
             joint_counts.put(
                 joint_name,
@@ -561,20 +571,26 @@ public class DependencyNetwork {
      * @return Mutual information between variables
      * @throws Exception If any exception occurs
      */
-    private double mutualInformation(AbstractVariable a, AbstractVariable b, Individual[] fittest) throws Exception {
+    private double mutualInformation(
+            AbstractVariable a, AbstractVariable b, HashMap<String, ArrayList<String>> fittest
+    ) throws Exception {
         String a_name = a.getName();
         String b_name = b.getName();
 
-        Double[] aContinuous = new Double [fittest.length];
-        Double[] bContinuous =  new Double [fittest.length];
+        int n_data = fittest.get(a_name).size();
 
-        String[] aDiscrete = new String [fittest.length];
-        String[] bDiscrete = new String [fittest.length];
+        Double[] aContinuous = new Double [n_data];
+        Double[] bContinuous =  new Double [n_data];
 
-        for(int i = 0; i < fittest.length; i++) {
-            HashMap<String, String> localCharacteristics = fittest[i].getCharacteristics();
-            String a_value = String.valueOf(localCharacteristics.get(a_name));
-            String b_value = String.valueOf(localCharacteristics.get(b_name));
+        String[] aDiscrete = new String [n_data];
+        String[] bDiscrete = new String [n_data];
+
+        int a_lack_count = 0;
+        int b_lack_count = 0;
+
+        for(int i = 0; i < n_data; i++) {
+            String a_value = String.valueOf(fittest.get(a_name).get(i));
+            String b_value = String.valueOf(fittest.get(b_name).get(i));
 
             if(a instanceof DiscreteVariable) {
                 aDiscrete[i] = a_value;
@@ -585,6 +601,7 @@ public class DependencyNetwork {
                     aContinuous[i] = Double.parseDouble(a_value) + noise;
                 } else {
                     aContinuous[i] = (((ContinuousVariable)a).getMinValue() - 1)  + noise;
+                    a_lack_count += 1;
                 }
             }
             if(b instanceof DiscreteVariable) {
@@ -596,8 +613,15 @@ public class DependencyNetwork {
                     bContinuous[i] = Double.parseDouble(b_value) + noise;
                 } else {
                     bContinuous[i] = (((ContinuousVariable)b).getMinValue() - 1) + noise;
+                    b_lack_count += 1;
                 }
             }
+        }
+
+        // the two variables are continuous, but they severely lack data to compute mutual information (e.g. only
+        // one data point for each distribution)
+        if((n_data - a_lack_count) <= 1 || (n_data - b_lack_count) <= 1) {
+            return 0;
         }
 
         if(a instanceof DiscreteVariable) {
@@ -615,7 +639,7 @@ public class DependencyNetwork {
         }
     }
 
-    public void updateStructure(Individual[] fittest) throws Exception {
+    public void updateStructure(HashMap<String, ArrayList<String>> fittest) throws Exception {
         this.currentGenConnections = 0;
 
         for(String varName : this.variable_names) {
@@ -641,9 +665,11 @@ public class DependencyNetwork {
                 HashSet<String> candSet = new HashSet<>(variable_names.size());
                 candSet.addAll(this.variable_names);
                 candSet.remove(variableName);
+                candSet.removeAll(this.variables.get(variableName).getFixedParentsNames());
                 HashSet<String> parentSet = new HashSet<>();
+                int n_fixed_parents = this.variables.get(variableName).getFixedParentsNames().size();
 
-                while ((candSet.size() > 0) && (parentSet.size() <= this.max_parents)) {
+                while ((candSet.size() > 0) && ((parentSet.size() + n_fixed_parents) <= this.max_parents)) {
                     double bestHeuristic = -1;
                     String bestCandidate = null;
 
@@ -673,17 +699,21 @@ public class DependencyNetwork {
                     }
                 }
                 AbstractVariable thisVariable = this.variables.get(variableName);
-                AbstractVariable[] parents = new AbstractVariable[parentSet.size()];
-
-                Object[] parentList = parentSet.toArray();
-
-                for (int i = 0; i < parentSet.size(); i++) {
-                    parents[i] = this.variables.get((String) parentList[i]);
+                AbstractVariable[] mutableParents = new AbstractVariable[parentSet.size()];
+                AbstractVariable[] fixedParents = new AbstractVariable[thisVariable.getFixedParentsNames().size()];
+                for(int i = 0; i < fixedParents.length; i++) {
+                    fixedParents[i] = this.variables.get(thisVariable.getFixedParentsNames().get(i));
                 }
 
-                thisVariable.updateStructure(parents, fittest);
+                Object[] parentList = parentSet.toArray();
+                for (int i = 0; i < parentSet.size(); i++) {
+                    mutableParents[i] = this.variables.get((String) parentList[i]);
+                }
 
-                this.currentGenConnections += thisVariable.getParentsNames().size();
+
+                thisVariable.updateStructure(mutableParents, fixedParents, fittest);
+
+                this.currentGenConnections += thisVariable.getParentCount();
             }
         }
     }

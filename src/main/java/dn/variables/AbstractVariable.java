@@ -4,12 +4,15 @@ import eda.individual.Individual;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import weka.core.stopwords.Null;
 
 import java.util.*;
 
 public abstract class AbstractVariable {
     protected String name;
-    protected ArrayList<String> parents_names;
+
+    protected ArrayList<String> mutable_parents;
+    protected ArrayList<String> fixed_parents;
     protected HashMap<String, Boolean> isParentContinuous;
 
     /**
@@ -57,14 +60,15 @@ public abstract class AbstractVariable {
     protected int n_generations;
 
     public AbstractVariable(
-        String name, ArrayList<String> parents_names, HashMap<String, Boolean> isParentContinuous,
-        HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-        HashSet<String> uniqueValues, HashSet<Shadowvalue> uniqueshadowValues,
-        ArrayList<Shadowvalue> values, ArrayList<Double> probabilities,
-        MersenneTwister mt, double learningRate, int n_generations) throws Exception {
+            String name, ArrayList<String> fixed_parents, HashMap<String, Boolean> isParentContinuous,
+            HashMap<String, HashMap<String, ArrayList<Integer>>> table,
+            HashSet<String> uniqueValues, HashSet<Shadowvalue> uniqueshadowValues,
+            ArrayList<Shadowvalue> values, ArrayList<Double> probabilities,
+            MersenneTwister mt, double learningRate, int n_generations) throws Exception {
 
         this.name = name;
-        this.parents_names = parents_names;
+        this.fixed_parents = fixed_parents;
+        this.mutable_parents = new ArrayList<>();
         this.isParentContinuous = isParentContinuous;
 
         this.uniqueValues = uniqueValues;
@@ -165,10 +169,14 @@ public abstract class AbstractVariable {
             allNumbers.add(i);
         }
 
+        HashSet<String> allParents = new HashSet<>();
+        allParents.addAll(this.mutable_parents);
+        allParents.addAll(this.fixed_parents);
+
         ArrayList<Integer> localIndices = null;
-        for(int i = 0; i < this.parents_names.size(); i++) {
-            String parentName = this.parents_names.get(i);
-            String parentVal = conditions.get(this.parents_names.get(i));
+        for (Iterator<String> it = allParents.iterator(); it.hasNext(); ) {
+            String parentName = it.next();
+            String parentVal = conditions.get(parentName);
 
             if(this.isParentContinuous.get(parentName)) {
                 if(!String.valueOf(parentVal).equals("null")) {
@@ -201,13 +209,16 @@ public abstract class AbstractVariable {
     /**
      * Just clears the parent_names, values, probabilities and table properties.
      * Updates the parent set of this variable, based on the fittest individuals from a generation.
-     * @param parents New parents of this variable
+     * @param mutableParents New parents of this variable
      * @param fittest Fittest individuals from the lattest generation
      * @throws Exception Exception thrower for children classes
      */
-    public void updateStructure(AbstractVariable[] parents, Individual[] fittest) throws Exception {
-        this.isParentContinuous.clear();
-        this.parents_names.clear();
+    public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
+                                HashMap<String, ArrayList<String>> fittest) throws Exception {
+        for(String mutable_parent : this.mutable_parents) {
+            this.isParentContinuous.remove(mutable_parent);
+        }
+        this.mutable_parents.clear();
         this.table.clear();
         this.values.clear();
         this.probabilities.clear();
@@ -313,12 +324,14 @@ public abstract class AbstractVariable {
 
     /**
      * Update probabilities of this Variable based on the fittest population of a generation.
-     * @param fittest Fittest individuals from the last population
+     * @param fittestValues Fittest individuals from the last population
      * @throws Exception If any exception occurs
      */
-    public void updateProbabilities(Individual[] fittest) throws Exception {
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
         HashMap<String, ArrayList<Integer>> thisVariable = this.table.get(this.getName());
         Object[] vals = thisVariable.keySet().toArray();
+
+        int n_data = fittestValues.get(this.getName()).size();
 
         // counts how many combinations of values there is for this variable
         // also updates shadow values
@@ -348,7 +361,12 @@ public abstract class AbstractVariable {
 
         HashMap<String, Integer> ddd = new HashMap<>();
         int n_continuous = 0;
-        for(String par : this.parents_names) {
+        HashSet<String> allParents = new HashSet<>();
+        allParents.addAll(this.mutable_parents);
+        allParents.addAll(this.fixed_parents);
+
+        for (Iterator<String> it = allParents.iterator(); it.hasNext(); ) {
+            String par = it.next();
             if(this.isParentContinuous.get(par)) {
                 ddd.put(par, n_continuous);
                 n_continuous += 1;
@@ -359,9 +377,9 @@ public abstract class AbstractVariable {
             n_continuous += 1;
         }
 
-        // keeps track of floats values for each one of the
+        // keeps track of double values for each one of the
         // combination of values in the fittest population
-        double[][][] dda = new double[n_continuous][n_combinations][fittest.length];
+        double[][][] dda = new double[n_continuous][n_combinations][n_data];
         int[][] ddc = new int[n_continuous][n_combinations];
         for(int i = 0; i < n_continuous; i++) {
             for(int j = 0; j < n_combinations; j++) {
@@ -369,7 +387,7 @@ public abstract class AbstractVariable {
             }
         }
 
-        for(int i = 0; i < fittest.length; i++) {
+        for(int i = 0; i < n_data; i++) {
             int[] indices = this.getArrayOfIndices(fittest[i].getCharacteristics(), fittest[i].getCharacteristics().get(this.getName()), true);
 
             if(indices.length > 1) {
@@ -378,7 +396,7 @@ public abstract class AbstractVariable {
 
             // annotates float values
             for(String var : ddd.keySet()) {
-                String val = fittest[i].getCharacteristics().get(var);
+                String val = fittestValues.get(var).get(i);
                 if(val != null) {
                     dda[ddd.get(var)][indices[0]][ddc[ddd.get(var)][indices[0]]] = Double.parseDouble(val);
                     ddc[ddd.get(var)][indices[0]] += 1;
@@ -390,13 +408,14 @@ public abstract class AbstractVariable {
         // updates probabilities
         // also updates normal distributions, if this variable is continuous
         HashMap<String, Object[]> uniqueValues = new HashMap<>();
-        int[] sizes = new int [this.parents_names.size()];
-        int[] carousel = new int [this.parents_names.size()];
+        int[] sizes = new int [allParents.size()];
+        int[] carousel = new int [allParents.size()];
 
-        for(int i = 0; i < this.parents_names.size(); i++) {
-            Object[] parentUnVal = this.table.get(this.parents_names.get(i)).keySet().toArray();
+        Object[] allParentsArray = allParents.toArray();
+        for(int i = 0; i < allParentsArray.length; i++) {
+            Object[] parentUnVal = this.table.get((String)allParentsArray[i]).keySet().toArray();
             uniqueValues.put(
-                this.parents_names.get(i),
+                    (String)allParentsArray[i],
                 parentUnVal
             );
             sizes[i] = parentUnVal.length;
@@ -408,8 +427,8 @@ public abstract class AbstractVariable {
         while(counter < n_combinations) {
             HashMap<String, String> cond = new HashMap<>();
 
-            for(int i = 0; i < parents_names.size(); i++) {
-                String parentName = this.parents_names.get(i);
+            for(int i = 0; i < allParentsArray.length; i++) {
+                String parentName = (String)allParentsArray[i];
                 cond.put(
                     parentName,
                     (String)uniqueValues.get(parentName)[carousel[i]]
@@ -450,7 +469,7 @@ public abstract class AbstractVariable {
                         insert[i] = false;
                     }
                 }
-                if(multivariate > 1) {
+                if((multivariate > 1) && (min_size > 1)) {
                     double[][] toProcess = new double[multivariate][];
 
                     int adder = 0;
@@ -515,7 +534,7 @@ public abstract class AbstractVariable {
 
     // setters and updaters
 
-    public abstract void updateUniqueValues(Individual[] fittest);
+    public abstract void updateUniqueValues(HashMap<String, ArrayList<String>> fittest);
 
     // Getters
 
@@ -523,8 +542,12 @@ public abstract class AbstractVariable {
      *
      * @return An array with unique names of parents.
      */
-    public ArrayList<String> getParentsNames() {
-        return parents_names;
+    public ArrayList<String> getMutableParentsNames() {
+        return this.mutable_parents;
+    }
+
+    public ArrayList<String> getFixedParentsNames() {
+        return this.fixed_parents;
     }
 
     public HashSet<String> getUniqueValues() {
@@ -532,7 +555,11 @@ public abstract class AbstractVariable {
     }
 
     public String getName() {
-        return name;
+        return this.name;
+    }
+
+    public int getParentCount() {
+        return this.mutable_parents.size() + this.fixed_parents.size();
     }
 
 }
