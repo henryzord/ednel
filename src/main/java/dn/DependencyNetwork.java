@@ -649,17 +649,6 @@ public class DependencyNetwork {
 
         for(ArrayList<Integer> cluster : this.samplingOrder) {
             for (int index : cluster) {
-//            System.out.println("TODO remove this!!!");
-//            System.out.println("come back to me later!");
-//
-//            this.variables.get("J48_confidenceFactorValue").updateStructure(
-//                new AbstractVariable[]{this.variables.get("PART_confidenceFactorValue"), this.variables.get("PART")},
-//                fittest
-//            );
-//            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
-//            this.variables.get("J48_confidenceFactorValue").updateProbabilities(fittest);
-//            this.variables.get("J48_confidenceFactorValue").conditionalSampling(new HashMap<String, String>(){{put("PART_confidenceFactorValue", "0.25");}});
-
                 String variableName = this.variable_names.get(index);
 
                 // candidates to be parents of a variable
@@ -707,11 +696,19 @@ public class DependencyNetwork {
 
                 Object[] parentList = parentSet.toArray();
                 for (int i = 0; i < parentSet.size(); i++) {
-                    mutableParents[i] = this.variables.get((String) parentList[i]);
+                    mutableParents[i] = this.variables.get((String)parentList[i]);
                 }
 
-
+//                if(thisVariable.getName().equals("J48_confidenceFactorValue")) {
+                    // TODO remove this!!!
+//                    System.err.println("TODO remove this!!!");
+//                    mutableParents = new AbstractVariable[2];
+//                    mutableParents[0] = this.variables.get("PART_confidenceFactorValue");
+//                    mutableParents[1] = this.variables.get("PART");
+//                    thisVariable.updateStructure(mutableParents, fixedParents, fittest);
+//                } else {
                 thisVariable.updateStructure(mutableParents, fixedParents, fittest);
+//                }
 
                 this.currentGenConnections += thisVariable.getParentCount();
             }

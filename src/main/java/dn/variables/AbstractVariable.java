@@ -248,18 +248,31 @@ public abstract class AbstractVariable {
             String parentName = it.next();
             String parentVal = conditions.get(parentName);
 
-            if(this.isParentContinuous.get(parentName)) {
-                if(!String.valueOf(parentVal).equals("null")) {
+            if (this.isParentContinuous.get(parentName)) {
+                if (!String.valueOf(parentVal).equals("null")) {
                     localIndices = this.notNullLoc(parentName);
                 } else {
-                    localIndices = table.get(parentName).get(parentVal);
+                    localIndices = table.get(parentName).get(String.valueOf(parentVal));
                 }
             } else {
                 localIndices = table.get(parentName).get(String.valueOf(parentVal));
             }
 //            if(localIndices != null) {
-            intersection.retainAll(new HashSet<>(localIndices));
+            try {
+                intersection.retainAll(new HashSet<>(localIndices));
+            } catch (NullPointerException npe) {
+                System.out.println("Variable: " + this.getName());  // TODO remove!
+                System.out.println("fixed parents: ");
+                for (String parent : this.fixed_parents) {
+                    System.out.println("\t" + parent);
+                }
+                System.out.println("mutable parents: ");
+                for (String parent : this.mutable_parents) {
+                    System.out.println("\t" + parent);
+                }
+                throw npe;
 //            }
+            }
         }
         // whether to find indices that match exactly this variable's value.
         // if true, returns a single index; otherwise, returns an array of indices
