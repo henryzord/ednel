@@ -31,7 +31,7 @@ public class DependencyNetwork {
      * continuous variables.
      */
     private int nearest_neighbor;
-    private int max_parents;
+    private int global_max_parents;
 
     private ArrayList<ArrayList<Integer>> samplingOrder = null;
 
@@ -46,7 +46,7 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
-            int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor, int max_parents
+            int burn_in, int thinning_factor, float learningRate, int n_generations, int nearest_neighbor, int global_max_parents
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
@@ -55,7 +55,7 @@ public class DependencyNetwork {
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
         this.nearest_neighbor = nearest_neighbor;
-        this.max_parents = max_parents;
+        this.global_max_parents = global_max_parents;  // global max parents
 
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
@@ -156,9 +156,9 @@ public class DependencyNetwork {
                 isContinuous.remove(variableName);
 
                 if(amIContinuous) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
+                    variables.put(variableName, new ContinuousVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations, global_max_parents));
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations));
+                    variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations, global_max_parents));
                 }
                 this.currentGenConnections += this.variables.get(variableName).getParentCount();
             }
@@ -245,6 +245,7 @@ public class DependencyNetwork {
                 options[counter + 1] = optionTable.get(algNames[j]);
                 counter += 2;
             }
+            String[] copyOptions = (String[])options.clone(); // TODo remove later!
             try {
                 Individual individual = new Individual(options, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
@@ -257,6 +258,7 @@ public class DependencyNetwork {
                 }
             } catch(Exception e) {  // invalid individual generated
                 this.currentGenDiscardedIndividuals += 1;
+//                throw e; // TODO remove!
             }
         }
         this.lastStart = null;
@@ -341,7 +343,6 @@ public class DependencyNetwork {
         AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate,
         HashMap<String, ArrayList<String>> fittest
     ) throws Exception {
-        throw new Exception("TODO take into consideration correlation between past parent!!!");
         double localMIs = 0;
         for(String parent : parentSet) {
             localMIs += this.mutualInformation(candidate, this.variables.get(parent), fittest);
@@ -666,10 +667,9 @@ public class DependencyNetwork {
                 candSet.addAll(this.variable_names);
                 candSet.remove(variableName);
                 candSet.removeAll(this.variables.get(variableName).getFixedParentsNames());
-                HashSet<String> parentSet = new HashSet<>();
-                int n_fixed_parents = this.variables.get(variableName).getFixedParentsNames().size();
+                HashSet<String> parentSet = new HashSet<>(this.variables.get(variableName).getFixedParentsNames());
 
-                while ((candSet.size() > 0) && ((parentSet.size() + n_fixed_parents) <= this.max_parents)) {
+                while ((candSet.size() > 0) && (parentSet.size() < this.variables.get(variableName).getMaxParents())) {
                     double bestHeuristic = -1;
                     String bestCandidate = null;
 

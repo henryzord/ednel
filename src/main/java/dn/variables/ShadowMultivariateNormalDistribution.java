@@ -54,7 +54,6 @@ public class ShadowMultivariateNormalDistribution extends Shadowvalue {
         }
         this.cov_matrix_str = this.cov_matrix_str.substring(0, this.cov_matrix_str.lastIndexOf(",")) + "]";
 
-        throw new Exception("matrix is singular!");
         this.mv = new MultivariateNormalDistribution(mt, means, covMatrix);
 
         this.method = this.mv.getClass().getMethod("sample");

@@ -44,8 +44,8 @@
     "PART_binarySplits",
     "PART_useMDLcorrection",
     "PART_pruning",
-    "PART_unpruned",
     "PART_reducedErrorPruning",
+    "PART_unpruned",
     "PART_confidenceFactorValue",
     "PART_seed",
     "PART_numFolds"

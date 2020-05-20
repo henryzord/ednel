@@ -2,9 +2,9 @@ package dn.variables;
 
 import eda.individual.Individual;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
+import org.apache.commons.math3.exception.MathArithmeticException;
+import org.apache.commons.math3.linear.SingularMatrixException;
 import org.apache.commons.math3.random.MersenneTwister;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import weka.core.stopwords.Null;
 
 import java.util.*;
 
@@ -14,6 +14,7 @@ public abstract class AbstractVariable {
     protected ArrayList<String> mutable_parents;
     protected ArrayList<String> fixed_parents;
     protected HashMap<String, Boolean> isParentContinuous;
+    protected int max_parents;
 
     /**
      * Should not contain any null values.
@@ -49,22 +50,30 @@ public abstract class AbstractVariable {
     protected ArrayList<Shadowvalue> values;
     protected ArrayList<Double> probabilities;
 
+    protected ArrayList<Shadowvalue> oldValues;
+    protected ArrayList<Double> oldProbabilities;
+
     /**
-     * Can contain null values.
+     * Should not contain null values. If a null value is present, then it is "null" (i.e. a string)
      */
     protected HashMap<String, HashMap<String, ArrayList<Integer>>> table;
+    protected HashMap<String, HashMap<String, ArrayList<Integer>>> oldTable;
+
+    protected String[] variablesCombinations;
 
     protected MersenneTwister mt;
 
     protected double learningRate;
     protected int n_generations;
 
+    protected static String[] singleParentVariables = {"J48_reducedErrorPruning", "J48_unpruned", "PART_reducedErrorPruning", "PART_unpruned"};
+
     public AbstractVariable(
             String name, ArrayList<String> fixed_parents, HashMap<String, Boolean> isParentContinuous,
             HashMap<String, HashMap<String, ArrayList<Integer>>> table,
             HashSet<String> uniqueValues, HashSet<Shadowvalue> uniqueshadowValues,
             ArrayList<Shadowvalue> values, ArrayList<Double> probabilities,
-            MersenneTwister mt, double learningRate, int n_generations) throws Exception {
+            MersenneTwister mt, double learningRate, int n_generations, int max_parents) throws Exception {
 
         this.name = name;
         this.fixed_parents = fixed_parents;
@@ -79,9 +88,49 @@ public abstract class AbstractVariable {
 
         this.table = table;
 
+        this.initVariablesCombinations();
+
         this.mt = mt;
         this.learningRate = learningRate;
         this.n_generations = n_generations;
+
+        this.max_parents = max_parents;
+        for(String otherName : singleParentVariables) {
+            if(otherName.equals(name)) {
+                this.max_parents = 1;
+                break;
+            }
+        }
+    }
+
+    /**
+     * For each entry in the probabilities attribute in this object, writes the combination of fixed parents/mutable
+     * parents/this variable values (in this order) that is associated with that probability.
+     */
+    protected void initVariablesCombinations() {
+        int n_combinations = 1;
+        for(String val : this.table.keySet()) {
+            n_combinations *= this.table.get(val).size();
+        }
+
+        this.variablesCombinations = new String [n_combinations];
+        Arrays.fill(this.variablesCombinations, "");
+        this.addToVariablesCombinations(this.fixed_parents);
+        this.addToVariablesCombinations(this.mutable_parents);
+        this.addToVariablesCombinations(new ArrayList<String>(){{
+            add(name);
+        }});
+    }
+
+    private void addToVariablesCombinations(ArrayList<String> variables) {
+        for(String parent : variables) {
+            for(String val : this.table.get(parent).keySet()) {
+                Iterator<Integer> iter = this.table.get(parent).get(val).iterator();
+                while(iter.hasNext()) {
+                    this.variablesCombinations[iter.next()] += val + ",";
+                }
+            }
+        }
     }
 
     /**
@@ -90,18 +139,33 @@ public abstract class AbstractVariable {
      * @return A new value for this variable.
      */
     public String conditionalSampling(HashMap<String, String> lastStart) {
-        int[] indices = this.getArrayOfIndices(lastStart, null, false);
+        HashSet<String> allParents = new HashSet<>(this.fixed_parents);
+        allParents.addAll(this.mutable_parents);
+
+        int[] indices = this.getArrayOfIndices(this.table, this.probabilities.size(), lastStart, null, false, allParents);
 
         double[] localProbs = new double [indices.length];
         for(int i = 0; i < localProbs.length; i++) {
             localProbs[i] = probabilities.get(indices[i]);
         }
         // samples values based on probabilities
-        EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
-        Shadowvalue val = this.values.get(localDist.sample());
-
-        if(!val.toString().equals("null")) {
-            return val.getValue();
+        try {
+            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
+            Shadowvalue val = this.values.get(localDist.sample());
+            if(!val.toString().equals("null")) {
+                return val.getValue();
+            }
+        } catch(MathArithmeticException mae) {
+            System.out.println("Variable: " + this.getName());  // TODO remove!
+            System.out.println("fixed parents: " );
+            for(String parent : this.fixed_parents) {
+                System.out.println("\t" + parent);
+            }
+            System.out.println("mutable parents: ");
+            for(String parent : this.mutable_parents) {
+                System.out.println("\t" + parent);
+            }
+            throw mae;
         }
         return null;
     }
@@ -119,8 +183,12 @@ public abstract class AbstractVariable {
      *                      where parent values match.
      * @return An array of indices
      */
-    protected int[] getArrayOfIndices(HashMap<String, String> conditions, String variableValue, boolean useVariableValue) {
-        HashSet<Integer> intersection = this.getSetOfIndices(conditions, variableValue, useVariableValue);
+    protected int[] getArrayOfIndices(
+            HashMap<String, HashMap<String, ArrayList<Integer>>> table, int n_values,
+            HashMap<String, String> conditions, String variableValue, boolean useVariableValue,
+            HashSet<String> allParents) {
+
+        HashSet<Integer> intersection = this.getSetOfIndices(table, n_values, conditions, variableValue, useVariableValue, allParents);
 
         int[] intIndices = new int [intersection.size()];
         Object[] values = intersection.toArray();
@@ -135,12 +203,12 @@ public abstract class AbstractVariable {
      * @param variableName Variable queried
      * @return All the indices in this.table where variableNmae is not null.
      */
-    private ArrayList<Integer> notNullLoc(String variableName) {
+    protected ArrayList<Integer> notNullLoc(String variableName) {
         ArrayList<Integer> localIndices = new ArrayList<>();
-        HashMap<String, ArrayList<Integer>> subKeys = this.table.get(variableName);
-        for(String key : subKeys.keySet()) {
-            if(key != null) {
-                localIndices.addAll(subKeys.get(key));
+        HashMap<String, ArrayList<Integer>> valuesDict = this.table.get(variableName);
+        for(String val : valuesDict.keySet()) {
+            if(!String.valueOf(val).equals("null")) {
+                localIndices.addAll(valuesDict.get(val));
             }
         }
         return localIndices;
@@ -159,19 +227,21 @@ public abstract class AbstractVariable {
      *                      where parent values match.
      * @return A set of indices
      */
-    protected HashSet<Integer> getSetOfIndices(HashMap<String, String> conditions,
-                                               String variableValue, boolean locOnVariable) {
+    protected HashSet<Integer> getSetOfIndices(
+            HashMap<String, HashMap<String, ArrayList<Integer>>> table,
+            int n_values,
+            HashMap<String, String> conditions,
+            String variableValue, boolean locOnVariable,
+            HashSet<String> allParents
+    ) {
 
         HashSet<Integer> intersection = new HashSet<>();
         HashSet<Integer> allNumbers = new HashSet<>();
-        for(int i = 0; i < this.probabilities.size(); i++) {
+        // adds all indices to answer
+        for(int i = 0; i < n_values; i++) {
             intersection.add(i);
             allNumbers.add(i);
         }
-
-        HashSet<String> allParents = new HashSet<>();
-        allParents.addAll(this.mutable_parents);
-        allParents.addAll(this.fixed_parents);
 
         ArrayList<Integer> localIndices = null;
         for (Iterator<String> it = allParents.iterator(); it.hasNext(); ) {
@@ -182,24 +252,26 @@ public abstract class AbstractVariable {
                 if(!String.valueOf(parentVal).equals("null")) {
                     localIndices = this.notNullLoc(parentName);
                 } else {
-                    localIndices = this.table.get(parentName).get(parentVal);
+                    localIndices = table.get(parentName).get(parentVal);
                 }
             } else {
-                localIndices = this.table.get(parentName).get(String.valueOf(parentVal));
+                localIndices = table.get(parentName).get(String.valueOf(parentVal));
             }
 //            if(localIndices != null) {
             intersection.retainAll(new HashSet<>(localIndices));
 //            }
         }
+        // whether to find indices that match exactly this variable's value.
+        // if true, returns a single index; otherwise, returns an array of indices
         if(locOnVariable) {
             if(this instanceof ContinuousVariable) {
                 if(!String.valueOf(variableValue).equals("null")) {
                     localIndices = this.notNullLoc(this.getName());
                 } else {
-                    localIndices = this.table.get(this.name).get(variableValue);
+                    localIndices = table.get(this.name).get(String.valueOf(variableValue));
                 }
             } else {
-                localIndices = this.table.get(this.name).get(String.valueOf(variableValue));
+                localIndices = table.get(this.name).get(String.valueOf(variableValue));
             }
             intersection.retainAll(new HashSet<>(localIndices));
         }
@@ -215,13 +287,36 @@ public abstract class AbstractVariable {
      */
     public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
                                 HashMap<String, ArrayList<String>> fittest) throws Exception {
+
         for(String mutable_parent : this.mutable_parents) {
             this.isParentContinuous.remove(mutable_parent);
         }
         this.mutable_parents.clear();
+
+        // if variable is not among fixed parents
+        for(AbstractVariable par : mutableParents) {
+            if(this.fixed_parents.indexOf(par.getName()) == -1) {
+                this.mutable_parents.add(par.getName());
+                this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
+            }
+        }
+
+        this.oldTable = (HashMap<String, HashMap<String, ArrayList<Integer>>>) this.table.clone();
+        this.oldValues = (ArrayList<Shadowvalue>) this.values.clone();
+        this.oldProbabilities = (ArrayList<Double>) this.probabilities.clone();
+
+        this.probabilities.clear();
         this.table.clear();
         this.values.clear();
-        this.probabilities.clear();
+
+        // continuous variable code
+        HashMap<String, HashSet<String>> valuesCombinations = Combinator.getUniqueValuesFromVariables(mutableParents);
+        valuesCombinations.putAll(Combinator.getUniqueValuesFromVariables(fixedParents));
+        // adds unique values of this variable
+        valuesCombinations.put(this.getName(), this.getUniqueValues());
+
+        this.updateTable(valuesCombinations);
+        this.initVariablesCombinations();
     }
 
     protected static int countDiscrete(AbstractVariable[] parents) {
@@ -271,7 +366,7 @@ public abstract class AbstractVariable {
     }
 
     /**
-     * Updates the table property of this variable. Automatically treats values for continuous variables.
+     * Updates the table attribute of this variable. Automatically treats values for continuous variables.
      *
      * @param dictUnique A dictionary, where each entry is the set of unique values
      *               of a variable (which its name is the key).
@@ -323,21 +418,91 @@ public abstract class AbstractVariable {
     }
 
     /**
-     * Update probabilities of this Variable based on the fittest population of a generation.
-     * @param fittestValues Fittest individuals from the last population
-     * @throws Exception If any exception occurs
+     * Makes carousel spin
+     * @param carousel
+     * @param sizes
+     * @return
      */
-    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
-        HashMap<String, ArrayList<Integer>> thisVariable = this.table.get(this.getName());
-        Object[] vals = thisVariable.keySet().toArray();
+    private int []advanceCarousel(int[] carousel, int[] sizes) {
+        for (int j = sizes.length - 1; j >= 0; j--) {
+            carousel[j] += 1;
+            if (carousel[j] >= sizes[j]) {
+                carousel[j] = 0;
+            } else {
+                break;
+            }
+        }
+        return carousel;
+    }
 
-        int n_data = fittestValues.get(this.getName()).size();
+    /**
+     * a modified way of performing learning rate.
+     * @throws Exception
+     */
+    private void addResidualProbabilities() throws Exception {
+        HashMap<String, Object[]> variablesArrayOfValues = new HashMap<>();
+        int[] sizes = new int [this.fixed_parents.size() + 1];
+        int[] carousel = new int [this.fixed_parents.size() + 1];
 
-        // counts how many combinations of values there is for this variable
-        // also updates shadow values
+        int i;
+        String[] staticNames = new String [fixed_parents.size() + 1];
+        int n_combinations = 1;
+        for(i = 0; i < fixed_parents.size(); i++) {
+            Object[] parentUnVal = this.table.get(this.fixed_parents.get(i)).keySet().toArray();
+            variablesArrayOfValues.put(
+                    this.fixed_parents.get(i),
+                    parentUnVal
+            );
+            sizes[i] = parentUnVal.length;
+            carousel[i] = 0;
+            staticNames[i] = this.fixed_parents.get(i);
+            n_combinations *= sizes[i];
+        }
+        Object[] thisUnVal = this.table.get(this.getName()).keySet().toArray();
+        variablesArrayOfValues.put(this.getName(), thisUnVal);
+        sizes[i] = thisUnVal.length;
+        carousel[i] = 0;
+        staticNames[i] = this.getName();
+
+        int counter = 0;
+        while(counter < n_combinations) {
+            HashMap<String, String> cond = new HashMap<>();
+
+            for (i = 0; i < staticNames.length; i++) {
+                String name = staticNames[i];
+                cond.put(name, (String) variablesArrayOfValues.get(name)[carousel[i]]);
+            }
+            carousel = advanceCarousel(carousel, sizes);
+            counter += 1;
+
+            HashSet<Integer> newIndices = this.getSetOfIndices(this.table, this.probabilities.size(), cond, cond.get(this.getName()), true, new HashSet<>(this.fixed_parents));
+            HashSet<Integer> oldIndices = this.getSetOfIndices(this.oldTable, this.oldProbabilities.size(), cond, cond.get(this.getName()), true, new HashSet<>(this.fixed_parents));
+
+            double meanOldProbability = 0;
+            for(int index : oldIndices) {
+                meanOldProbability += this.oldProbabilities.get(index);
+            }
+            // uses formula of PBIL
+            if(oldIndices.size() > 0) {
+                meanOldProbability = (1 - this.learningRate) * (meanOldProbability / oldIndices.size());
+            }
+            for(int index : newIndices) {
+                this.probabilities.set(index, meanOldProbability);
+            }
+        }
+    }
+
+    /**
+     * Updates shadow values for discrete variables
+     * @return
+     */
+    private int updateShadowValues() {
+        HashMap<String, ArrayList<Integer>> thisVariableIndices = this.table.get(this.getName());
+        Object[] vals = thisVariableIndices.keySet().toArray();
+
         int n_combinations = 0;
         for(Object val : vals) {
-            ArrayList<Integer> indices = thisVariable.get((String)val);
+            ArrayList<Integer> indices = thisVariableIndices.get((String)val);
             Shadowvalue thissv = null;
             for (Iterator<Shadowvalue> it = this.uniqueShadowvalues.iterator(); it.hasNext(); ) {
                 Shadowvalue sv = it.next();
@@ -351,16 +516,33 @@ public abstract class AbstractVariable {
             n_combinations = Math.max(max_index, n_combinations);
             for(int i = this.values.size(); i <= max_index; i++) {
                 this.values.add(null);
-                this.probabilities.add(1.0);
             }
             for(Integer index : indices) {
                 this.values.set(index, thissv);
             }
         }
         n_combinations += 1;
+        return n_combinations;
+    }
+
+
+    /**
+     * Update probabilities of this Variable based on the fittest population of a generation.
+     *
+     * @param fittestValues Fittest individuals from the last population
+     * @throws Exception If any exception occurs
+     */
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
+        int n_combinations = updateShadowValues();
+        double countsSum = 0;
+        int n_continuous = 0;
+        int n_fittest = fittestValues.get(this.getName()).size();
+
+//        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
+        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 1.0));  // set 1 for laplace correction; 0 otherwise
+        this.probabilities = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));
 
         HashMap<String, Integer> ddd = new HashMap<>();
-        int n_continuous = 0;
         HashSet<String> allParents = new HashSet<>();
         allParents.addAll(this.mutable_parents);
         allParents.addAll(this.fixed_parents);
@@ -379,155 +561,99 @@ public abstract class AbstractVariable {
 
         // keeps track of double values for each one of the
         // combination of values in the fittest population
-        double[][][] dda = new double[n_continuous][n_combinations][n_data];
+        double[][][] dda = new double[n_continuous][n_combinations][n_fittest];
         int[][] ddc = new int[n_continuous][n_combinations];
         for(int i = 0; i < n_continuous; i++) {
-            for(int j = 0; j < n_combinations; j++) {
-                ddc[i][j] = 0;
-            }
+            Arrays.fill(ddc[i], 0);;
         }
 
-        for(int i = 0; i < n_data; i++) {
-            int[] indices = this.getArrayOfIndices(fittest[i].getCharacteristics(), fittest[i].getCharacteristics().get(this.getName()), true);
+        // for each individual in the fittest population:
+        // locates the index that represents its combination of values
+        // adds 1 to the counter of occurences
+        for(int i = 0; i < n_fittest; i++) {
+            int[] indices = this.getArrayOfIndices(
+                    this.table,
+                    this.probabilities.size(),
+                    fittest[i].getCharacteristics(),
+                    fittest[i].getCharacteristics().get(this.getName()),
+                    true,
+                    allParents
+            );
 
+            // this individual shall return only one index. if returns more than one, then there's an error
+            // in the code
             if(indices.length > 1) {
                 throw new Exception("unexpected behaviour!");
             }
+            // registers this individual occurence
+            counts.set(indices[0], counts.get(indices[0]) + 1);
+            countsSum += 1;
 
-            // annotates float values
+            // annotates float values, if any
             for(String var : ddd.keySet()) {
                 String val = fittestValues.get(var).get(i);
                 if(val != null) {
-                    dda[ddd.get(var)][indices[0]][ddc[ddd.get(var)][indices[0]]] = Double.parseDouble(val);
+                    // dda[index of continuous variable][index of combination][fittest counter]
+                    dda[ddd.get(var)][indices[0]][ddc[ddd.get(var)][indices[0]]
+                    ] = Double.parseDouble(val);
                     ddc[ddd.get(var)][indices[0]] += 1;
                 }
             }
-            this.probabilities.set(indices[0], this.probabilities.get(indices[0]) + 1);
         }
 
         // updates probabilities
         // also updates normal distributions, if this variable is continuous
-        HashMap<String, Object[]> uniqueValues = new HashMap<>();
+        HashMap<String, Object[]> parentsArrayOfValues = new HashMap<>();
         int[] sizes = new int [allParents.size()];
         int[] carousel = new int [allParents.size()];
 
         Object[] allParentsArray = allParents.toArray();
         for(int i = 0; i < allParentsArray.length; i++) {
             Object[] parentUnVal = this.table.get((String)allParentsArray[i]).keySet().toArray();
-            uniqueValues.put(
+            parentsArrayOfValues.put(
                     (String)allParentsArray[i],
-                parentUnVal
+                    parentUnVal
             );
             sizes[i] = parentUnVal.length;
             carousel[i] = 0;
         }
 
-        n_combinations /= this.uniqueValues.size();
+        addResidualProbabilities();
+
         int counter = 0;
-        while(counter < n_combinations) {
+        int parent_combinations = n_combinations / this.uniqueValues.size();
+        while(counter < parent_combinations) {
             HashMap<String, String> cond = new HashMap<>();
 
+            // adds a new combination of values for parents
             for(int i = 0; i < allParentsArray.length; i++) {
                 String parentName = (String)allParentsArray[i];
                 cond.put(
-                    parentName,
-                    (String)uniqueValues.get(parentName)[carousel[i]]
+                        parentName,
+                        (String)parentsArrayOfValues.get(parentName)[carousel[i]]
                 );
             }
-            for(int j = sizes.length - 1; j >= 0; j--) {
-                carousel[j] += 1;
-                if(carousel[j] >= sizes[j]) {
-                    carousel[j] = 0;
-                } else {
-                    break;
-                }
-            }
+            carousel = advanceCarousel(carousel, sizes);
             counter += 1;
 
-            HashSet<Integer> indices = this.getSetOfIndices(cond, null, false);
+            // indices now has the set of indices that parents match cond, but child variable has all its values
+            HashSet<Integer> indices = this.getSetOfIndices(
+                    this.table, this.probabilities.size(), cond, null, false, allParents);
 
             // updates normal distributions
             if(this instanceof ContinuousVariable) {
-                HashSet<Integer> nnSet = new HashSet<>(this.notNullLoc(this.getName()));
-                nnSet.retainAll(indices);
-                int idx = (int)nnSet.toArray()[0];
-
-                int multivariate = 0;
-                Object[] keys = ddd.keySet().toArray();
-                boolean[] insert = new boolean[ddd.size()];
-                int min_size = Integer.MAX_VALUE;
-                for(int i = 0; i < ddd.size(); i++) {
-                    if(ddc[ddd.get((String)keys[i])][idx] > 0) {
-                        multivariate += 1;
-                        insert[i] = true;
-
-                        min_size = Math.min(
-                            min_size,
-                            ddc[ddd.get((String)keys[i])][idx]
-                        );
-                    } else {
-                        insert[i] = false;
-                    }
-                }
-                if((multivariate > 1) && (min_size > 1)) {
-                    double[][] toProcess = new double[multivariate][];
-
-                    int adder = 0;
-                    for(int i = 0; i < ddd.size(); i++) {
-                        if(insert[i]) {
-                            toProcess[adder] = Arrays.copyOfRange(
-                                dda[ddd.get((String)keys[i])][idx],
-                                0,
-                                min_size
-                            );
-                            adder += 1;
-                        }
-
-                    }
-                    this.values.set(
-                        idx,
-                        new ShadowMultivariateNormalDistribution(
-                            this.mt,
-                            toProcess,
-                            ((ContinuousVariable) this).a_min,
-                            ((ContinuousVariable) this).a_max,
-                            ((ContinuousVariable) this).scale_init
-                        )
-                    );
-                } else {
-                    double[] data = Arrays.copyOfRange(
-                        dda[ddd.get(this.getName())][idx],
-                        0,
-                        ddc[ddd.get(this.getName())][idx]
-                    );
-                    DescriptiveStatistics ds = new DescriptiveStatistics(data);
-                    double loc = ds.getMean();
-                    double scale = ((ContinuousVariable) this).scale - ((ContinuousVariable) this).scale_init / ((ContinuousVariable) this).n_generations;
-                    if(Double.isNaN(loc)) {
-                        // this is an extreme case, where the normal distribution is reset
-                        loc = ((ContinuousVariable) this).loc_init;
-                    }
-
-                    this.values.set(
-                        idx,
-                        new ShadowNormalDistribution(
-                            this.mt,
-                            loc,
-                            scale,
-                            ((ContinuousVariable) this).a_min,
-                            ((ContinuousVariable) this).a_max,
-                            ((ContinuousVariable) this).scale_init
-                        )
-                    );
-                }
+                ((ContinuousVariable)this).updateNormalDistributions(indices, dda, ddc, ddd);
             }
 
-            double sum = 0;
             for(int index : indices) {
-                sum += this.probabilities.get(index);
+                this.probabilities.set(
+                        index, this.probabilities.get(index) + this.learningRate * (counts.get(index) / countsSum)
+                );
             }
-            for(int index : indices) {
-                this.probabilities.set(index, this.probabilities.get(index) / sum);
+        }
+        for(int i = 0; i < this.probabilities.size(); i++) {
+            if(Double.isNaN(this.probabilities.get(i))) {
+                this.probabilities.set(i, 0.0);
             }
         }
     }
@@ -562,4 +688,7 @@ public abstract class AbstractVariable {
         return this.mutable_parents.size() + this.fixed_parents.size();
     }
 
+    public int getMaxParents() {
+        return max_parents;
+    }
 }
