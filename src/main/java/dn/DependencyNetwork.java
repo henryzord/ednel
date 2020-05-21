@@ -303,22 +303,29 @@ public class DependencyNetwork {
     public void update(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
         int to_select = Math.round(selectionShare * sortedIndices.length);
 
-        Individual[] fittest = new Individual[to_select];
+//        System.err.println("TODO remove!!!"); // TODO remove!
+
+        Individual[] fittestIndividuals = new Individual[to_select];
         for(int i = 0; i < to_select; i++) {
-            fittest[i] = population[sortedIndices[i]];
+            fittestIndividuals[i] = population[sortedIndices[i]];
         }
 
-        HashMap<String, ArrayList<String>> arrayValues = new HashMap<>();
+        HashMap<String, ArrayList<String>> fittestValues = new HashMap<>();
         for(String characteristic : this.variable_names) {
-            ArrayList<String> values = new ArrayList<>(fittest.length);
-            for(Individual fit : fittest) {
-                values.add(fit.getCharacteristics().get(characteristic));
+//            System.out.print(characteristic + ",");
+            fittestValues.put(characteristic, new ArrayList<String>(fittestIndividuals.length));
+        }
+//        System.out.println();
+        for(Individual fit : fittestIndividuals) {
+            for(String characteristic : this.variable_names) {
+                fittestValues.get(characteristic).add(fit.getCharacteristics().get(characteristic));
+//                System.out.print(fit.getCharacteristics().get(characteristic) + ",");
             }
-            arrayValues.put(characteristic, values);
+//            System.out.println();
         }
 
-        this.updateStructure(arrayValues);
-        this.updateProbabilities(arrayValues, fittest);
+        this.updateStructure(fittestValues);
+        this.updateProbabilities(fittestValues, fittestIndividuals);
     }
 
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {

@@ -156,14 +156,14 @@ public abstract class AbstractVariable {
                 return val.getValue();
             }
         } catch(MathArithmeticException mae) {
-            System.out.println("Variable: " + this.getName());  // TODO remove!
+            System.out.println("Variable: " + this.getName() + " value: " + lastStart.get(this.getName()));  // TODO remove!
             System.out.println("fixed parents: " );
             for(String parent : this.fixed_parents) {
-                System.out.println("\t" + parent);
+                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
             }
             System.out.println("mutable parents: ");
             for(String parent : this.mutable_parents) {
-                System.out.println("\t" + parent);
+                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
             }
             throw mae;
         }
@@ -453,35 +453,29 @@ public abstract class AbstractVariable {
      * @throws Exception
      */
     private void addResidualProbabilities() throws Exception {
-        HashMap<String, Object[]> variablesArrayOfValues = new HashMap<>();
-        int[] sizes = new int [this.fixed_parents.size() + 1];
-        int[] carousel = new int [this.fixed_parents.size() + 1];
-
-        int i;
         String[] staticNames = new String [fixed_parents.size() + 1];
+        for(int i = 0; i < fixed_parents.size(); i++) {
+            staticNames[i] = fixed_parents.get(i);
+        }
+        staticNames[fixed_parents.size()] = this.getName();
+
+        HashMap<String, Object[]> variablesArrayOfValues = new HashMap<>();
+        int[] sizes = new int [staticNames.length];
+        int[] carousel = new int [staticNames.length];
+
         int n_combinations = 1;
-        for(i = 0; i < fixed_parents.size(); i++) {
-            Object[] parentUnVal = this.table.get(this.fixed_parents.get(i)).keySet().toArray();
-            variablesArrayOfValues.put(
-                    this.fixed_parents.get(i),
-                    parentUnVal
-            );
-            sizes[i] = parentUnVal.length;
+        for(int i = 0; i < staticNames.length; i++) {
+            Object[] uniqueVals = this.table.get(staticNames[i]).keySet().toArray();
+            variablesArrayOfValues.put(staticNames[i], uniqueVals);
+            sizes[i] = uniqueVals.length;
             carousel[i] = 0;
-            staticNames[i] = this.fixed_parents.get(i);
             n_combinations *= sizes[i];
         }
-        Object[] thisUnVal = this.table.get(this.getName()).keySet().toArray();
-        variablesArrayOfValues.put(this.getName(), thisUnVal);
-        sizes[i] = thisUnVal.length;
-        carousel[i] = 0;
-        staticNames[i] = this.getName();
-
         int counter = 0;
         while(counter < n_combinations) {
             HashMap<String, String> cond = new HashMap<>();
 
-            for (i = 0; i < staticNames.length; i++) {
+            for (int i = 0; i < staticNames.length; i++) {
                 String name = staticNames[i];
                 cond.put(name, (String) variablesArrayOfValues.get(name)[carousel[i]]);
             }
@@ -551,8 +545,8 @@ public abstract class AbstractVariable {
         int n_continuous = 0;
         int n_fittest = fittestValues.get(this.getName()).size();
 
-//        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
-        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 1.0));  // set 1 for laplace correction; 0 otherwise
+        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
+//        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 1.0));  // set 1 for laplace correction; 0 otherwise
         this.probabilities = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));
 
         HashMap<String, Integer> ddd = new HashMap<>();
@@ -660,7 +654,8 @@ public abstract class AbstractVariable {
 
             for(int index : indices) {
                 this.probabilities.set(
-                        index, this.probabilities.get(index) + this.learningRate * (counts.get(index) / countsSum)
+                        index,
+                        this.probabilities.get(index) + this.learningRate * (counts.get(index) / countsSum)
                 );
             }
         }
