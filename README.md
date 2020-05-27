@@ -1,4 +1,4 @@
-# EDNEL: Estimation of Dependency Networks Algorithm for Ensemble Learning
+# eda.EDNEL: Estimation of Dependency Networks Algorithm for Ensemble Learning
 
 ## Command line example
 

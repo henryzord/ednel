@@ -19,7 +19,7 @@ def read_and_discretize(csv_path):
     """
     Reads a csv file into a DataFrame.
 
-    This csv file must be the result of a (partial) run of the EDNEL algorithm.
+    This csv file must be the result of a (partial) run of the eda.EDNEL algorithm.
     Will swap NaN values with -1, and convert categorical columns to one-hot.
 
     :param csv_path: Full path to the csv file.

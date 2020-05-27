@@ -171,7 +171,7 @@ def local_plot(graphs, json_path):
 #     box = ax.get_position()
 #
 #     legend_elements = [Line2D([0], [0], marker='o', color='white', label='Value', markerfacecolor='#AAAAAA', markersize=15)] + \
-#                       [Line2D([0], [0], marker='o', color='black', label='EDNEL', markerfacecolor=colors[0], markersize=15)] + \
+#                       [Line2D([0], [0], marker='o', color='black', label='eda.EDNEL', markerfacecolor=colors[0], markersize=15)] + \
 #                       [Line2D([0], [0], marker='o', color='black', label='Variable (level %#2.d)' % (i + 1), markerfacecolor=color, markersize=15) for i, color in enumerate(colors[1:])]
 #
 #     ax.legend(handles=legend_elements, loc='lower right', fancybox=True, shadow=True, ncol=1)

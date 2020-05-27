@@ -1,4 +1,4 @@
-package eda.ednel;
+package eda;
 
 import dn.DependencyNetwork;
 import dn.stoppers.EarlyStop;

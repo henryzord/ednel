@@ -1,19 +1,56 @@
 package eda;
 
-import eda.ednel.EDNEL;
 import eda.individual.FitnessCalculator;
-import eda.individual.Individual;
 import org.apache.commons.cli.*;
 import utils.PBILLogger;
+import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
+    /**
+     * This method loads the whole dataset 10 times, since it is split in 10 pairs of training-test subsets.
+     * @param datasets_path Path where all datasets are stored.
+     * @param dataset_name Name of dataset desired to be open
+     * @return A HashMap object where each entry is an iteration of a 10-fold cross-validation (starting at 1 and ending
+     * at 10), and each value a subsequent HashMap with training and test subsets.
+     */
+    public static HashMap<Integer, HashMap<String, Instances>> loadFoldsOfDatasets(String datasets_path, String dataset_name) throws Exception {
+        HashMap<Integer, HashMap<String, Instances>> datasets = new HashMap<>();
+
+        for(int j = 1; j < 11; j++) {  // 10 folds
+            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
+                    datasets_path + File.separator +
+                            dataset_name + File.separator + dataset_name + "-10-" + j + "tra.arff"
+            );
+            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource(
+                    datasets_path + File.separator +
+                            dataset_name + File.separator + dataset_name + "-10-" + j + "tst.arff"
+            );
+
+            Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
+            train_data.setClassIndex(train_data.numAttributes() - 1);
+            test_data.setClassIndex(test_data.numAttributes() - 1);
+
+            datasets.put(
+                    j, new HashMap<String, Instances>(){{
+                   put("train", train_data);
+                   put("test", test_data);
+                }}
+            );
+        }
+        return datasets;
+    }
+
     public static void main(String[] args) {
         Options options = new Options();
 
@@ -198,6 +235,15 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
+                .longOpt("n_jobs")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Maximum number of threads to run in parallel.")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("log")
                 .type(Boolean.class)
                 .required(true)
@@ -218,82 +264,40 @@ public class Main {
             String str_time = dtf.format(now);
             PBILLogger.metadata_path_start(str_time, commandLine);
 
-            for(String dataset_name : commandLine.getOptionValue("datasets_names").split(",")) {
+            // dataset_name, n_sample, n_fold
+            HashMap<String, HashMap<Integer, HashMap<Integer, Double>>> overall_aucs = new HashMap<>();
+            HashMap<String, HashMap<Integer, HashMap<Integer, Double>>> last_aucs = new HashMap<>();
+
+            String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
+
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(Integer.parseInt(commandLine.getOptionValue("n_jobs") + 1));
+            CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);  // always 10 folds
+            executor.execute(compiler);
+
+            for(String dataset_name : dataset_names) {
                 System.out.println(String.format("On dataset %s:", dataset_name));
-                double meanOverallAUC = 0, meanLastAUC = 0;
-                double overallAUC, lastAUC;
-                for(int i = 1; i < n_samples + 1; i++) {
-                    overallAUC = 0;
-                    lastAUC = 0;
-                    for(int j = 1; j < 11; j++) {  // 10 folds
-                        ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
-                                commandLine.getOptionValue("datasets_path") + File.separator +
-                                        dataset_name + File.separator + dataset_name + "-10-" + j + "tra.arff"
+
+                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(commandLine.getOptionValue("datasets_path"), dataset_name);
+
+                for(int n_sample = 1; n_sample < n_samples + 1; n_sample++) {
+                    for(int n_fold = 1; n_fold < 11; n_fold++) {  // 10 folds
+                        Instances train_data = curDatasetFolds.get(n_fold).get("train");
+                        Instances test_data = curDatasetFolds.get(n_fold).get("test");
+
+                        RunTrainingPieceTask task = new RunTrainingPieceTask(
+                                dataset_name, n_sample, n_fold, commandLine, str_time, train_data, test_data,
+                                compiler.getClass().getMethod(
+                                        "accessAUCData",
+                                        String.class, int.class, int.class, String.class, Double[].class
+                                ),
+                                compiler
                         );
-                        ConverterUtils.DataSource test_set = new ConverterUtils.DataSource(
-                                commandLine.getOptionValue("datasets_path") + File.separator +
-                                        dataset_name + File.separator + dataset_name + "-10-" + j + "tst.arff"
-                        );
-
-                        Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
-                        train_data.setClassIndex(train_data.numAttributes() - 1);
-                        test_data.setClassIndex(test_data.numAttributes() - 1);
-
-                        PBILLogger pbilLogger = new PBILLogger(
-                                commandLine.getOptionValue("metadata_path") + File.separator +
-                                        str_time + File.separator + dataset_name,
-                                Integer.parseInt(commandLine.getOptionValue("n_individuals")),
-                                Integer.parseInt(commandLine.getOptionValue("n_generations")),
-                                i, j,
-                                Boolean.parseBoolean(commandLine.getOptionValue("log"))
-
-                        );
-
-                        EDNEL ednel = new EDNEL(
-                                Float.parseFloat(commandLine.getOptionValue("learning_rate")),
-                                Float.parseFloat(commandLine.getOptionValue("selection_share")),
-                                Integer.parseInt(commandLine.getOptionValue("n_individuals")),
-                                Integer.parseInt(commandLine.getOptionValue("n_generations")),
-                                Integer.parseInt(commandLine.getOptionValue("burn_in")),
-                                Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
-                                Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
-                                Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
-                                Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
-                                Integer.parseInt(commandLine.getOptionValue("max_parents")),
-                                commandLine.getOptionValue("variables_path"),
-                                commandLine.getOptionValue("options_path"),
-                                commandLine.getOptionValue("sampling_order_path"),
-                                pbilLogger,
-                                commandLine.getOptionValue("seed") == null?
-                                    null : Integer.parseInt(commandLine.getOptionValue("seed"))
-                        );
-
-                        ednel.buildClassifier(train_data);
-
-                        HashMap<String, Individual> toReport = new HashMap<>(2);
-                        toReport.put("overall", ednel.getOverallBest());
-                        toReport.put("last", ednel.getCurrentGenBest());
-
-                        try {
-                            ednel.getPbilLogger().toFile(ednel.getDependencyNetwork(), toReport, train_data, test_data);
-                        } catch(Exception e) {
-                            System.err.println("An error occurred. Could not write metadata to files:");
-                            System.err.println(e.getCause());
-                        }
-
-
-                        overallAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest()) / 10;
-                        lastAUC += FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest()) / 10;
+                        executor.execute(task);
+                        TimeUnit.SECONDS.sleep(1);  // prevents overload
                     }
-                    meanOverallAUC += overallAUC / n_samples;
-                    meanLastAUC += lastAUC / n_samples;
-
-                    System.out.println(String.format("Partial results for sample %d on dataset %s:", i, dataset_name));
-                    System.out.println(String.format("\tOverall: %.8f\t\tLast: %.8f", overallAUC, lastAUC));
                 }
-                System.out.println(String.format("Average of %d samples of 10-fcv on dataset %s:", n_samples, dataset_name));
-                System.out.println(String.format("\tOverall: %.8f\t\tLast: %.8f", meanOverallAUC, meanLastAUC));
             }
+            executor.shutdown();
 
         } catch (ParseException exception) {
             System.out.print("Parse error: ");
