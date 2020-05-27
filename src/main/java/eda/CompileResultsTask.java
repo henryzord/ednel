@@ -69,10 +69,16 @@ public class CompileResultsTask implements Runnable {
         if(value != null && value.length > 0) {
             if(set.equals("last")) {
                 last_aucs.get(dataset_name).get(n_sample).put(n_fold, value[0]);
-                this.accessCheckingData(dataset_name, n_sample, n_fold, true);
+                Object data = overall_aucs.get(dataset_name).get(n_sample).getOrDefault(n_fold, null);
+                if(data != null) {
+                    this.accessCheckingData(dataset_name, n_sample, n_fold, true);
+                }
             } else if(set.equals("overall")) {
                 overall_aucs.get(dataset_name).get(n_sample).put(n_fold, value[0]);
-                this.accessCheckingData(dataset_name, n_sample, n_fold, true);
+                Object data = last_aucs.get(dataset_name).get(n_sample).getOrDefault(n_fold, null);
+                if(data != null) {
+                    this.accessCheckingData(dataset_name, n_sample, n_fold, true);
+                }
             }
         } else { // reading
             if(set.equals("last")) {
