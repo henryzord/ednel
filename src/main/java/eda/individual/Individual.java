@@ -197,6 +197,13 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
                 n_active_classifiers += 1;
             }
         }
+        if(n_active_classifiers <= 0) {
+            throw new Exception("Ensemble must contain at least one classifier!");
+        }
+        if(this.aggregator == null) {
+            throw new Exception("Ensemble must have an aggregation policy!");
+        }
+
         double[] competences = null;
         if(aggregatorName.equals("CompetenceBasedAggregator")) {
             competences = new double[n_active_classifiers];

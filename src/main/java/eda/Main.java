@@ -276,7 +276,9 @@ public class Main {
 
         try {
             CommandLine commandLine = parser.parse(options, args);
+
             int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
+            int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
 
             // writes metadata
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH-mm-ss");
@@ -286,12 +288,14 @@ public class Main {
 
             String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
 
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
-                    Integer.parseInt(commandLine.getOptionValue("n_jobs")) + 1);
-
             // always 10 folds
             CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);
-            executor.execute(compiler);
+
+            ThreadPoolExecutor executor = null;
+            if(n_jobs > 1) {
+                executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs + 1);
+                executor.execute(compiler);
+            }
 
             for(String dataset_name : dataset_names) {
                 System.out.println(String.format("On dataset %s:", dataset_name));
@@ -314,19 +318,24 @@ public class Main {
                                 ),
                                 compiler
                         );
-                        executor.execute(task);
+                        if(n_jobs > 1) {
+                            executor.execute(task);
+                        } else {
+                            task.run();
+                        }
+
                         Thread.sleep(1000);  // prevents creating all threads at once
 //                        TimeUnit.SECONDS.sleep(1);
                     }
                 }
             }
-            executor.shutdown();
-
-        } catch (ParseException exception) {
-            System.out.print("Parse error: ");
-            System.out.println(exception.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
+            if(n_jobs > 1) {
+                executor.shutdown();
+            } else {
+                compiler.run();
+            }
+        } catch (Exception pe) {
+            pe.printStackTrace();
         }
     }
 }

@@ -37,7 +37,6 @@ public class DependencyNetwork {
 
     private ArrayList<HashMap<String, AbstractVariable>> pastVariables;
 
-    private HashMap<String, String> optionTable;
     private HashMap<String, String> lastStart;
 
     private int currentGenDiscardedIndividuals;
@@ -165,27 +164,27 @@ public class DependencyNetwork {
         }
     }
 
-    private void sampleIndividual() throws Exception {
-        optionTable = new HashMap<>(this.variable_names.size());
+    private HashMap<String, String> sampleIndividual() throws Exception {
+        HashMap<String, String> optionTable = new HashMap<>(this.variable_names.size());
 
         for(ArrayList<Integer> cluster : this.samplingOrder) {
             for(int idx : cluster) {
                 String variableName = this.variable_names.get(idx);
                 String algorithmName = variableName.split("_")[0];
 
+                String sampledValue = this.variables.get(variableName).conditionalSampling(lastStart);
+
                 if(optionTable.getOrDefault(algorithmName, null) == null) {
                     optionTable.put(algorithmName, "");
                 }
 
-                lastStart.put(
-                        variableName,
-                        this.variables.get(variableName).conditionalSampling(lastStart)
-                );
+                lastStart.put(variableName, sampledValue);
 
-                if(lastStart.get(variableName) != null) {
+                //!String.valueOf(algorithmName).equals("null") &&
+                if(!String.valueOf(sampledValue).equals("null")) {
                     JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
                     if(optionObj == null) {
-                        optionObj = (JSONObject)classifiersResources.getOrDefault(lastStart.get(variableName), null);
+                        optionObj = (JSONObject)classifiersResources.getOrDefault(sampledValue, null);
                     }
 
                     // checks whether this is an option
@@ -195,22 +194,23 @@ public class DependencyNetwork {
                         String dtype = (String)optionObj.get("dtype");
 
                         if(dtype.equals("np.bool")) {
-                            if(lastStart.get(variableName).toLowerCase().equals("false")) {
+                            if(sampledValue.toLowerCase().equals("false")) {
                                 if(!presenceMeans) {
                                     optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
                                 }
-                            } else {
+                            } if(sampledValue.toLowerCase().equals("true")) {
                                 if(presenceMeans) {
                                     optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
                                 }
                             }
                         } else {
-                            optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName + " " + lastStart.get(variableName)).trim());
+                            optionTable.put(algorithmName, (optionTable.getOrDefault(algorithmName, "") + " " + optionName + " " + sampledValue).trim());
                         }
                     }
                 }
             }
         }
+        return optionTable;
     }
 
     public Individual[] gibbsSample(HashMap<String, String> lastStart, int sampleSize, Instances train_data) throws Exception {
@@ -234,7 +234,7 @@ public class DependencyNetwork {
         this.currentGenDiscardedIndividuals += burn_in;
 
         while(individualCounter < sampleSize) {
-            this.sampleIndividual();
+            HashMap<String, String> optionTable = this.sampleIndividual();
             outerCounter += 1;
 
             String[] options = new String [optionTable.size() * 2];
@@ -242,7 +242,8 @@ public class DependencyNetwork {
             int counter = 0;
             for(int j = 0; j < algNames.length; j++) {
                 options[counter] = "-" + algNames[j];
-                options[counter + 1] = optionTable.get(algNames[j]);
+                String curVal = optionTable.get(algNames[j]);
+                options[counter + 1] =  curVal != null? curVal : "";
                 counter += 2;
             }
             String[] copyOptions = (String[])options.clone(); // TODo remove later!
