@@ -12,26 +12,27 @@ import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 
 public class EDNEL extends AbstractClassifier {
 
-    protected int burn_in;
-    protected int early_stop_generations;
-    protected float early_stop_tolerance;
-    protected int thinning_factor;
-    protected String options_path;
-    protected String variables_path;
-    protected float learning_rate;
-    protected float selection_share;
-    protected int n_individuals;
-    protected int n_generations;
+    private final int timeout;
+    protected final int burn_in;
+    protected final int early_stop_generations;
+    protected final float early_stop_tolerance;
+    protected final int thinning_factor;
+    protected final String options_path;
+    protected final String variables_path;
+    protected final float learning_rate;
+    protected final float selection_share;
+    protected final int n_individuals;
+    protected final int n_generations;
 
-    protected int nearest_neighbor;
-    protected int max_parents;
+    protected final int nearest_neighbor;
+    protected final int max_parents;
 
     protected PBILLogger pbilLogger;
-    protected Integer seed;
+    protected final Integer seed;
 
     protected boolean fitted;
 
@@ -47,7 +48,7 @@ public class EDNEL extends AbstractClassifier {
     protected EarlyStop earlyStop;
 
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
-                 int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
+                 int timeout, int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
                  int nearest_neighbor, int max_parents,
                  String variables_path, String options_path, String sampling_order_path, PBILLogger pbilLogger,
                  Integer seed) throws Exception {
@@ -56,6 +57,7 @@ public class EDNEL extends AbstractClassifier {
         this.selection_share = selection_share;
         this.n_individuals = n_individuals;
         this.n_generations = n_generations;
+        this.timeout = timeout;
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
         this.early_stop_generations = early_stop_generations;
@@ -94,11 +96,14 @@ public class EDNEL extends AbstractClassifier {
         FitnessCalculator fc = new FitnessCalculator(5, data, null);
 
         this.currentGenBest = new BaselineIndividual(data);
+        LocalDateTime start = LocalDateTime.now();
         LocalDateTime t1, t2;
         for(int c = 0; c < this.n_generations; c++) {
              t1 = LocalDateTime.now();
 
-            if(this.earlyStop.isStopping()) {
+             boolean overTime = (this.timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > this.timeout);
+
+            if(this.earlyStop.isStopping() || overTime) {
                 break;
             }
 

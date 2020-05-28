@@ -23,8 +23,7 @@ public class RunTrainingPieceTask implements Runnable {
     private Object writeObj;
 
     public RunTrainingPieceTask(
-            String dataset_name, int n_sample, int n_fold, CommandLine commandLine,
-            String str_time,
+            String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time,
             Instances train_data, Instances test_data, Method writeMethod, Object writeObj
     ) throws Exception {
         this.dataset_name = dataset_name;
@@ -54,6 +53,7 @@ public class RunTrainingPieceTask implements Runnable {
                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
+                Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
                 Integer.parseInt(commandLine.getOptionValue("burn_in")),
                 Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),

@@ -148,14 +148,13 @@ public class PBILLogger {
 
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
-        this.logPopulation(fitnesses, sortedIndices, population, overall, last);
+        this.logPopulation(fitnesses, sortedIndices, population);
         this.logDependencyStructure(dn);
 
         this.curGen += 1;
     }
 
-    private void logPopulation(Double[] fitnesses, Integer[] sortedIndices,
-                               Individual[] population, Individual overall, Individual last) {
+    private void logPopulation(Double[] fitnesses, Integer[] sortedIndices, Individual[] population) {
         if(this.log) {
             for(int i = 0; i < population.length; i++) {
                 for(String characteristic : population[i].getCharacteristics().keySet()) {

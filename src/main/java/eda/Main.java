@@ -8,6 +8,8 @@ import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.File;
+import java.io.PipedReader;
+import java.io.PipedWriter;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -24,7 +26,9 @@ public class Main {
      * @return A HashMap object where each entry is an iteration of a 10-fold cross-validation (starting at 1 and ending
      * at 10), and each value a subsequent HashMap with training and test subsets.
      */
-    public static HashMap<Integer, HashMap<String, Instances>> loadFoldsOfDatasets(String datasets_path, String dataset_name) throws Exception {
+    public static HashMap<Integer, HashMap<String, Instances>> loadFoldsOfDatasets(
+            String datasets_path, String dataset_name) throws Exception {
+
         HashMap<Integer, HashMap<String, Instances>> datasets = new HashMap<>();
 
         for(int j = 1; j < 11; j++) {  // 10 folds
@@ -60,7 +64,8 @@ public class Main {
                 .type(String.class)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Must lead to a path that contains several subpaths, one for each dataset. Each subpath, in turn, must have the arff files.")
+                .desc("Must lead to a path that contains several subpaths, one for each dataset. " +
+                        "Each subpath, in turn, must have the arff files.")
                 .build()
         );
 
@@ -70,7 +75,8 @@ public class Main {
                 .type(String.class)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Name of the datasets to run experiments. Must be a list separated by a comma\n\tExample:\n\tpython script.py datasets-names iris,mushroom,adult")
+                .desc("Name of the datasets to run experiments. Must be a list separated by a comma\n" +
+                        "\tExample: iris,mushroom,adult")
                 .build()
         );
 
@@ -125,7 +131,8 @@ public class Main {
                 .required(false)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Number of jobs to use. Will use one job per sample per fold. If unspecified or set to 1, will run in a single core.")
+                .desc("Number of jobs to use. Will use one job per sample per fold. " +
+                        "If unspecified or set to 1, will run in a single core.")
                 .build());
 
         options.addOption(Option.builder()
@@ -213,7 +220,8 @@ public class Main {
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Maximum tolerance between two generations that do not improve in the best individual fitness. Higher values are less tolerant.")
+                .desc("Maximum tolerance between two generations that do not improve in the best individual fitness. " +
+                        "Higher values are less tolerant.")
                 .build());
 
         options.addOption(Option.builder()
@@ -222,7 +230,8 @@ public class Main {
             .required(true)
             .hasArg()
             .numberOfArgs(1)
-            .desc("Number of nearest neighbors to consider when calculating mutual information between continuous and discrete variables pairs.")
+            .desc("Number of nearest neighbors to consider when calculating mutual information between continuous " +
+                    "and discrete variables pairs.")
             .build());
 
         options.addOption(Option.builder()
@@ -241,6 +250,17 @@ public class Main {
                 .hasArg()
                 .numberOfArgs(1)
                 .desc("Maximum number of threads to run in parallel.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("timeout")
+                .type(Integer.class)
+                .required(false)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Maximum amount of time (in seconds) that EDA has to run, until being prematurely terminated. " +
+                        "If the algorithm does not finish before timeout, then the best individual from the current " +
+                        "generation will be reported as final solution.")
                 .build());
 
         options.addOption(Option.builder()
@@ -264,20 +284,22 @@ public class Main {
             String str_time = dtf.format(now);
             PBILLogger.metadata_path_start(str_time, commandLine);
 
-            // dataset_name, n_sample, n_fold
-            HashMap<String, HashMap<Integer, HashMap<Integer, Double>>> overall_aucs = new HashMap<>();
-            HashMap<String, HashMap<Integer, HashMap<Integer, Double>>> last_aucs = new HashMap<>();
-
             String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
 
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(Integer.parseInt(commandLine.getOptionValue("n_jobs") + 1));
-            CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);  // always 10 folds
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
+                    Integer.parseInt(commandLine.getOptionValue("n_jobs")) + 1);
+
+            // always 10 folds
+            CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);
             executor.execute(compiler);
 
             for(String dataset_name : dataset_names) {
                 System.out.println(String.format("On dataset %s:", dataset_name));
 
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(commandLine.getOptionValue("datasets_path"), dataset_name);
+                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
+                        commandLine.getOptionValue("datasets_path"),
+                        dataset_name
+                );
 
                 for(int n_sample = 1; n_sample < n_samples + 1; n_sample++) {
                     for(int n_fold = 1; n_fold < 11; n_fold++) {  // 10 folds
@@ -293,7 +315,8 @@ public class Main {
                                 compiler
                         );
                         executor.execute(task);
-                        TimeUnit.SECONDS.sleep(1);  // prevents overload
+                        Thread.sleep(1000);  // prevents creating all threads at once
+//                        TimeUnit.SECONDS.sleep(1);
                     }
                 }
             }
