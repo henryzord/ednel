@@ -293,6 +293,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         return classifiers;
     }
 
+
+
     @Override
     public String toString() {
         return "method not implemented yet";

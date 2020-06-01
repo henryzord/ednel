@@ -441,6 +441,7 @@ public class PBILLogger {
         return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
     }
 
+    @SuppressWarnings("unused")
     public static String formatJ48String(AbstractClassifier clf) throws Exception {
         try {
             String txt = clf.toString().split("------------------")[1].split("Number of Leaves")[0].trim();
@@ -459,6 +460,7 @@ public class PBILLogger {
             return clf.toString();
         }
     }
+    @SuppressWarnings("unused")
     public static String formatSimpleCartString(AbstractClassifier clf) throws Exception  {
         try {
             String txt = clf.toString().split("CART Decision Tree")[1].split("Number of Leaf Nodes")[0].trim();
@@ -477,6 +479,7 @@ public class PBILLogger {
             return clf.toString();
         }
     }
+    @SuppressWarnings("unused")
     public static String formatJRipString(AbstractClassifier clf) throws Exception {
         try {
             String rulesStr = clf.toString().split("===========")[1].split("Number of Rules")[0].trim();
@@ -496,6 +499,7 @@ public class PBILLogger {
             return clf.toString();
         }
     }
+    @SuppressWarnings("unused")
     public static String formatPARTString(AbstractClassifier clf) throws Exception {
         try {
             String defaultStr = clf.toString().split("------------------\\n\\n")[1];
@@ -516,6 +520,7 @@ public class PBILLogger {
             return clf.toString();
         }
     }
+    @SuppressWarnings("unused")
     public static String formatDecisionTableString(AbstractClassifier clf) throws Exception {
         try {
             Boolean usesIbk = (Boolean) DecisionTable.class.getMethod("getUseIBk").invoke(clf);
