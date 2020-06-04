@@ -299,5 +299,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    main(metadata_path=args.csv_path)  # , n_samples=args.n_samples, n_folds=args.n_folds)
+    main(metadata_path=args.csv_path)  
 

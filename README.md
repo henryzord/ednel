@@ -16,3 +16,12 @@ java -jar weka.jar --datasets_path keel_datasets_10fcv --datasets_names german -
 
 Once finished, and if `--log` is set to `true`, result files will be stored in the specified metadata path. Crunch the data using the following script/command:
 
+```bash
+python src/main/python/postprocess.py --csv-path <metadata_path>
+```
+
+Example:
+
+```bash
+python src/main/python/postprocess.py --csv-path metadata/02-06-2020-09-00-18
+```
