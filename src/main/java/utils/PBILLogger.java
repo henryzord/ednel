@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Locale;
 
 public class PBILLogger {
 
@@ -290,7 +291,8 @@ public class PBILLogger {
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
-                        "%d,%d,%.8f,%.8f,%.8f,%04d,%04d",
+                        Locale.US,
+                        "%d,%d,%.8f,%.8f,%.8f,%04d,%04d,%04d\n",
                         i,
                         this.nevals.get(i),
                         this.minFitness.get(i),
