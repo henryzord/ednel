@@ -287,17 +287,6 @@ if __name__ == '__main__':
              'within the specified folder, it will work).'
     )
 
-    # parser.add_argument(
-    #     '--n-samples', action='store', required=True, type=int,
-    #     help='Number of samples in the experiment'
-    # )
-    #
-    # parser.add_argument(
-    #     '--n-folds', action='store', required=True, type=int,
-    #     help='Number of folds in the experiment'
-    # )
-
     args = parser.parse_args()
-
     main(metadata_path=args.csv_path)  
 
