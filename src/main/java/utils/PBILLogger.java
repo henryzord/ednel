@@ -34,6 +34,7 @@ public class PBILLogger {
     protected String dataset_overall_path;
     protected String dataset_thisrun_path;
     protected HashMap<String, ArrayList<String>> pastDependencyStructures = null;
+    protected HashMap<String, ArrayList<String>> pastDependencyProbabilities = null;
     protected String dataset_metadata_path;
     protected Individual overall;
     protected Individual last;
@@ -133,6 +134,7 @@ public class PBILLogger {
         this.lapTimes = new ArrayList<>();
         this.nevals = new ArrayList<>();
         this.dnConnections = new ArrayList<>();
+        this.pastDependencyProbabilities = new HashMap<>();
 
         this.curGen = 0;
     }
@@ -146,6 +148,10 @@ public class PBILLogger {
         this.nevals.add(dn.getCurrentGenEvals());
         this.discardedIndividuals.add(dn.getCurrentGenDiscardedIndividuals());
         this.dnConnections.add(dn.getCurrentGenConnections());
+
+        // TODO log probabilities!!!
+//        this.dnProbabilities.add(dn.getCurrentGenProbabilities());
+
 
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
@@ -192,46 +198,54 @@ public class PBILLogger {
     private String getEvaluationLineForClassifier(String name, Evaluation evaluation)
             throws InvocationTargetException, IllegalAccessException {
 
-        Method[] overallMethods = evaluation.getClass().getMethods();
-        HashMap<String, Method> overallMethodDict = new HashMap<>(overallMethods.length);
-
-        for(Method method : overallMethods) {
-            overallMethodDict.put(method.getName(), method);
-        }
-
         String line = name;
 
-        for(String methodName : metricsToCollect) {
-            Object res = overallMethodDict.get(methodName).invoke(evaluation);
-            if(res.getClass().isArray()) {
-                try {
-                    double[] doublyOverall = ((double[])res);
+        Method[] overallMethods = null;
+        HashMap<String, Method> overallMethodDict = null;
 
-                    line += ",\"np.array([";
-                    for(int k = 0; k < doublyOverall.length; k++) {
-                        line += doublyOverall[k] + ",";
-                    }
-                    line = line.substring(0, line.lastIndexOf(",")) + "], dtype=np.float64)\"";
-                } catch(ClassCastException e) {
-                    double[][] doublyOverall = ((double[][])res);
+        if(evaluation != null) {
+            overallMethods = evaluation.getClass().getMethods();
+            overallMethodDict = new HashMap<>(overallMethods.length);
 
-                    line += ",\"np.array([[";
-                    for(int j = 0; j < doublyOverall.length; j++) {
-                        for(int k = 0; k < doublyOverall[j].length; k++) {
-                            line += doublyOverall[j][k] + ",";
-                        }
-                        line = line.substring(0, line.lastIndexOf(",")) + "],[";
-                    }
-                    line = line.substring(0, line.lastIndexOf(",[")) + "], dtype=np.float64)\"";
-                } catch(Exception e) {
-                    throw(e);
-                }
-
-            } else {
-                line += "," + res;
+            for(Method method : overallMethods) {
+                overallMethodDict.put(method.getName(), method);
             }
         }
-        return line + "," + FitnessCalculator.getUnweightedAreaUnderROC(evaluation) + "\n";
+
+        for(String methodName : metricsToCollect) {
+            if(evaluation == null) {
+                line += ",";
+            } else {
+                Object res = overallMethodDict.get(methodName).invoke(evaluation);
+                if(res.getClass().isArray()) {
+                    try {
+                        double[] doublyOverall = ((double[])res);
+
+                        line += ",\"np.array([";
+                        for(int k = 0; k < doublyOverall.length; k++) {
+                            line += doublyOverall[k] + ",";
+                        }
+                        line = line.substring(0, line.lastIndexOf(",")) + "], dtype=np.float64)\"";
+                    } catch(ClassCastException e) {
+                        double[][] doublyOverall = ((double[][])res);
+
+                        line += ",\"np.array([[";
+                        for(int j = 0; j < doublyOverall.length; j++) {
+                            for(int k = 0; k < doublyOverall[j].length; k++) {
+                                line += doublyOverall[j][k] + ",";
+                            }
+                            line = line.substring(0, line.lastIndexOf(",")) + "],[";
+                        }
+                        line = line.substring(0, line.lastIndexOf(",[")) + "], dtype=np.float64)\"";
+                    } catch(Exception e) {
+                        throw(e);
+                    }
+                } else {
+                    line += "," + res;
+                }
+            }
+        }
+        return line + "," + (evaluation != null? FitnessCalculator.getUnweightedAreaUnderROC(evaluation) : "") + "\n";
     }
 
     private Double[] evaluationsToFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
@@ -261,11 +275,14 @@ public class PBILLogger {
             HashMap<String, AbstractClassifier> overallClassifiers = individuals.get(indName).getClassifiers();
 
             for(String key: overallClassifiers.keySet()) {
-                if(overallClassifiers.get(key) != null) {
+                if(!String.valueOf(overallClassifiers.get(key)).equals("null")) {
                     evaluation = new Evaluation(train_data);
                     evaluation.evaluateModel(overallClassifiers.get(key), test_data);
+                    fitnesses[i] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
+                } else {
+                    fitnesses[i] = 0.0;
+                    evaluation = null;
                 }
-                fitnesses[i] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
                 bw.write(this.getEvaluationLineForClassifier(indName + "-" + key, evaluation));
             }
         }
@@ -280,6 +297,7 @@ public class PBILLogger {
         individualsClassifiersToFile(individuals);
         loggerDataToFile();
         dependencyNetworkStructureToFile(dn);
+        dependencyNetworkProbabilitiesToFile(dn);
     }
 
     private void loggerDataToFile() throws Exception {
@@ -305,6 +323,10 @@ public class PBILLogger {
             }
             bw.close();
         }
+    }
+
+    private void dependencyNetworkProbabilitiesToFile(DependencyNetwork dn) throws IOException {
+        // TODO implement!!!!
     }
 
     private void dependencyNetworkStructureToFile(DependencyNetwork dn) throws IOException {

@@ -274,6 +274,8 @@ public class Main {
 
         CommandLineParser parser = new DefaultParser();
 
+        System.err.println("WARNING: using only J48 as classifier!");
+
         try {
             CommandLine commandLine = parser.parse(options, args);
 
