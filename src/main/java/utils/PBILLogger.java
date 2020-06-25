@@ -33,8 +33,13 @@ public class PBILLogger {
 
     protected String dataset_overall_path;
     protected String dataset_thisrun_path;
-    protected HashMap<String, ArrayList<String>> pastDependencyStructures = null;
-    protected HashMap<String, ArrayList<String>> pastDependencyProbabilities = null;
+    protected HashMap<String,  // generation
+            HashMap<String, // child variable
+                    HashMap<String,  // parents (e.g. "PART=true,J48_pruning=J48_unpruned")
+                            Double  // probability of combination
+                    >
+            >
+    > pastDependencyStructures = null;
     protected String dataset_metadata_path;
     protected Individual overall;
     protected Individual last;
@@ -134,7 +139,6 @@ public class PBILLogger {
         this.lapTimes = new ArrayList<>();
         this.nevals = new ArrayList<>();
         this.dnConnections = new ArrayList<>();
-        this.pastDependencyProbabilities = new HashMap<>();
 
         this.curGen = 0;
     }
@@ -156,7 +160,7 @@ public class PBILLogger {
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
         this.logPopulation(fitnesses, sortedIndices, population);
-        this.logDependencyStructure(dn);
+        this.logDependencyNetworkStructureAndProbabilities(dn);
 
         this.curGen += 1;
     }
@@ -181,17 +185,23 @@ public class PBILLogger {
         }
     }
 
-    private void logDependencyStructure(DependencyNetwork dn) {
+    private void logDependencyNetworkStructureAndProbabilities(DependencyNetwork dn) {
         if(this.log) {
             HashMap<String, AbstractVariable> variables = dn.getVariables();
             Object[] variableNames = variables.keySet().toArray();
 
-            for(Object variable : variableNames) {
-                this.pastDependencyStructures.put(
-                        String.format("gen_%03d_var_%s", this.curGen, variable),
-                        variables.get(variable).getMutableParentsNames()
+            HashMap<String, HashMap<String, Double>> thisGeneration = new HashMap<>();
+
+            for(Object variableName : variableNames) {
+                thisGeneration.put(
+                    (String)variableName,
+                    variables.get(variableName).getTablePrettyPrint()
                 );
             }
+            this.pastDependencyStructures.put(
+                String.format(Locale.US, "%03d", this.curGen),
+                thisGeneration
+            );
         }
     }
 

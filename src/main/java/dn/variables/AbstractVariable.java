@@ -6,6 +6,7 @@ import org.apache.commons.math3.exception.MathArithmeticException;
 import org.apache.commons.math3.linear.SingularMatrixException;
 import org.apache.commons.math3.random.MersenneTwister;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 public abstract class AbstractVariable {
@@ -671,6 +672,43 @@ public abstract class AbstractVariable {
     public abstract void updateUniqueValues(HashMap<String, ArrayList<String>> fittest);
 
     // Getters
+
+    public HashMap<String, Double> getTablePrettyPrint() {
+        // TODO first for parents
+        // TODO then for child
+        // TODO then probabilities
+        ArrayList<String> lines = new ArrayList<>(this.values.size());
+        for(int i = 0; i < this.values.size(); i++) {
+            lines.add("");
+        }
+
+        ArrayList<ArrayList<String>> toProcess = new ArrayList<ArrayList<String>>(){{
+            add(new ArrayList<String>(){{
+                add(name);
+            }});
+            add(fixed_parents);
+            add(mutable_parents);
+        }};
+
+        for(ArrayList<String> current : toProcess) {
+            for(String variableName : current) {
+                HashMap<String, ArrayList<Integer>> variableValues = this.table.get(variableName);
+                for(String variableVal : variableValues.keySet()) {
+                    for(Integer index : variableValues.get(variableVal)) {
+                        String oldLine = lines.get(index);
+                        String candidate = String.format(Locale.US, "%s=%s", variableName, variableVal);
+                        lines.set(index, oldLine + (oldLine.length() > 0? "," : "") + candidate);
+                    }
+                }
+            }
+        }
+        HashMap<String, Double> pairwise = new HashMap<>(lines.size());
+        for(int i = 0; i < lines.size(); i++) {
+            pairwise.put(lines.get(i), probabilities.get(i));
+        }
+
+        return pairwise;
+    }
 
     /**
      *
