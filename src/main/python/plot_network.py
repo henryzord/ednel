@@ -2,9 +2,8 @@
 import re
 
 from networkx.drawing.nx_agraph import graphviz_layout
-# from matplotlib.cm import viridis
-# from matplotlib.colors import to_hex
-# from matplotlib.lines import Line2D
+from matplotlib.cm import Pastel1
+from matplotlib.colors import to_hex
 import networkx as nx
 import numpy as np
 import plotly.graph_objects as go
@@ -33,28 +32,6 @@ def read_graph(json_path: str):
     return structure_dict
 
 
-def get_colors(G):
-    degrees = {}
-    shortest_paths = nx.shortest_path(G, '0')
-    for node in G.nodes:
-        s_path = shortest_paths[node]
-        d = 0
-        for n in s_path:
-            if 'color' not in G.nodes[n]:
-                d += 1
-        degrees[node] = d
-
-    max_degree = max(degrees.values())
-
-    colors = list(map(to_hex, viridis(np.linspace(0, 1, num=max_degree * 2))))[(max_degree - 1):]
-
-    for node in G.nodes:
-        if 'color' not in G.nodes[node]:
-            G.nodes[node]['color'] = colors[degrees[node]]
-
-    return G
-
-
 def local_plot(graphs, json_path):
     fig = go.Figure(
         layout=go.Layout(
@@ -66,25 +43,35 @@ def local_plot(graphs, json_path):
             yaxis=go.layout.YAxis(
                 # range=(min(df['y']) - 2, max(df['y']) + 2),
                 visible=False
-            )
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
         )
     )
 
-    # defines positions before plotting subplots
-    G = nx.from_dict_of_lists(graphs['000'])  # TODO change later
-    # pos = nx.circular_layout(G)
-    pos = graphviz_layout(G, prog='neato')
+    all_variables = list(graphs[list(graphs.keys())[0]].keys())
+    families = list(zip(*map(lambda x: x.split('_'), all_variables)))[0]
+    families_set = set(families)
+    families_colors = dict(zip(
+        families_set,
+        map(lambda x: to_hex(Pastel1(x)), np.linspace(0, 1, num=len(families_set)))
+    ))
 
-    variable_names = list(pos.keys())
-    x, y = zip(*list(pos.values()))
+    family_dict = dict(zip(all_variables, [families_colors[x] for x in families]))
 
     active = 0
     # adds projections
     for gen in sorted(graphs.keys()):
         G = nx.from_dict_of_lists(graphs[gen])
+        pos = graphviz_layout(G, prog='neato')
+
+        variable_names = list(pos.keys())
+        x, y = zip(*list(pos.values()))
 
         node_list = G.nodes(data=True)
         edge_list = G.edges(data=False)
+
+        node_colors = [family_dict[nd[0]] for nd in node_list]
 
         x_edges = []
         y_edges = []
@@ -118,14 +105,11 @@ def local_plot(graphs, json_path):
                 mode='markers',
                 visible=False,
                 marker=dict(
-                    color='blue',
-                    size=12,
-                    # colorscale='Viridis',
-                    # colorbar=dict(
-                    #     title='Fitness'
-                    # )
+                    color=node_colors,
+                    size=20,
                 ),
-                hovertext=variable_names,
+                text=variable_names,
+                hovertemplate='%{text}',
                 name='%03d Variables' % int(gen)
             )
         )
@@ -155,38 +139,8 @@ def local_plot(graphs, json_path):
         sliders=sliders
     )
 
-    # TODO now use dot as program to arrange nodes
-
     to_write_path = os.sep.join(json_path.split(os.sep)[:-1])
     plot(fig, filename=os.path.join(to_write_path, 'structures.html'))
-
-#
-#     fig, ax = plt.subplots(figsize=(16, 10))
-#
-#     pos = graphviz_layout(graph, root='0', prog='sfdp')
-#
-#     nx.draw_networkx_nodes(
-#         graph, pos, ax=ax, node_size=2200, node_color=node_colors, edgecolors=node_edgecolors, alpha=1
-#     )  # nodes
-#     nx.draw_networkx_edges(graph, pos, ax=ax, edgelist=edge_list, style='solid', alpha=1)  # edges
-#     nx.draw_networkx_labels(graph, pos, node_labels, ax=ax, font_size=8)  # node labels
-#     # nx.draw_networkx_edge_labels(digraph, pos, edge_labels=edge_labels, font_size=16)
-#
-#     box = ax.get_position()
-#
-#     legend_elements = [Line2D([0], [0], marker='o', color='white', label='Value', markerfacecolor='#AAAAAA', markersize=15)] + \
-#                       [Line2D([0], [0], marker='o', color='black', label='eda.EDNEL', markerfacecolor=colors[0], markersize=15)] + \
-#                       [Line2D([0], [0], marker='o', color='black', label='Variable (level %#2.d)' % (i + 1), markerfacecolor=color, markersize=15) for i, color in enumerate(colors[1:])]
-#
-#     ax.legend(handles=legend_elements, loc='lower right', fancybox=True, shadow=True, ncol=1)
-#
-#     plt.axis('off')
-#
-#     if savepath is not None:
-#         plt.savefig(savepath, format='pdf')
-#         plt.close()
-#
-#     # plt.show()
 
 
 def main(args):
