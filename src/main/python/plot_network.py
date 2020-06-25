@@ -1,4 +1,6 @@
 # import matplotlib.pyplot as plt
+import re
+
 from networkx.drawing.nx_agraph import graphviz_layout
 # from matplotlib.cm import viridis
 # from matplotlib.colors import to_hex
@@ -10,25 +12,25 @@ from plotly.offline import plot
 import argparse
 import json
 import os
-import itertools as it
 
 
-def read_graph(json_path):
+def read_graph(json_path: str):
     _dict = json.load(open(json_path))
 
-    keys = list(_dict.keys())
-    variables = np.unique([x.split('var_')[-1] for x in keys])
-    generations = map(int, np.unique([x.split('_var_')[0].split('gen_')[-1] for x in keys]))
+    structure_dict = dict()
 
-    variables = np.unique(variables)
+    eq_splitter = lambda x: re.split('=(?![^(]*\))', x)
 
-    local_networks = dict()
-    for gen in generations:
-        local_networks[gen] = dict()
-        for variable in variables:
-            local_networks[gen][variable] = _dict['gen_%03d_var_%s' % (gen, variable)]
+    for gen in _dict.keys():
+        this_gen = dict()
+        for variable in _dict[gen].keys():
+            lines = list(_dict[gen][variable])
 
-    return local_networks
+            parentnames, parentvals = zip(*list(map(eq_splitter, re.split(',(?![^(]*\))', lines[0]))))
+            this_gen[variable] = list(set(parentnames) - {variable})
+        structure_dict[gen] = this_gen
+
+    return structure_dict
 
 
 def get_colors(G):
@@ -69,9 +71,9 @@ def local_plot(graphs, json_path):
     )
 
     # defines positions before plotting subplots
-    G = nx.from_dict_of_lists(graphs[0])
+    G = nx.from_dict_of_lists(graphs['000'])  # TODO change later
     # pos = nx.circular_layout(G)
-    pos = graphviz_layout(G, prog='dot')
+    pos = graphviz_layout(G, prog='neato')
 
     variable_names = list(pos.keys())
     x, y = zip(*list(pos.values()))
@@ -100,7 +102,7 @@ def local_plot(graphs, json_path):
             marker=dict(
                 color='black',
             ),
-            name='%03d edges' % gen
+            name='%03d edges' % int(gen)
         ))
 
         # node_labels = {node_name: node_attr['label'] for (node_name, node_attr) in node_list}
@@ -124,7 +126,7 @@ def local_plot(graphs, json_path):
                     # )
                 ),
                 hovertext=variable_names,
-                name='%03d Variables' % gen
+                name='%03d Variables' % int(gen)
             )
         )
 
@@ -152,6 +154,8 @@ def local_plot(graphs, json_path):
     fig.update_layout(
         sliders=sliders
     )
+
+    # TODO now use dot as program to arrange nodes
 
     to_write_path = os.sep.join(json_path.split(os.sep)[:-1])
     plot(fig, filename=os.path.join(to_write_path, 'structures.html'))
