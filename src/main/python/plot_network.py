@@ -1,25 +1,23 @@
-import re
 
-from networkx.drawing.nx_agraph import graphviz_layout
-from matplotlib.cm import Pastel1
-from matplotlib.colors import to_hex
-import networkx as nx
-import numpy as np
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-from plotly.offline import plot
-import pandas as pd
+# utilities
 import argparse
 import json
-import os
+import re
 
-
-def slider_callback(gen: int, var: int, n_variables: int, n_gens: int):
-    pass
-
-
-def dropdown_callback(gen: int, var: int, n_variables: int, n_gens: int):
-    pass
+# graphic libraries
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+# graph libraries
+import networkx as nx
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+# dash callback
+from dash.dependencies import Input, Output
+from matplotlib.cm import Pastel1
+from matplotlib.colors import to_hex
+from networkx.drawing.nx_agraph import graphviz_layout
 
 
 def read_graph(json_path: str):
@@ -61,12 +59,10 @@ def read_graph(json_path: str):
     return structure_dict, probabilities_dict
 
 
-def get_colors(structs: dict):
+def get_colors(all_variables: list):
     """
     Builds a dictionary assigning a color to each variable.
     """
-
-    all_variables = list(structs[list(structs.keys())[0]].keys())
     families = list(zip(*map(lambda x: x.split('_'), all_variables)))[0]
     families_set = set(families)
     families_colors = dict(zip(
@@ -78,151 +74,171 @@ def get_colors(structs: dict):
     return var_color_dict
 
 
-def add_gen_structure_map(structs, probs, fig):
-    var_color_dict = get_colors(structs)
-
-    # adds projections
-    for gen in sorted(structs.keys()):
-        G = nx.from_dict_of_lists(structs[gen])
-        pos = graphviz_layout(G, prog='neato')
-
-        variable_names = list(pos.keys())
-        x, y = zip(*list(pos.values()))
-
-        node_list = G.nodes(data=True)
-        edge_list = G.edges(data=False)
-
-        node_colors = [var_color_dict[nd[0]] for nd in node_list]
-
-        x_edges = []
-        y_edges = []
-        for a, b in edge_list:
-            a_coord = pos[a]
-            b_coord = pos[b]
-
-            x_edges += [a_coord[0], b_coord[0], None]
-            y_edges += [a_coord[1], b_coord[1], None]
-
-        fig.add_trace(
-            go.Scatter(
-                x=x_edges,
-                y=y_edges,
-                visible=False,
-                marker=dict(
-                    color='black',
-                ),
-                name='%03d edges' % int(gen)
-            ),
-            row=1, col=1
+def update_probabilities_table(probs, gen, variable):
+    fig = go.Figure(
+        data=go.Table(
+            header=dict(values=list(probs[gen][variable].columns)),
+            cells=dict(values=probs[gen][variable].T)
         )
-        fig.data[-1].visible = False
-
-        fig.add_trace(
-            go.Scatter(
-                x=x,
-                y=y,
-                mode='markers',
-                visible=False,
-                marker=dict(
-                    color=node_colors,
-                    size=20,
-                ),
-                text=variable_names,
-                hovertemplate='%{text}',
-                name='%03d Variables' % int(gen)
-            ),
-            row=1, col=1
-        )
-        fig.data[-1].visible = False
-
-        for var in probs[gen].keys():
-            fig.add_trace(
-                go.Table(
-                    header=dict(values=list(probs[gen][var].columns)),
-                    cells=dict(values=probs[gen][var].T)
-                ),
-                row=1, col=2
-            )
-            fig.data[-1].visible = False  # TODO testing
-
+    )
     return fig
 
 
-def init_fig():
-    fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'xy'}, {'type': 'table'}]])
+def add_probabilities_table(probs, gen, variable):
+    fig = update_probabilities_table(probs, gen, variable)
 
-    fig.layout.title = 'Dependency network structure throughout generations'
-    fig.layout.xaxis.visible = False
-    fig.layout.yaxis.visible = False
-    fig.layout.paper_bgcolor = 'rgba(0,0,0,0)'
-    fig.layout.plot_bgcolor = 'rgba(0,0,0,0)'
-
-    return fig
+    probabilities_table = dcc.Graph(id='probabilities-table', figure=fig)
+    return probabilities_table
 
 
-def local_plot(json_path):
-    # structs contain dictionary of past structures
-    # probs contain dictionary of past probabilities
-    structs, probs = read_graph(args.json_path)
-
-    fig = init_fig()
-    fig = add_gen_structure_map(structs=structs, probs=probs, fig=fig)
-
-    active = 0
-    n_variables = len(structs[list(structs.keys())[0]])
-
-    steps = []
-    for i in range(len(structs.keys())):
-        step = dict(
-            method="restyle",
-            args=["visible", [False] * len(fig.data)],
+def update_gen_structure_map(structs, gen, var_color_dict):
+    fig = go.Figure(
+        layout=go.Layout(
+            title='Dependency network structure throughout generations',
+            xaxis=go.layout.XAxis(
+                visible=False
+            ),
+            yaxis=go.layout.YAxis(
+                visible=False
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
         )
-        step["args"][1][(i * (2 + n_variables)) + 0] = True  # Toggle i'th trace to "visible"
-        step["args"][1][(i * (2 + n_variables)) + 1] = True  # Toggle i'th trace to "visible"
-        step["args"][1][(i * (2 + n_variables)) + 2] = True  # Toggle i'th trace to "visible"  # TODO will break once dropdown changes
-        steps.append(step)
-
-    # makes first scatter visible
-    # TODo will break because of probabilities table; fix!
-    fig.data[active + 0].visible = True
-    fig.data[active + 1].visible = True
-    fig.data[active + 2].visible = True
-
-    sliders = [dict(
-        active=active,
-        currentvalue={"prefix": "Generation: "},
-        pad={"t": 50},
-        steps=steps
-    )]
-
-    fig.update_layout(
-        sliders=sliders
     )
 
-    fig.update_layout(updatemenus=[
-        dict(
-            active=0,
-            buttons=list([
-                dict(label="None",
-                     method="update",
-                     args=[{"visible": [True, False, True, False]},
-                           {"title": "Yahoo",
-                            "annotations": []}]),
-                dict(label="High",
-                     method="update",
-                     args=[{"visible": [True, True, False, False]},
-                           {"title": "Yahoo High",
-                            "annotations": high_annotations}]),
-            ]),
-        )
-    ])
+    # adds projections
+    G = nx.from_dict_of_lists(structs[gen])
+    pos = graphviz_layout(G, prog='neato')
 
-    to_write_path = os.sep.join(json_path.split(os.sep)[:-1])
-    plot(fig, filename=os.path.join(to_write_path, 'structures.html'))
+    variable_names = list(pos.keys())
+    x, y = zip(*list(pos.values()))
+
+    node_list = G.nodes(data=True)
+    edge_list = G.edges(data=False)
+
+    node_colors = [var_color_dict[nd[0]] for nd in node_list]
+
+    x_edges = []
+    y_edges = []
+    for a, b in edge_list:
+        a_coord = pos[a]
+        b_coord = pos[b]
+
+        x_edges += [a_coord[0], b_coord[0], None]
+        y_edges += [a_coord[1], b_coord[1], None]
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_edges,
+            y=y_edges,
+            marker=dict(
+                color='black',
+            ),
+            name='%03d edges' % int(gen)
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode='markers',
+            marker=dict(
+                color=node_colors,
+                size=20,
+            ),
+            text=variable_names,
+            hovertemplate='%{text}',
+            name='%03d Variables' % int(gen)
+        )
+    )
+
+    return fig
+
+
+def add_gen_structure_map(structs, gen, var_color_dict):
+    fig = update_gen_structure_map(structs=structs, gen=gen, var_color_dict=var_color_dict)
+    structure_map = dcc.Graph(id='structure-map', figure=fig)
+    return structure_map
+
+
+def add_variable_dropdown(variables: list):
+    variable_dropdown = dcc.Dropdown(
+        id='variable-dropdown',
+        options=[{'label': s, 'value': s} for s in variables],
+        value=variables[0]
+    )
+    return variable_dropdown
+
+
+def add_generation_slider(gens: list):
+    int_gens = list(map(int, gens))
+
+    generation_slider = dcc.Slider(
+                id='generation-slider',
+                min=min(int_gens),  # min value
+                max=max(int_gens),  # max value
+                value=min(int_gens),  # current value
+                marks={gen: gen for gen in gens},
+                step=None
+            )
+    return generation_slider
+
+
+def init_app(structure_map, probabilities_table, generation_slider, variable_dropdown):
+    app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
+
+    app.layout = html.Div([
+        html.Div([
+            structure_map,
+            generation_slider
+        ], className="six columns"),
+        html.Div([
+            probabilities_table,
+            variable_dropdown
+        ], className="six columns"),
+    ], id='dash-figure')
+
+    return app
 
 
 def main(args):
-    local_plot(args.json_path)
+    structs, probs = read_graph(args.json_path)
+
+    gens = sorted(list(probs.keys()))
+    first_gen = gens[0]
+    variables = sorted(list(probs[first_gen].keys()))
+    any_var = variables[0]
+    var_color_dict = get_colors(all_variables=variables)
+
+    structure_map = add_gen_structure_map(structs=structs, gen=first_gen, var_color_dict=var_color_dict)
+    probabilities_table = add_probabilities_table(probs=probs, gen=first_gen, variable=any_var)
+    generation_slider = add_generation_slider(gens=gens)
+    variable_dropdown = add_variable_dropdown(variables=variables)
+    app = init_app(structure_map=structure_map, probabilities_table=probabilities_table, generation_slider=generation_slider, variable_dropdown=variable_dropdown)
+
+    @app.callback(
+        Output('structure-map', 'figure'),
+        [Input('generation-slider', 'value')]
+    )
+    def structure_map_callback(gen):
+        _str_gen = '%03d' % gen
+
+        struct_map_fig = update_gen_structure_map(structs=structs, gen=_str_gen, var_color_dict=var_color_dict)
+        return struct_map_fig
+
+    @app.callback(
+        Output('probabilities-table', 'figure'),
+        [Input('generation-slider', 'value'),
+         Input('variable-dropdown', 'value')]
+    )
+    def probabilities_table_callback(gen, variable):
+        _str_gen = '%03d' % gen
+
+        probabilities_table_fig = update_probabilities_table(probs=probs, gen=_str_gen, variable=variable)
+        return probabilities_table_fig
+
+    app.run_server(debug=False)
 
 
 if __name__ == '__main__':
