@@ -32,28 +32,28 @@ def read_graph(json_path: str):
     probabilities_dict = dict()
 
     eq_splitter = lambda x: re.split('=(?![^(]*\))', x)
-    co_splitter = lambda x: re.split(',(?![^(]*\))', lines[0])
+    co_splitter = lambda x: re.split(',(?![^(]*\))', x)
 
     for gen in _dict.keys():
-        this_gen_structrues = dict()
+        this_gen_structures = dict()
         this_gen_probabilities = dict()
         for variable in _dict[gen].keys():
             lines = list(_dict[gen][variable].keys())
             probs = list(_dict[gen][variable].values())
+            splitted_lines = list(map(co_splitter, lines))
+            # TODO bug: probabilities_dict table are duplicating values
 
             table = []
             parentnames = None
-            for i, line in enumerate(lines):
-                splitted_lines = map(co_splitter, lines)
-                for splitted_line in splitted_lines:
-                    _vars, _vals = zip(*(map(eq_splitter, splitted_line)))
-                    table += [list(_vals) + [probs[i]]]
-                    parentnames = _vars
+            for i, splitted_line in enumerate(splitted_lines):
+                _vars, _vals = zip(*(map(eq_splitter, splitted_line)))
+                table += [list(_vals) + [probs[i]]]
+                parentnames = _vars
 
-            this_gen_structrues[variable] = list(set(parentnames) - {variable})
+            this_gen_structures[variable] = list(set(parentnames) - {variable})
             this_gen_probabilities[variable] = pd.DataFrame(table, columns=list(parentnames) + ['probability'])
 
-        structure_dict[gen] = this_gen_structrues
+        structure_dict[gen] = this_gen_structures
         probabilities_dict[gen] = this_gen_probabilities
 
     return structure_dict, probabilities_dict

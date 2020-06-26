@@ -153,10 +153,6 @@ public class PBILLogger {
         this.discardedIndividuals.add(dn.getCurrentGenDiscardedIndividuals());
         this.dnConnections.add(dn.getCurrentGenConnections());
 
-        // TODO log probabilities!!!
-//        this.dnProbabilities.add(dn.getCurrentGenProbabilities());
-
-
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
         this.logPopulation(fitnesses, sortedIndices, population);

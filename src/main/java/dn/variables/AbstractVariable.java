@@ -667,16 +667,9 @@ public abstract class AbstractVariable {
         }
     }
 
-    // setters and updaters
-
     public abstract void updateUniqueValues(HashMap<String, ArrayList<String>> fittest);
 
-    // Getters
-
     public HashMap<String, Double> getTablePrettyPrint() {
-        // TODO first for parents
-        // TODO then for child
-        // TODO then probabilities
         ArrayList<String> lines = new ArrayList<>(this.values.size());
         for(int i = 0; i < this.values.size(); i++) {
             lines.add("");
