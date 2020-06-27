@@ -676,11 +676,11 @@ public abstract class AbstractVariable {
         }
 
         ArrayList<ArrayList<String>> toProcess = new ArrayList<ArrayList<String>>(){{
+            add(mutable_parents);
+            add(fixed_parents);
             add(new ArrayList<String>(){{
                 add(name);
             }});
-            add(fixed_parents);
-            add(mutable_parents);
         }};
 
         for(ArrayList<String> current : toProcess) {

@@ -6,6 +6,7 @@ import re
 
 # graphic libraries
 import dash
+import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
 # graph libraries
@@ -41,7 +42,6 @@ def read_graph(json_path: str):
             lines = list(_dict[gen][variable].keys())
             probs = list(_dict[gen][variable].values())
             splitted_lines = list(map(co_splitter, lines))
-            # TODO bug: probabilities_dict table are duplicating values
 
             table = []
             parentnames = None
@@ -75,19 +75,30 @@ def get_colors(all_variables: list):
 
 
 def update_probabilities_table(probs, gen, variable):
-    fig = go.Figure(
-        data=go.Table(
-            header=dict(values=list(probs[gen][variable].columns)),
-            cells=dict(values=probs[gen][variable].T)
-        )
+    df = probs[gen][variable]  # type: pd.DataFrame
+
+    sortable_columns = list(df.columns)
+    sortable_columns.remove('probability')
+
+    df.sort_values(by=sortable_columns, inplace=True)
+
+    dt = dash_table.DataTable(
+        id='probabilities-table',
+        columns=[
+            {"name": i, "id": i} for i in list(probs[gen][variable].columns)
+        ],
+        data=df.to_dict('records'),
+        sort_action="native",
+        sort_mode="multi",
     )
-    return fig
+    return dt
 
 
 def add_probabilities_table(probs, gen, variable):
-    fig = update_probabilities_table(probs, gen, variable)
-
-    probabilities_table = dcc.Graph(id='probabilities-table', figure=fig)
+    probabilities_table = html.Div(
+        [update_probabilities_table(probs, gen, variable)],
+        id='probabilities-table-container'
+    )
     return probabilities_table
 
 
@@ -197,7 +208,7 @@ def init_app(structure_map, probabilities_table, generation_slider, variable_dro
             probabilities_table,
             variable_dropdown
         ], className="six columns"),
-    ], id='dash-figure')
+    ], id='dash-container')
 
     return app
 
@@ -228,7 +239,7 @@ def main(args):
         return struct_map_fig
 
     @app.callback(
-        Output('probabilities-table', 'figure'),
+        Output('probabilities-table-container', 'children'),
         [Input('generation-slider', 'value'),
          Input('variable-dropdown', 'value')]
     )
