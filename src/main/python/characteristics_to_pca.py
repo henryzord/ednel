@@ -5,9 +5,6 @@ import os
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go
 from plotly.offline import plot
-from IPython.display import display, HTML
-from matplotlib.colors import to_hex
-from matplotlib.cm import viridis
 from copy import deepcopy
 
 """

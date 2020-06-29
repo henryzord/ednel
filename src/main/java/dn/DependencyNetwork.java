@@ -31,6 +31,9 @@ public class DependencyNetwork {
      * continuous variables.
      */
     private int nearest_neighbor;
+    /**
+     * Maximum number of parents that any variable may have at a given moment.
+     */
     private int global_max_parents;
 
     private ArrayList<ArrayList<Integer>> samplingOrder = null;
@@ -42,6 +45,7 @@ public class DependencyNetwork {
     private int currentGenDiscardedIndividuals;
     private int currentGenEvals;
     private int currentGenConnections;
+    private HashMap<String, Integer> connectionsCount;
 
     public DependencyNetwork(
             MersenneTwister mt, String variables_path, String options_path, String sampling_order_path,
@@ -63,9 +67,31 @@ public class DependencyNetwork {
         this.lastStart = null;
 
         this.readVariablesFromFiles(variables_path, options_path, learningRate, n_generations);
+        this.updateVariablesFixedConnections(this.variables);
 
         this.samplingOrder = this.readSamplingOrderPath(sampling_order_path, variable_names);
 
+    }
+
+    private void updateVariablesFixedConnections(HashMap<String, AbstractVariable> variables) {
+        this.connectionsCount = new HashMap<>();
+
+        for(String var : variables.keySet()) {
+            this.connectionsCount.put(var, 0);
+        }
+
+        for(String var : variables.keySet()) {
+            ArrayList<String> mutParents = variables.get(var).getMutableParentsNames();
+            ArrayList<String> fixParents = variables.get(var).getFixedParentsNames();
+//            for(String mut : mutParents) {
+//                this.connectionsCount.put(mut, this.connectionsCount.getOrDefault(mut, 0) + 1);
+//                this.connectionsCount.put(var, this.connectionsCount.getOrDefault(var, 0) + 1);
+//            }
+            for(String fix : fixParents) {
+                this.connectionsCount.put(fix, this.connectionsCount.get(fix) + 1);
+                this.connectionsCount.put(var, this.connectionsCount.get(var) + 1);
+            }
+        }
     }
 
     private static ArrayList<ArrayList<Integer>> readSamplingOrderPath(String sampling_order_path, ArrayList<String> variable_names) throws IOException, ParseException {
@@ -327,6 +353,7 @@ public class DependencyNetwork {
 
         this.updateStructure(fittestValues);
         this.updateProbabilities(fittestValues, fittestIndividuals);
+        this.updateVariablesFixedConnections(this.variables);
     }
 
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
@@ -661,31 +688,36 @@ public class DependencyNetwork {
 
                 // candidates to be parents of a variable
                 HashSet<String> candSet = new HashSet<>(variable_names.size());
-                candSet.addAll(this.variable_names);
-                candSet.remove(variableName);
-                candSet.removeAll(this.variables.get(variableName).getFixedParentsNames());
+                candSet.addAll(this.variable_names);  // adds all variables
+                candSet.remove(variableName);  // removes itself, otherwise makes no sense
+                candSet.removeAll(this.variables.get(variableName).getFixedParentsNames());  // remove fixed parents
+
                 HashSet<String> parentSet = new HashSet<>(this.variables.get(variableName).getFixedParentsNames());
 
-                while ((candSet.size() > 0) && (parentSet.size() < this.variables.get(variableName).getMaxParents())) {
+                while ((candSet.size() > 0) && (parentSet.size() < this.global_max_parents)) {
                     double bestHeuristic = -1;
                     String bestCandidate = null;
 
                     HashSet<String> toRemove = new HashSet<>();
 
                     for (String candidate : candSet) {
-                        double heuristic = this.heuristic(
-                                this.variables.get(variableName),
-                                parentSet,
-                                this.variables.get(candidate),
-                                fittest
-                        );
-                        if (heuristic > 0) {
-                            if (heuristic > bestHeuristic) {
-                                bestHeuristic = heuristic;
-                                bestCandidate = candidate;
-                            }
-                        } else {
+                        if(this.connectionsCount.get(candidate) >= this.global_max_parents) {
                             toRemove.add(candidate);
+                        } else {
+                            double heuristic = this.heuristic(
+                                    this.variables.get(variableName),
+                                    parentSet,
+                                    this.variables.get(candidate),
+                                    fittest
+                            );
+                            if (heuristic > 0) {
+                                if (heuristic > bestHeuristic) {
+                                    bestHeuristic = heuristic;
+                                    bestCandidate = candidate;
+                                }
+                            } else {
+                                toRemove.add(candidate);
+                            }
                         }
                     }
                     candSet.removeAll(toRemove);
