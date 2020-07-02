@@ -15,11 +15,12 @@ public class RealRule extends Rule {
     private int numClasses;
     private String string;
 
-    public RealRule(String line) {
+    public RealRule(String line, Instances train_data) throws Exception {
         if(line.contains("(")) {
             line = line.substring(0, line.indexOf("(")).trim();
         }
         this.string = line;
+        this.grow(train_data);
     }
 
     @Override
@@ -35,13 +36,13 @@ public class RealRule extends Rule {
         this.operators = new AbstractOperator [conditions.length];
 
         for(int i = 0; i < conditions.length; i++) {
-            String[] parted = conditions[i].split(" ");
+            String[] parted = conditions[i].trim().split(" ");
             int attr_index = data.attribute(parted[0].trim()).index();
             boolean isNominal = data.attribute(attr_index).isNominal();
 
             this.attrIndex[i] = attr_index;
-            this.operators[i] = AbstractOperator.valueOf(parted[1]);
-            this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[2].trim()) : Double.valueOf(parted[2]);
+            this.operators[i] = AbstractOperator.valueOf(parted[1].trim());
+            this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[2].trim()) : Double.valueOf(parted[2].trim());
         }
     }
 
@@ -49,7 +50,7 @@ public class RealRule extends Rule {
     public boolean covers(Instance datum) {
         boolean pass = true;
         int i = 0;
-        while(pass && (i < this.attrIndex.length )) {
+        while(pass && (i < this.attrIndex.length)) {
             AbstractOperator operator = this.operators[i];
             pass = operator.operate(datum.value(this.attrIndex[i]), this.thresholds[i]);
             i += 1;
