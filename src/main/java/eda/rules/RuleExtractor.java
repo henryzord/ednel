@@ -40,7 +40,7 @@ public class RuleExtractor {
                 str.indexOf("------------------") + "------------------".length(),
                 str.indexOf("Number of Rules")
         ).trim().split("\n\n");
-        
+
         ArrayList<String> rule_lines = new ArrayList<>(lines.length);
 
         for(int i = 0; i < lines.length; i++) {
@@ -258,12 +258,12 @@ public class RuleExtractor {
             }
         }
 
-        RealRule[] realRules = new RealRule[rules.length - 3];
+        RealRule[] realRules = new RealRule[rules.length - 4];
 
         StringBuffer prior = new StringBuffer("");
         if (headerColumns.size() > 1) {
             // why start at 3 and finish at -1? because rules[0] and rules[2] are only table delimiters
-            // (i.e. ========), as well as position rules[-1]. rules[1] contains the column headers of the table
+            // (i.e. ========), as well as rules[-1]. rules[1] contains the column headers of the table
             int counter = 0;
             for (int i = 3; i < rules.length - 1; i++) {
                 String[] priors = rules[i].split(" +");
@@ -304,10 +304,20 @@ public class RuleExtractor {
             train_data.setClassIndex(train_data.numAttributes() - 1);
             test_data.setClassIndex(test_data.numAttributes() - 1);
 
+            RealRule[][] all_rules = new RealRule[clfs.length][];
+
             for(int i = 0; i < clfs.length; i++) {
                 clfs[i].buildClassifier(train_data);
-                RealRule[] rules = RuleExtractor.fromClassifierToRules(clfs[i], train_data);
+                all_rules[i] = RuleExtractor.fromClassifierToRules(clfs[i], train_data);
             }
+            for(int c = 0; c < clfs.length; c++) {
+                for(int r = 0; r < all_rules[c].length; r++) {
+                    if(all_rules[c][r].covers(train_data.get(0))) {
+                        System.out.println(all_rules[c][r]);
+                    }
+                }
+            }
+
 
         } catch (Exception e) {
             e.printStackTrace();
