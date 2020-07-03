@@ -22,15 +22,64 @@ public class RuleExtractor {
             return RuleExtractor.fromDecisionTableToRules((DecisionTable)clf, train_data);
         } else if(clf instanceof SimpleCart) {
             return RuleExtractor.fromSimpleCartToRules((SimpleCart)clf, train_data);
+        } else if(clf instanceof JRip) {
+            return RuleExtractor.fromJRipToRules((JRip)clf, train_data);
+        } else if(clf instanceof PART) {
+            return RuleExtractor.fromPARTToRules((PART)clf, train_data);
         }
+
         throw new ClassNotFoundException(
             "clf must be one of the following classifiers: J48, SimpleCart, JRip, PART, DecisionTable"
         );
     }
 
+    private static RealRule[] fromPARTToRules(PART clf, Instances train_data) throws Exception {
+        String str = clf.toString();
+
+        String[] lines = str.substring(
+                str.indexOf("------------------") + "------------------".length(),
+                str.indexOf("Number of Rules")
+        ).trim().split("\n\n");
+        
+        ArrayList<String> rule_lines = new ArrayList<>(lines.length);
+
+        for(int i = 0; i < lines.length; i++) {
+            String priors = lines[i].split(":")[0];
+            if(priors.length() > 0) {
+                rule_lines.add(lines[i].replaceAll("AND\n", "and "));
+            }
+        }
+
+        RealRule[] rules = new RealRule[rule_lines.size()];
+        for(int i = 0; i < rule_lines.size(); i++) {
+            rules[i] = new RealRule(rule_lines.get(i), train_data);
+        }
+        return rules;
+    }
+
+    private static RealRule[] fromJRipToRules(JRip clf, Instances train_data) throws Exception {
+        String str = clf.toString();
+
+        String[] lines = str.substring(str.indexOf("===========") + "===========".length(), str.indexOf("Number of Rules")).trim().split("\n");
+
+        ArrayList<String> rule_lines = new ArrayList<>(lines.length);
+        for(int i = 0; i < lines.length; i++) {
+            String priors = lines[i].substring(0, lines[i].lastIndexOf("=>")).trim();
+            if (priors.length() > 0) {
+                String posteriori = lines[i].substring(lines[i].lastIndexOf("=>") + "=>".length()).trim();
+                priors = priors.replaceAll("\\(", "").replaceAll("\\)", "");
+                rule_lines.add(String.format("%s: %s", priors, posteriori.split("=")[1]));
+            }
+        }
+        RealRule[] rules = new RealRule[rule_lines.size()];
+        for(int i = 0; i < rule_lines.size(); i++) {
+            rules[i] = new RealRule(rule_lines.get(i), train_data);
+        }
+        return rules;
+    }
+
     private static RealRule[] fromSimpleCartToRules(SimpleCart clf, Instances train_data) throws Exception {
         String str = clf.toString();
-        System.out.println(str);  // TODO remove!
 
         String[] lines = (
                 str.substring(
@@ -83,7 +132,6 @@ public class RuleExtractor {
             }
         }
 
-        // TODO breaking now, fix
         int deepest_level = Collections.max(new_levels);
         for(int lvl = deepest_level; lvl > 0; lvl--) {
             int index_last_minus = -1;
@@ -112,7 +160,6 @@ public class RuleExtractor {
 
     private static RealRule[] fromJ48ToRules(J48 clf, Instances train_data) throws Exception {
         String str = clf.toString();
-        System.out.println(str);  // TODO remove!
         String[] lines = (
                 str.substring(
                         str.indexOf("------------------") + "------------------".length(),
@@ -252,7 +299,6 @@ public class RuleExtractor {
             ConverterUtils.DataSource test_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tst.arff");
 
             AbstractClassifier[] clfs = new AbstractClassifier[]{new J48(), new DecisionTable(), new SimpleCart(), new JRip(), new PART()};
-//            ((DecisionTable)clfs[1]).setDisplayRules(true);
 
             Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
             train_data.setClassIndex(train_data.numAttributes() - 1);
@@ -261,9 +307,6 @@ public class RuleExtractor {
             for(int i = 0; i < clfs.length; i++) {
                 clfs[i].buildClassifier(train_data);
                 RealRule[] rules = RuleExtractor.fromClassifierToRules(clfs[i], train_data);
-                if(i == 2) {
-                    break;
-                }
             }
 
         } catch (Exception e) {
