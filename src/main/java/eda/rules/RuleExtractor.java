@@ -177,6 +177,8 @@ public class RuleExtractor {
                 fromIndex++;
             }
             levels.add(count);
+
+            lines[i] = lines[i].replaceAll("\\|", "").trim();
         }
 
         int deepest_level = Collections.max(levels);
@@ -200,7 +202,7 @@ public class RuleExtractor {
 
         RealRule[] rules = new RealRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i).replaceAll("\\|", ""), train_data);
+            rules[i] = new RealRule(rule_lines.get(i), train_data);
         }
         return rules;
     }
@@ -282,7 +284,7 @@ public class RuleExtractor {
                         newline.append(" and ");
                     }
                 }
-                newline.append(":").append(posterior);
+                newline.append(": ").append(posterior);
 
                 realRules[counter] = new RealRule(newline.toString(), train_data);
                 counter += 1;
@@ -313,7 +315,7 @@ public class RuleExtractor {
             for(int c = 0; c < clfs.length; c++) {
                 for(int r = 0; r < all_rules[c].length; r++) {
                     if(all_rules[c][r].covers(train_data.get(0))) {
-                        System.out.println(all_rules[c][r]);
+                        System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
                     }
                 }
             }

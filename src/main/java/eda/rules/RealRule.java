@@ -17,6 +17,7 @@ public class RealRule extends Rule {
 
     public RealRule(String line, Instances train_data) throws Exception {
         if(line.contains("(")) {
+            // TODO make something out of this data!!!
             line = line.substring(0, line.indexOf("(")).trim();
         }
         this.string = line;
