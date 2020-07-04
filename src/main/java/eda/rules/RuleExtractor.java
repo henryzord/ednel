@@ -89,7 +89,6 @@ public class RuleExtractor {
         ).trim().split("\n");
 
         // levels has the level that each rule is within
-
         ArrayList<Integer> levels = new ArrayList<>(lines.length);
         for(int i = 0; i < lines.length; i++) {
             int count = 0, fromIndex = 0;
