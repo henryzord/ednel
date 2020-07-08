@@ -325,7 +325,6 @@ public class Main {
                         }
 
                         Thread.sleep(1000);  // prevents creating all threads at once
-//                        TimeUnit.SECONDS.sleep(1);
                     }
                 }
             }

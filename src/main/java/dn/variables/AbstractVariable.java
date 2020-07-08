@@ -451,23 +451,22 @@ public abstract class AbstractVariable {
 
     /**
      * a modified way of performing learning rate.
-     * @throws Exception
      */
-    private void addResidualProbabilities() throws Exception {
-        String[] staticNames = new String [fixed_parents.size() + 1];
+    private void addResidualProbabilities() {
+        String[] fixedNames = new String [fixed_parents.size() + 1];
         for(int i = 0; i < fixed_parents.size(); i++) {
-            staticNames[i] = fixed_parents.get(i);
+            fixedNames[i] = fixed_parents.get(i);
         }
-        staticNames[fixed_parents.size()] = this.getName();
+        fixedNames[fixed_parents.size()] = this.getName();
 
         HashMap<String, Object[]> variablesArrayOfValues = new HashMap<>();
-        int[] sizes = new int [staticNames.length];
-        int[] carousel = new int [staticNames.length];
+        int[] sizes = new int [fixedNames.length];
+        int[] carousel = new int [fixedNames.length];
 
         int n_combinations = 1;
-        for(int i = 0; i < staticNames.length; i++) {
-            Object[] uniqueVals = this.table.get(staticNames[i]).keySet().toArray();
-            variablesArrayOfValues.put(staticNames[i], uniqueVals);
+        for(int i = 0; i < fixedNames.length; i++) {
+            Object[] uniqueVals = this.table.get(fixedNames[i]).keySet().toArray();
+            variablesArrayOfValues.put(fixedNames[i], uniqueVals);
             sizes[i] = uniqueVals.length;
             carousel[i] = 0;
             n_combinations *= sizes[i];
@@ -476,8 +475,8 @@ public abstract class AbstractVariable {
         while(counter < n_combinations) {
             HashMap<String, String> cond = new HashMap<>();
 
-            for (int i = 0; i < staticNames.length; i++) {
-                String name = staticNames[i];
+            for (int i = 0; i < fixedNames.length; i++) {
+                String name = fixedNames[i];
                 cond.put(name, (String) variablesArrayOfValues.get(name)[carousel[i]]);
             }
             carousel = advanceCarousel(carousel, sizes);
@@ -490,7 +489,7 @@ public abstract class AbstractVariable {
             for(int index : oldIndices) {
                 meanOldProbability += this.oldProbabilities.get(index);
             }
-            // uses formula of PBIL
+            // uses equation of PBIL
             if(oldIndices.size() > 0) {
                 meanOldProbability = (1 - this.learningRate) * (meanOldProbability / oldIndices.size());
             }
@@ -547,7 +546,6 @@ public abstract class AbstractVariable {
         int n_fittest = fittestValues.get(this.getName()).size();
 
         ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
-//        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 1.0));  // set 1 for laplace correction; 0 otherwise
         this.probabilities = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));
 
         HashMap<String, Integer> ddd = new HashMap<>();
@@ -577,7 +575,7 @@ public abstract class AbstractVariable {
 
         // for each individual in the fittest population:
         // locates the index that represents its combination of values
-        // adds 1 to the counter of occurences
+        // adds 1 to the counter of occurrences
         for(int i = 0; i < n_fittest; i++) {
             int[] indices = this.getArrayOfIndices(
                     this.table,
@@ -593,7 +591,7 @@ public abstract class AbstractVariable {
             if(indices.length > 1) {
                 throw new Exception("unexpected behaviour!");
             }
-            // registers this individual occurence
+            // registers this individual occurrence
             counts.set(indices[0], counts.get(indices[0]) + 1);
             countsSum += 1;
 
