@@ -186,10 +186,20 @@ def single_experiment_process(this_path, n_samples, n_folds, write=True):
                 dict_ens = {}
                 for ens_name in ens_names:
                     for rel in rels:
+                        to_process = rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name]]
+                        is_nan = False
                         try:
-                            dict_ens[ens_name] += eval(rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name]])
-                        except KeyError:
-                            dict_ens[ens_name] = eval(rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name]])
+                            is_nan = np.isnan(to_process)
+                        except TypeError:  # not a nan value
+                            pass
+                        finally:
+                            if is_nan:
+                                dict_ens[ens_name] = np.nan
+                            else:
+                                try:
+                                    dict_ens[ens_name] += eval(to_process)
+                                except KeyError:
+                                    dict_ens[ens_name] = eval(to_process)
 
                 condensed[(metric_name, 'mean')] = pd.Series(dict_ens)
                 condensed[(metric_name, 'std')] = np.repeat(np.nan, len(dict_ens))

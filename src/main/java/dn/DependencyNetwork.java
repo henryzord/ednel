@@ -694,31 +694,31 @@ public class DependencyNetwork {
 
                 HashSet<String> parentSet = new HashSet<>(this.variables.get(variableName).getFixedParentsNames());
 
-                while ((candSet.size() > 0) && (parentSet.size() < this.global_max_parents)) {
+                while ((candSet.size() > 0) && (parentSet.size() <= this.global_max_parents)) {  
                     double bestHeuristic = -1;
                     String bestCandidate = null;
 
                     HashSet<String> toRemove = new HashSet<>();
 
                     for (String candidate : candSet) {
-                        if(this.connectionsCount.get(candidate) >= this.global_max_parents) {
-                            toRemove.add(candidate);
-                        } else {
-                            double heuristic = this.heuristic(
-                                    this.variables.get(variableName),
-                                    parentSet,
-                                    this.variables.get(candidate),
-                                    fittest
-                            );
-                            if (heuristic > 0) {
-                                if (heuristic > bestHeuristic) {
-                                    bestHeuristic = heuristic;
-                                    bestCandidate = candidate;
-                                }
-                            } else {
-                                toRemove.add(candidate);
+//                        if(this.connectionsCount.get(candidate) >= this.global_max_parents) {
+//                            toRemove.add(candidate);
+//                        } else {
+                        double heuristic = this.heuristic(
+                                this.variables.get(variableName),
+                                parentSet,
+                                this.variables.get(candidate),
+                                fittest
+                        );
+                        if (heuristic > 0) {
+                            if (heuristic > bestHeuristic) {
+                                bestHeuristic = heuristic;
+                                bestCandidate = candidate;
                             }
+                        } else {
+                            toRemove.add(candidate);
                         }
+//                        }
                     }
                     candSet.removeAll(toRemove);
 
