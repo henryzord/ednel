@@ -694,7 +694,7 @@ public class DependencyNetwork {
 
                 HashSet<String> parentSet = new HashSet<>(this.variables.get(variableName).getFixedParentsNames());
 
-                while ((candSet.size() > 0) && (parentSet.size() <= this.global_max_parents)) {  
+                while ((candSet.size() > 0) && (parentSet.size() < this.global_max_parents)) {
                     double bestHeuristic = -1;
                     String bestCandidate = null;
 
