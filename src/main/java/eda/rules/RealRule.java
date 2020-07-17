@@ -1,9 +1,11 @@
 package eda.rules;
 
+import eda.operator.AbstractOperator;
 import weka.classifiers.rules.Rule;
 import weka.core.Instance;
 import weka.core.Instances;
-import eda.operator.AbstractOperator;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 public class RealRule extends Rule {
     private double classIndex;
@@ -11,14 +13,39 @@ public class RealRule extends Rule {
     private int[] attrIndex;
     private double[] thresholds;
     private AbstractOperator[] operators;
+    /**
+     * Negative preconditions are rules that should NOT be triggered
+     * before triggering this rule.
+     */
+    private ArrayList<RealRule> negativePreconditions;
 
     private int numClasses;
     private String string;
 
-    public RealRule(String line, Instances train_data) throws Exception {
+    /**
+     * How many instances does this rule covers?
+     */
+    private Double coverage;
+    /**
+     * From the amount of instances that this rule covers, how many are wrong predictions?
+     */
+    private Double errors;
+
+    public RealRule(String line, Instances train_data, ArrayList<RealRule> negativePreconditions) throws Exception {
+        this.negativePreconditions = negativePreconditions == null? new ArrayList<>() : (ArrayList<RealRule>)negativePreconditions.clone();
+
         if(line.contains("(")) {
-            // TODO make something out of this data!!!
+            String[] metadata_splited = line.substring(line.indexOf("(") + 1, line.indexOf(")")).split("/");
+            this.coverage = Double.parseDouble(metadata_splited[0]);
+            try {
+                this.errors = Double.parseDouble(metadata_splited[1]);
+            } catch(IndexOutOfBoundsException e) {  // rule has no errors
+                this.errors = 0.0;
+            }
             line = line.substring(0, line.indexOf("(")).trim();
+        } else {
+            this.coverage = Double.NaN;
+            this.errors = Double.NaN;
         }
         this.string = line;
         this.grow(train_data);
@@ -49,6 +76,12 @@ public class RealRule extends Rule {
 
     @Override
     public boolean covers(Instance datum) {
+        // checks if negative pre-conditions cover data. if so, returns false
+        for(int i = 0; i < this.negativePreconditions.size(); i++) {
+            if(this.negativePreconditions.get(i).covers(datum)) {
+                return false;
+            }
+        }
         boolean pass = true;
         int i = 0;
         while(pass && (i < this.attrIndex.length)) {
@@ -56,13 +89,12 @@ public class RealRule extends Rule {
             pass = operator.operate(datum.value(this.attrIndex[i]), this.thresholds[i]);
             i += 1;
         }
-        // return pass? this.classIndex : -1;
         return pass;
     }
 
     @Override
     public boolean hasAntds() {
-        return (this.attrIndex.length > 0);
+        return (this.attrIndex.length > 0) || this.negativePreconditions.size() > 0;
     }
 
     @Override
@@ -72,7 +104,13 @@ public class RealRule extends Rule {
 
     @Override
     public double size() {
-        return this.attrIndex.length;
+        int negative_count = 0;
+        for (Iterator<RealRule> iterator = this.negativePreconditions.iterator(); iterator.hasNext(); ) {
+            RealRule antcd = iterator.next();
+            negative_count += antcd.size();
+        }
+
+        return negative_count + this.attrIndex.length;
     }
 
     @Override

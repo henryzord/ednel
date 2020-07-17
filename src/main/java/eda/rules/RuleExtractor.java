@@ -51,8 +51,10 @@ public class RuleExtractor {
         }
 
         RealRule[] rules = new RealRule[rule_lines.size()];
+        ArrayList<RealRule> cumulativeRules = new ArrayList<>();
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data);
+            rules[i] = new RealRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
+            cumulativeRules.add(rules[i]);
         }
         return rules;
     }
@@ -72,8 +74,10 @@ public class RuleExtractor {
             }
         }
         RealRule[] rules = new RealRule[rule_lines.size()];
+        ArrayList<RealRule> cumulativeRules = new ArrayList<>();
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data);
+            rules[i] = new RealRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
+            cumulativeRules.add(rules[i]);
         }
         return rules;
     }
@@ -146,13 +150,16 @@ public class RuleExtractor {
         ArrayList<String> rule_lines = new ArrayList<>(new_lines.size());
         for(int i = 0; i < new_lines.size(); i++) {
             if(new_lines.get(i).contains(":")) {
-                rule_lines.add(new_lines.get(i));
+                // checks if there are pre-conditions
+                if(new_lines.get(i).split(":")[0].trim().length() > 0) {
+                    rule_lines.add(new_lines.get(i));
+                }
             }
         }
 
         RealRule[] rules = new RealRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data);
+            rules[i] = new RealRule(rule_lines.get(i), train_data, null);
         }
         return rules;
     }
@@ -195,13 +202,16 @@ public class RuleExtractor {
         ArrayList<String> rule_lines = new ArrayList<>(lines.length);
         for(int i = 0; i < lines.length; i++) {
             if(lines[i].contains(":")) {
-                rule_lines.add(lines[i]);
+                // checks if there are pre-conditions
+                if(lines[i].split(":")[0].trim().length() > 0) {
+                    rule_lines.add(lines[i]);
+                }
             }
         }
 
         RealRule[] rules = new RealRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data);
+            rules[i] = new RealRule(rule_lines.get(i), train_data, null);
         }
         return rules;
     }
@@ -285,25 +295,26 @@ public class RuleExtractor {
                 }
                 newline.append(": ").append(posterior);
 
-                realRules[counter] = new RealRule(newline.toString(), train_data);
+                realRules[counter] = new RealRule(newline.toString(), train_data, null);
                 counter += 1;
             }
-        } else {
-            throw new Exception("not implemented yet!");
+        } else {  // has only default rule!
+            return new RealRule[0];
         }
         return realRules;
     }
 
     public static void main(String[] args) {
         try {
-            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");
-            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tst.arff");
+//            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");
+//            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tst.arff");
 
-            AbstractClassifier[] clfs = new AbstractClassifier[]{new J48(), new DecisionTable(), new SimpleCart(), new JRip(), new PART()};
+            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Desktop\\play_tennis.arff");
 
-            Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
+            AbstractClassifier[] clfs = new AbstractClassifier[]{new JRip(), new PART(), new J48(), new DecisionTable(), new SimpleCart()};
+
+            Instances train_data = train_set.getDataSet();
             train_data.setClassIndex(train_data.numAttributes() - 1);
-            test_data.setClassIndex(test_data.numAttributes() - 1);
 
             RealRule[][] all_rules = new RealRule[clfs.length][];
 
@@ -313,12 +324,13 @@ public class RuleExtractor {
             }
             for(int c = 0; c < clfs.length; c++) {
                 for(int r = 0; r < all_rules[c].length; r++) {
-                    if(all_rules[c][r].covers(train_data.get(0))) {
-                        System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
+                    if(all_rules[c][r] != null) {
+                        if(all_rules[c][r].covers(train_data.get(0))) {
+                            System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
+                        }
                     }
                 }
             }
-
 
         } catch (Exception e) {
             e.printStackTrace();
