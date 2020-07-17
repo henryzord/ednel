@@ -1,17 +1,15 @@
 package eda.aggregators;
 
-public class Aggregator {
+public abstract class Aggregator {
     protected double[] competences;
 
-    public double[][] aggregateProba(double[][][] distributions) {
-        return null;
-    }
+    protected abstract void setOptions(Object... args);
 
-    public String[] getOptions() {
-        return new String[]{};
-    }
+    public abstract double[][] aggregateProba(double[][][] distributions);
 
-    public void setCompetences(double[] competences) {
-        this.competences = competences;
-    }
+    public abstract String[] getOptions();
+
+//    public void setCompetences(double[] competences) {
+//        this.competences = competences;
+//    }
 }

@@ -307,7 +307,6 @@ public class RuleExtractor {
     public static void main(String[] args) {
         try {
 //            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");
-//            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tst.arff");
 
             ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Desktop\\play_tennis.arff");
 
@@ -324,10 +323,8 @@ public class RuleExtractor {
             }
             for(int c = 0; c < clfs.length; c++) {
                 for(int r = 0; r < all_rules[c].length; r++) {
-                    if(all_rules[c][r] != null) {
-                        if(all_rules[c][r].covers(train_data.get(0))) {
-                            System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
-                        }
+                    if(all_rules[c][r].covers(train_data.get(0))) {
+                        System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
                     }
                 }
             }

@@ -2,9 +2,10 @@ package eda.aggregators;
 
 import java.io.Serializable;
 
+/**
+ * It is a weighted majority voting aggregator.
+ */
 public class CompetenceBasedAggregator extends Aggregator implements Serializable {
-    public CompetenceBasedAggregator() {
-    }
 
     public double[][] aggregateProba(double[][][] distributions) {
         int
@@ -30,5 +31,15 @@ public class CompetenceBasedAggregator extends Aggregator implements Serializabl
             }
         }
         return finalDistribution;
+    }
+
+    @Override
+    protected void setOptions(Object... args) {
+
+    }
+
+    @Override
+    public String[] getOptions() {
+        return new String[0];
     }
 }

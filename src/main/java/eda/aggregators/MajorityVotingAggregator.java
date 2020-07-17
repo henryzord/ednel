@@ -53,4 +53,14 @@ public class MajorityVotingAggregator extends Aggregator implements Serializable
         }
         return finalDistribution;
     }
+
+    @Override
+    protected void setOptions(Object... args) {
+
+    }
+
+    @Override
+    public String[] getOptions() {
+        return new String[0];
+    }
 }

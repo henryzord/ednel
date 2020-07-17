@@ -115,7 +115,18 @@ public class RealRule extends Rule {
 
     @Override
     public String toString() {
-        return this.string;
+        String answer = this.string;
+
+        // TODO to completely fix this, it will be needed an algorithm to remove redundancies
+
+//        if(this.negativePreconditions.size() > 0) {
+//            String negatives_joined = this.negativePreconditions.get(0).toString();
+//            for(int i = 1; i < this.negativePreconditions.size(); i++) {
+//                negatives_joined += " and " + this.negativePreconditions.get(i).toString();
+//            }
+//            answer = String.format("not (%s) and %s", negatives_joined, answer);
+//        }
+        return answer;
     }
 
     @Override
