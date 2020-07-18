@@ -9,7 +9,7 @@ public abstract class Aggregator {
 
     public abstract String[] getOptions();
 
-//    public void setCompetences(double[] competences) {
-//        this.competences = competences;
-//    }
+    public void setCompetences(double[] competences) {
+        this.competences = competences;
+    }
 }

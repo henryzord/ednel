@@ -57,20 +57,27 @@ public class RealRule extends Rule {
         this.classIndex = data.classAttribute().indexOfValue(parts[1].trim());
         this.numClasses = data.classAttribute().numValues();
 
-        String[] conditions = parts[0].split(" and ");
+        // if there are pre-conditions to this specific rule; otherwise, it is the default rule
+        if(parts[0].length() > 0) {
+            String[] conditions = parts[0].split(" and ");
 
-        this.attrIndex = new int [conditions.length];
-        this.thresholds = new double [conditions.length];
-        this.operators = new AbstractOperator [conditions.length];
+            this.attrIndex = new int [conditions.length];
+            this.thresholds = new double [conditions.length];
+            this.operators = new AbstractOperator [conditions.length];
 
-        for(int i = 0; i < conditions.length; i++) {
-            String[] parted = conditions[i].trim().split(" ");
-            int attr_index = data.attribute(parted[0].trim()).index();
-            boolean isNominal = data.attribute(attr_index).isNominal();
+            for(int i = 0; i < conditions.length; i++) {
+                String[] parted = conditions[i].trim().split(" ");
+                int attr_index = data.attribute(parted[0].trim()).index();
+                boolean isNominal = data.attribute(attr_index).isNominal();
 
-            this.attrIndex[i] = attr_index;
-            this.operators[i] = AbstractOperator.valueOf(parted[1].trim());
-            this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[2].trim()) : Double.valueOf(parted[2].trim());
+                this.attrIndex[i] = attr_index;
+                this.operators[i] = AbstractOperator.valueOf(parted[1].trim());
+                this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[2].trim()) : Double.valueOf(parted[2].trim());
+            }
+        } else {
+            this.attrIndex = new int[0];
+            this.thresholds = new double[0];
+            this.operators = new AbstractOperator[0];
         }
     }
 

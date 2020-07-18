@@ -44,10 +44,7 @@ public class RuleExtractor {
         ArrayList<String> rule_lines = new ArrayList<>(lines.length);
 
         for(int i = 0; i < lines.length; i++) {
-            String priors = lines[i].split(":")[0];
-            if(priors.length() > 0) {
-                rule_lines.add(lines[i].replaceAll("AND\n", "and "));
-            }
+            rule_lines.add(lines[i].replaceAll("AND\n", "and "));
         }
 
         RealRule[] rules = new RealRule[rule_lines.size()];
@@ -67,11 +64,11 @@ public class RuleExtractor {
         ArrayList<String> rule_lines = new ArrayList<>(lines.length);
         for(int i = 0; i < lines.length; i++) {
             String priors = lines[i].substring(0, lines[i].lastIndexOf("=>")).trim();
-            if (priors.length() > 0) {
-                String posteriori = lines[i].substring(lines[i].lastIndexOf("=>") + "=>".length()).trim();
-                priors = priors.replaceAll("\\(", "").replaceAll("\\)", "");
-                rule_lines.add(String.format("%s: %s", priors, posteriori.split("=")[1]));
-            }
+//            if (priors.length() > 0) {
+            String posteriori = lines[i].substring(lines[i].lastIndexOf("=>") + "=>".length()).trim();
+            priors = priors.replaceAll("\\(", "").replaceAll("\\)", "");
+            rule_lines.add(String.format("%s: %s", priors, posteriori.split("=")[1]));
+//            }
         }
         RealRule[] rules = new RealRule[rule_lines.size()];
         ArrayList<RealRule> cumulativeRules = new ArrayList<>();
