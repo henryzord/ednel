@@ -3,11 +3,11 @@ package ednel.eda.aggregators;
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.rules.RealRule;
 import weka.classifiers.AbstractClassifier;
-import weka.classifiers.Classifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
+import weka.core.Instance;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
@@ -17,6 +17,15 @@ import java.util.Collections;
 
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
+    public RuleExtractorAggregator() {
+    }
+
+    /**
+     * Set competences for rules (i.e. not classifiers).
+     * @param clfs List of classifiers
+     * @param train_data Training data
+     * @throws Exception
+     */
     @Override
     public void setCompetences(AbstractClassifier[] clfs, Instances train_data) throws Exception {
         int n_active_classifiers = this.getActiveClassifiersCount(clfs);
@@ -31,15 +40,25 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             }
         }
 
+        int z = 0;
+
         // TODO now set competences!
 
     }
 
     @Override
-    public double[][] aggregateProba(double[][][] distributions) {
+    public String[] getOptions() {
+        return new String[0];
+    }
 
+    @Override
+    public double[][] aggregateProba(AbstractClassifier[] clfs, Instances batch) throws Exception {
         return new double[0][];
+    }
 
+    @Override
+    public double[] aggregateProba(AbstractClassifier[] clfs, Instance instance) throws Exception {
+        return new double[0];
     }
 
 
@@ -328,7 +347,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
         return realRules;
     }
-    
+
     public static void main(String[] args) {
         try {
 //            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");

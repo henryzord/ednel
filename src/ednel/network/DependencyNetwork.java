@@ -272,7 +272,9 @@ public class DependencyNetwork {
                 options[counter + 1] =  curVal != null? curVal : "";
                 counter += 2;
             }
-            String[] copyOptions = (String[])options.clone(); // TODo remove later!
+
+            // TODO only here for debugging purposes. can be removed later
+            String[] copyOptions = (String[])options.clone();
             try {
                 Individual individual = new Individual(options, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
@@ -285,7 +287,6 @@ public class DependencyNetwork {
                 }
             } catch(Exception e) {  // invalid individual generated
                 this.currentGenDiscardedIndividuals += 1;
-//                throw e; // TODO remove!
             }
         }
         this.lastStart = null;

@@ -36,4 +36,9 @@ public class CompetenceBasedAggregator extends MajorityVotingAggregator implemen
             i += 1;
         }
     }
+
+    @Override
+    public String[] getOptions() {
+        return new String[0];
+    }
 }

@@ -4,6 +4,7 @@ import ednel.eda.aggregators.Aggregator;
 import ednel.eda.aggregators.CompetenceBasedAggregator;
 import ednel.eda.aggregators.MajorityVotingAggregator;
 import ednel.classifiers.trees.SimpleCart;
+import org.reflections.Reflections;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
@@ -11,8 +12,11 @@ import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.*;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
 
@@ -31,9 +35,9 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected HashMap<String, String> characteristics = null;
 
     protected HashMap<String, AbstractClassifier> classifiers;
-    protected AbstractClassifier[] orderedClassifiers = new AbstractClassifier[]{
-            j48, simpleCart, part, jrip, decisionTable
-    };
+    protected AbstractClassifier[] orderedClassifiers = null;
+
+    private static HashMap<String, Class<? extends Aggregator>> aggregatorClasses;
 
     public Individual() throws Exception {
         this.j48 = null;
@@ -50,6 +54,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.classifiers.put("PART", null);
         this.classifiers.put("JRip", null);
         this.classifiers.put("DecisionTable", null);
+
+        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
     }
 
     public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
@@ -90,6 +96,22 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 //        };
 //    }
 
+    public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
+        if(Individual.aggregatorClasses == null) {
+            Individual.aggregatorClasses = new HashMap<>();
+
+            Reflections reflections = new Reflections("ednel.eda.aggregators");
+            Set<Class<? extends Aggregator>> allClasses = reflections.getSubTypesOf(Aggregator.class);
+            for (Iterator<Class<? extends Aggregator>> it = allClasses.iterator(); it.hasNext(); ) {
+                Class<? extends Aggregator> agg = it.next();
+                String[] splitted = agg.getName().split("\\.");
+                String agg_name = splitted[splitted.length - 1];
+                Individual.aggregatorClasses.put(agg_name, agg);
+            }
+        }
+        return Individual.aggregatorClasses;
+
+    }
 
     public HashMap<String, String> getCharacteristics() {
         return characteristics;
@@ -106,11 +128,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         String[] greedyStepwise = Utils.getOption("GreedyStepwise", options).split(" ");
         String[] aggregatorParameters = Utils.getOption("Aggregator", options).split(" ");
 
-        aggregatorName = aggregatorParameters[0];
-        if(aggregatorName.equals("MajorityVotingAggregator")) {
-            this.aggregator = new MajorityVotingAggregator();
-        } else if (aggregatorName.equals("CompetenceBasedAggregator")) {
-            this.aggregator = new CompetenceBasedAggregator();
+        this.aggregatorName = aggregatorParameters[0];
+        HashMap<String, Class<? extends Aggregator>> aggrClass = Individual.getAggregatorClasses();
+        Class<? extends Aggregator> cls = aggrClass.getOrDefault(aggregatorName, null);
+
+        if(cls != null) {
+            this.aggregator = (Aggregator)cls.getConstructor().newInstance();
         } else {
             throw new Exception("Aggregator " + aggregatorParameters[0] + " not currently supported!");
         }
@@ -184,6 +207,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             decisionTable = null;
         }
 
+        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
     }
 
     @Override
@@ -191,12 +215,13 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         train_data = data;
 
         this.n_active_classifiers = 0;
-        for(String key : this.classifiers.keySet()) {
-            if(this.classifiers.get(key) != null) {
-                this.classifiers.get(key).buildClassifier(data);
-                this.n_active_classifiers += 1;
+        for(AbstractClassifier clf : this.orderedClassifiers) {
+            if(clf != null) {
+                clf.buildClassifier(data);
+                n_active_classifiers += 1;
             }
         }
+
         if(n_active_classifiers <= 0) {
             throw new Exception("Ensemble must contain at least one classifier!");
         }

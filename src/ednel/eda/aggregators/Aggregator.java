@@ -20,4 +20,6 @@ public abstract class Aggregator {
         }
         return n_active_classifiers;
     }
+
+    public abstract String[] getOptions();
 }
