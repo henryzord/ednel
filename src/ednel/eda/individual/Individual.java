@@ -5,8 +5,6 @@ import ednel.eda.aggregators.CompetenceBasedAggregator;
 import ednel.eda.aggregators.MajorityVotingAggregator;
 import ednel.classifiers.trees.SimpleCart;
 import weka.classifiers.AbstractClassifier;
-import weka.classifiers.Classifier;
-import weka.classifiers.Evaluation;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
@@ -33,6 +31,9 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected HashMap<String, String> characteristics = null;
 
     protected HashMap<String, AbstractClassifier> classifiers;
+    protected AbstractClassifier[] orderedClassifiers = new AbstractClassifier[]{
+            j48, simpleCart, part, jrip, decisionTable
+    };
 
     public Individual() throws Exception {
         this.j48 = null;
@@ -189,12 +190,11 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     public void buildClassifier(Instances data) throws Exception {
         train_data = data;
 
-        n_active_classifiers = 0;
-        Classifier[] clfs = new Classifier[]{j48, simpleCart, part, jrip, decisionTable};
-        for(Classifier clf : clfs) {
-            if(clf != null) {
-                clf.buildClassifier(data);
-                n_active_classifiers += 1;
+        this.n_active_classifiers = 0;
+        for(String key : this.classifiers.keySet()) {
+            if(this.classifiers.get(key) != null) {
+                this.classifiers.get(key).buildClassifier(data);
+                this.n_active_classifiers += 1;
             }
         }
         if(n_active_classifiers <= 0) {
@@ -204,22 +204,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             throw new Exception("Ensemble must have an aggregation policy!");
         }
 
-        double[] competences = null;
-        if(aggregatorName.equals("CompetenceBasedAggregator")) {
-            competences = new double[n_active_classifiers];
-            int i = 0, counter = 0;
-            while(counter < n_active_classifiers) {
-                if(clfs[i] != null) {
-                    Evaluation evaluation = new Evaluation(train_data);
-                    evaluation.evaluateModel(clfs[i], train_data);
-                    competences[counter] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
-                    counter += 1;
-
-                }
-                i += 1;
-            }
-        }
-        aggregator.setCompetences(competences);
+        this.aggregator.setCompetences(this.orderedClassifiers, data);
     }
 
     @Override
@@ -237,34 +222,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public double[] distributionForInstance(Instance instance) throws Exception {
-        Classifier[] clfs = new Classifier[]{j48, simpleCart, part, jrip, decisionTable};
-
-        double[][][] dists = new double[this.n_active_classifiers][][];
-        int i = 0, counter = 0;
-        while(counter < n_active_classifiers) {
-            if(clfs[i] != null) {
-                dists[counter] = new double[][]{clfs[i].distributionForInstance(instance)};
-                counter += 1;
-            }
-            i += 1;
-        }
-        return this.aggregator.aggregateProba(dists)[0];
+        return this.aggregator.aggregateProba(orderedClassifiers, instance);
     }
 
     @Override
     public double[][] distributionsForInstances(Instances batch) throws Exception {
-        Classifier[] clfs = new Classifier[]{j48, simpleCart, part, jrip, decisionTable};
-
-        double[][][] dists = new double[this.n_active_classifiers][][];
-        int i = 0, counter = 0;
-        while(counter < n_active_classifiers) {
-            if(clfs[i] != null) {
-                dists[counter] = ((AbstractClassifier) clfs[i]).distributionsForInstances(batch);
-                counter += 1;
-            }
-            i += 1;
-        }
-        return this.aggregator.aggregateProba(dists);
+        return this.aggregator.aggregateProba(orderedClassifiers, batch);
     }
 
     @Override

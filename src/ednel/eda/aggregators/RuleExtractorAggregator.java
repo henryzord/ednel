@@ -3,6 +3,7 @@ package ednel.eda.aggregators;
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.rules.RealRule;
 import weka.classifiers.AbstractClassifier;
+import weka.classifiers.Classifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
@@ -17,18 +18,28 @@ import java.util.Collections;
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
     @Override
-    protected void setOptions(Object... args) {
-        
+    public void setCompetences(AbstractClassifier[] clfs, Instances train_data) throws Exception {
+        int n_active_classifiers = this.getActiveClassifiersCount(clfs);
+
+        RealRule[][] all_rules = new RealRule[n_active_classifiers][];
+
+        int counter = 0;
+        for(int i = 0; i < clfs.length; i++) {
+            if(clfs[i] != null) {
+                all_rules[counter] = RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data);
+                counter += 1;
+            }
+        }
+
+        // TODO now set competences!
+
     }
 
     @Override
     public double[][] aggregateProba(double[][][] distributions) {
-        return new double[0][];
-    }
 
-    @Override
-    public String[] getOptions() {
-        return new String[0];
+        return new double[0][];
+
     }
 
 
@@ -317,7 +328,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
         return realRules;
     }
-
+    
     public static void main(String[] args) {
         try {
 //            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");

@@ -1,45 +1,39 @@
 package ednel.eda.aggregators;
 
+import ednel.eda.individual.FitnessCalculator;
+import weka.classifiers.AbstractClassifier;
+import weka.classifiers.Evaluation;
+import weka.core.Instance;
+import weka.core.Instances;
+
 import java.io.Serializable;
 
 /**
  * It is a weighted majority voting aggregator.
  */
-public class CompetenceBasedAggregator extends Aggregator implements Serializable {
+public class CompetenceBasedAggregator extends MajorityVotingAggregator implements Serializable {
 
-    public double[][] aggregateProba(double[][][] distributions) {
-        int
-            n_classifiers = distributions.length,
-            n_instances = distributions[0].length,
-            n_classes = distributions[0][0].length;
+    /**
+     * Assign competence do classifiers based on how well they perform on training data, based on AUC.
+     * @param clfs List of classifiers
+     * @param train_data Data to measure competences from
+     * @throws Exception
+     */
+    @Override
+    public void setCompetences(AbstractClassifier[] clfs, Instances train_data) throws Exception {
+        int n_active_classifiers = this.getActiveClassifiersCount(clfs);
 
-        double[][] finalDistribution = new double [n_instances][n_classes];
+        this.competences = new double[n_active_classifiers];
+        int i = 0, counter = 0;
+        while(counter < n_active_classifiers) {
+            if(clfs[i] != null) {
+                Evaluation evaluation = new Evaluation(train_data);
+                evaluation.evaluateModel(clfs[i], train_data);
+                this.competences[counter] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
+                counter += 1;
 
-        for(int j = 0; j < n_instances; j++) {
-            double sum = 0;
-            for(int k = 0; k < n_classes; k++) {
-                finalDistribution[j][k] = 0;
-                for(int i = 0; i < n_classifiers; i++) {
-                    finalDistribution[j][k] += distributions[i][j][k] * competences[i];
-                }
-                finalDistribution[j][k] /= n_classifiers;
-                sum += finalDistribution[j][k];
             }
-            // normalizes
-            for(int k = 0; k < n_classes; k++) {
-                finalDistribution[j][k] /= sum;
-            }
+            i += 1;
         }
-        return finalDistribution;
-    }
-
-    @Override
-    protected void setOptions(Object... args) {
-
-    }
-
-    @Override
-    public String[] getOptions() {
-        return new String[0];
     }
 }
