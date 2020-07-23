@@ -19,33 +19,40 @@ public class RealRule extends Rule {
      */
     private ArrayList<RealRule> negativePreconditions;
 
+    /**
+     * Number of classes.
+     */
     private int numClasses;
+
+    /**
+     * Description of this rule.
+     */
     private String string;
 
     /**
-     * How many instances does this rule covers?
+     * How many instances were originally covered by this rule, when it was extracted from its context.
      */
-    private Double coverage;
+    private Double originalCoverage;
     /**
-     * From the amount of instances that this rule covers, how many are wrong predictions?
+     * From the (original) number of instances that this rule covered, the amount that were incorrectly classified
      */
-    private Double errors;
+    private Double originalErrors;
 
     public RealRule(String line, Instances train_data, ArrayList<RealRule> negativePreconditions) throws Exception {
         this.negativePreconditions = negativePreconditions == null? new ArrayList<>() : (ArrayList<RealRule>)negativePreconditions.clone();
 
         if(line.contains("(")) {
             String[] metadata_splited = line.substring(line.indexOf("(") + 1, line.indexOf(")")).split("/");
-            this.coverage = Double.parseDouble(metadata_splited[0]);
+            this.originalCoverage = Double.parseDouble(metadata_splited[0]);
             try {
-                this.errors = Double.parseDouble(metadata_splited[1]);
+                this.originalErrors = Double.parseDouble(metadata_splited[1]);
             } catch(IndexOutOfBoundsException e) {  // rule has no errors
-                this.errors = 0.0;
+                this.originalErrors = 0.0;
             }
             line = line.substring(0, line.indexOf("(")).trim();
         } else {
-            this.coverage = Double.NaN;
-            this.errors = Double.NaN;
+            this.originalCoverage = Double.NaN;
+            this.originalErrors = Double.NaN;
         }
         this.string = line;
         this.grow(train_data);

@@ -3,10 +3,8 @@ package ednel.network.variables;
 import ednel.eda.individual.Individual;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.exception.MathArithmeticException;
-import org.apache.commons.math3.linear.SingularMatrixException;
 import org.apache.commons.math3.random.MersenneTwister;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 public abstract class AbstractVariable {
@@ -607,45 +605,14 @@ public abstract class AbstractVariable {
             }
         }
 
+        addResidualProbabilities();  // TODO change formula here later!!!
+
         // updates probabilities
         // also updates normal distributions, if this variable is continuous
-        HashMap<String, Object[]> parentsArrayOfValues = new HashMap<>();
-        int[] sizes = new int [allParents.size()];
-        int[] carousel = new int [allParents.size()];
 
-        Object[] allParentsArray = allParents.toArray();
-        for(int i = 0; i < allParentsArray.length; i++) {
-            Object[] parentUnVal = this.table.get((String)allParentsArray[i]).keySet().toArray();
-            parentsArrayOfValues.put(
-                    (String)allParentsArray[i],
-                    parentUnVal
-            );
-            sizes[i] = parentUnVal.length;
-            carousel[i] = 0;
-        }
-
-        addResidualProbabilities();
-
-        int counter = 0;
-        int parent_combinations = n_combinations / this.uniqueValues.size();
-        while(counter < parent_combinations) {
-            HashMap<String, String> cond = new HashMap<>();
-
-            // adds a new combination of values for parents
-            for(int i = 0; i < allParentsArray.length; i++) {
-                String parentName = (String)allParentsArray[i];
-                cond.put(
-                        parentName,
-                        (String)parentsArrayOfValues.get(parentName)[carousel[i]]
-                );
-            }
-            carousel = advanceCarousel(carousel, sizes);
-            counter += 1;
-
-            // indices now has the set of indices that parents match cond, but child variable has all its values
-            HashSet<Integer> indices = this.getSetOfIndices(
-                    this.table, this.probabilities.size(), cond, null, false, allParents);
-
+        // indices now has the set of indices that parents match cond, but child variable has all its values
+        HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices = this.iterateOverParentValues();
+        for(HashSet<Integer> indices : parentValIndices.values()) {
             // updates normal distributions
             if(this instanceof ContinuousVariable) {
                 ((ContinuousVariable)this).updateNormalDistributions(indices, dda, ddc, ddd);
@@ -658,12 +625,87 @@ public abstract class AbstractVariable {
                 );
             }
         }
+
+        normalizeProbabilities(parentValIndices);
+
         for(int i = 0; i < this.probabilities.size(); i++) {
             if(Double.isNaN(this.probabilities.get(i))) {
                 this.probabilities.set(i, 0.0);
             }
         }
     }
+
+    /**
+     * Iterates over all parent values (either fixed or mutable).
+     *
+     * @return Returns a dictionary where the key is the combination of parent values (excluded child, i.e this variable
+     * values) and the dictionary value for that key is the set of indices where that combination of parent values happen.
+     */
+    private HashMap<HashMap<String, String>, HashSet<Integer>> iterateOverParentValues() {
+        HashSet<String> allParents = new HashSet<>();
+        allParents.addAll(this.mutable_parents);
+        allParents.addAll(this.fixed_parents);
+
+        HashMap<String, Object[]> parentsArrayOfValues = new HashMap<>();
+        int[] sizes = new int [allParents.size()];
+        int[] carousel = new int [allParents.size()];
+
+        Object[] allParentsArray = allParents.toArray();
+        int parent_combinations = 1;
+        for(int i = 0; i < allParentsArray.length; i++) {
+            Object[] parentUnVal = this.table.get((String)allParentsArray[i]).keySet().toArray();
+            parentsArrayOfValues.put(
+                    (String)allParentsArray[i],
+                    parentUnVal
+            );
+            sizes[i] = parentUnVal.length;
+            parent_combinations *= sizes[i];
+            carousel[i] = 0;
+        }
+
+        HashMap<HashMap<String, String>, HashSet<Integer>> results = new HashMap<>(parent_combinations);
+
+        int counter = 0;
+        while(counter < parent_combinations) {
+            HashMap<String, String> cond = new HashMap<>();
+
+            // adds a new combination of values for parents
+            for (int i = 0; i < allParentsArray.length; i++) {
+                String parentName = (String) allParentsArray[i];
+                cond.put(
+                        parentName,
+                        (String) parentsArrayOfValues.get(parentName)[carousel[i]]
+                );
+            }
+            carousel = advanceCarousel(carousel, sizes);
+            counter += 1;
+
+            HashSet<Integer> indices = this.getSetOfIndices(
+                this.table, this.probabilities.size(), cond, null, false, allParents
+            );
+            results.put(cond, indices);
+        }
+        return results;
+    }
+
+    /**
+     * Call this function right after updating probabilities.
+     * Will re-normalize them. Prevents probabilities from vanishing in later generations.
+     */
+    private void normalizeProbabilities(HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices) {
+        for(HashSet<Integer> indices : parentValIndices.values()) {
+            double sum = 0;
+
+            for(int index : indices) {
+                sum += this.probabilities.get(index);
+            }
+
+            for(int index : indices) {
+                this.probabilities.set(index, this.probabilities.get(index) / sum);
+            }
+        }
+    }
+
 
     public abstract void updateUniqueValues(HashMap<String, ArrayList<String>> fittest);
 

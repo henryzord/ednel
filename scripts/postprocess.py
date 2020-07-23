@@ -1,5 +1,6 @@
 """
-Use this script to collapse metrics after running an experiment.
+After running an experiment, use this experiment to generate .csv files (one for each dataset, placed at <metadata_folder>/overall
+for that dataset) with results for each of the metrics considered in EDAEvaluation.metrics
 
 export java_home before using it:
 
@@ -288,7 +289,8 @@ def main(metadata_path, write=True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='script for collapsing metrics'
+        description='After running an experiment, use this experiment to generate .csv files (one for each dataset, placed at <metadata_folder>/overall ' \
+        'for that dataset) with results for each of the metrics considered in EDAEvaluation.metrics'
     )
 
     parser.add_argument(
