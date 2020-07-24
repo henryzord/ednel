@@ -81,8 +81,8 @@ public class DependencyNetwork {
         }
 
         for(String var : variables.keySet()) {
-            ArrayList<String> mutParents = variables.get(var).getMutableParentsNames();
-            ArrayList<String> fixParents = variables.get(var).getFixedParentsNames();
+            HashSet<String> mutParents = variables.get(var).getMutableParentsNames();
+            HashSet<String> fixParents = variables.get(var).getFixedParentsNames();
 //            for(String mut : mutParents) {
 //                this.connectionsCount.put(mut, this.connectionsCount.getOrDefault(mut, 0) + 1);
 //                this.connectionsCount.put(var, this.connectionsCount.getOrDefault(var, 0) + 1);
@@ -134,7 +134,7 @@ public class DependencyNetwork {
                 // isContinuous.put(variableName, false);
                 this.variable_names.add(variableName);
                 int n_variables_table = 1;
-                ArrayList<String> parents_names = new ArrayList<>();
+                HashSet<String> parents_names = new HashSet<>();
 
                 HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(header.length);
                 table.put(variableName, new HashMap<>());
@@ -190,6 +190,11 @@ public class DependencyNetwork {
         }
     }
 
+    /**
+     * Samples a single individual.
+     * @return A new individual, in the format of a dictionary of characteristics.
+     * @throws Exception IF any exception occurs
+     */
     private HashMap<String, String> sampleIndividual() throws Exception {
         HashMap<String, String> optionTable = new HashMap<>(this.variable_names.size());
 
@@ -200,14 +205,24 @@ public class DependencyNetwork {
 
                 String sampledValue = this.variables.get(variableName).conditionalSampling(lastStart);
 
-                if(optionTable.getOrDefault(algorithmName, null) == null) {
-                    optionTable.put(algorithmName, "");
+                boolean sampleAlgorithmSurrogateVariables = true;
+                if(variableName.equals(algorithmName)) {
+                    if(sampledValue.equals("false")) {
+                        optionTable.put(algorithmName, null);
+                        lastStart.put(variableName, sampledValue);
+                        sampleAlgorithmSurrogateVariables = false;
+                    }
+                } else {
+
                 }
 
-                lastStart.put(variableName, sampledValue);
 
-                //!String.valueOf(algorithmName).equals("null") &&
-                if(!String.valueOf(sampledValue).equals("null")) {
+                // TODO here!!!!
+                if(lastStart.getOrDefault(algorithmName, null) == null) {
+                    lastStart.put(variableName, null);  // lastStart can have null values
+                } else {
+                    lastStart.put(variableName, sampledValue);
+
                     JSONObject optionObj = (JSONObject)classifiersResources.getOrDefault(variableName, null);
                     if(optionObj == null) {
                         optionObj = (JSONObject)classifiersResources.getOrDefault(sampledValue, null);
@@ -230,9 +245,13 @@ public class DependencyNetwork {
                                 }
                             }
                         } else {
-                            optionTable.put(algorithmName, (optionTable.getOrDefault(algorithmName, "") + " " + optionName + " " + sampledValue).trim());
+                            optionTable.put(
+                                algorithmName, (
+                                optionTable.getOrDefault(algorithmName, "") + " " + optionName + " " + sampledValue
+                                ).trim()
+                            );
                         }
-                    }
+                   }
                 }
             }
         }
@@ -300,7 +319,7 @@ public class DependencyNetwork {
      * @return
      */
     private ArrayList<HashMap<String, String>> generateCombinations(String variableName) {
-        ArrayList<String> parents = this.variables.get(variableName).getMutableParentsNames();
+        HashSet<String> parents = this.variables.get(variableName).getMutableParentsNames();
 
         ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.size() + 1);
         Object[] thisUniqueValues = this.variables.get(variableName).getUniqueValues().toArray();
@@ -731,8 +750,10 @@ public class DependencyNetwork {
                 AbstractVariable thisVariable = this.variables.get(variableName);
                 AbstractVariable[] mutableParents = new AbstractVariable[parentSet.size()];
                 AbstractVariable[] fixedParents = new AbstractVariable[thisVariable.getFixedParentsNames().size()];
-                for(int i = 0; i < fixedParents.length; i++) {
-                    fixedParents[i] = this.variables.get(thisVariable.getFixedParentsNames().get(i));
+                int fixCounter = 0;
+                for(String fixedParentName : thisVariable.getFixedParentsNames()) {
+                    fixedParents[fixCounter] = this.variables.get(fixedParentName);
+                    fixCounter += 1;
                 }
 
                 Object[] parentList = parentSet.toArray();

@@ -10,8 +10,20 @@ import java.util.*;
 public abstract class AbstractVariable {
     protected String name;
 
-    protected ArrayList<String> mutable_parents;
-    protected ArrayList<String> fixed_parents;
+    /**
+     * Mutable parents from previous generation.
+     */
+    protected HashSet<String> lastgen_mutable_parents;
+
+    /**
+     * Current generation mutable parents.
+     */
+    protected HashSet<String> mutable_parents;
+
+    /**
+     * Fixed parents of a variable.
+     */
+    protected HashSet<String> fixed_parents;
     protected HashMap<String, Boolean> isParentContinuous;
     protected int max_parents;
 
@@ -68,7 +80,7 @@ public abstract class AbstractVariable {
     protected static String[] singleParentVariables = {"J48_reducedErrorPruning", "J48_unpruned", "PART_reducedErrorPruning", "PART_unpruned"};
 
     public AbstractVariable(
-            String name, ArrayList<String> fixed_parents, HashMap<String, Boolean> isParentContinuous,
+            String name, HashSet<String> fixed_parents, HashMap<String, Boolean> isParentContinuous,
             HashMap<String, HashMap<String, ArrayList<Integer>>> table,
             HashSet<String> uniqueValues, HashSet<Shadowvalue> uniqueshadowValues,
             ArrayList<Shadowvalue> values, ArrayList<Double> probabilities,
@@ -76,7 +88,8 @@ public abstract class AbstractVariable {
 
         this.name = name;
         this.fixed_parents = fixed_parents;
-        this.mutable_parents = new ArrayList<>();
+        this.lastgen_mutable_parents = new HashSet<>();
+        this.mutable_parents = new HashSet<>();
         this.isParentContinuous = isParentContinuous;
 
         this.uniqueValues = uniqueValues;
@@ -116,12 +129,12 @@ public abstract class AbstractVariable {
         Arrays.fill(this.variablesCombinations, "");
         this.addToVariablesCombinations(this.fixed_parents);
         this.addToVariablesCombinations(this.mutable_parents);
-        this.addToVariablesCombinations(new ArrayList<String>(){{
+        this.addToVariablesCombinations(new HashSet<String>(){{
             add(name);
         }});
     }
 
-    private void addToVariablesCombinations(ArrayList<String> variables) {
+    private void addToVariablesCombinations(HashSet<String> variables) {
         for(String parent : variables) {
             for(String val : this.table.get(parent).keySet()) {
                 Iterator<Integer> iter = this.table.get(parent).get(val).iterator();
@@ -300,6 +313,8 @@ public abstract class AbstractVariable {
     public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
                                 HashMap<String, ArrayList<String>> fittest) throws Exception {
 
+        this.lastgen_mutable_parents = (HashSet<String>)this.mutable_parents.clone();
+
         for(String mutable_parent : this.mutable_parents) {
             this.isParentContinuous.remove(mutable_parent);
         }
@@ -307,7 +322,7 @@ public abstract class AbstractVariable {
 
         // if variable is not among fixed parents
         for(AbstractVariable par : mutableParents) {
-            if(this.fixed_parents.indexOf(par.getName()) == -1) {
+            if(!this.fixed_parents.contains(par.getName())) {
                 this.mutable_parents.add(par.getName());
                 this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
             }
@@ -450,10 +465,15 @@ public abstract class AbstractVariable {
     /**
      * a modified way of performing learning rate.
      */
-    private void addResidualProbabilities() {
+    private void addResidualProbabilities() throws Exception {
+
+
+
         String[] fixedNames = new String [fixed_parents.size() + 1];
-        for(int i = 0; i < fixed_parents.size(); i++) {
-            fixedNames[i] = fixed_parents.get(i);
+        int fixedCounter = 0;
+        for(String fixPar : fixed_parents) {
+            fixedNames[fixedCounter] = fixPar;
+            fixedCounter += 1;
         }
         fixedNames[fixed_parents.size()] = this.getName();
 
@@ -495,6 +515,8 @@ public abstract class AbstractVariable {
                 this.probabilities.set(index, meanOldProbability);
             }
         }
+
+        throw new Exception("now take into account previous gen mutable parents!!!");
     }
 
     /**
@@ -539,11 +561,11 @@ public abstract class AbstractVariable {
      */
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
         int n_combinations = updateShadowValues();
-        double countsSum = 0;
+        double fittestPopulationSize = 0;
         int n_continuous = 0;
         int n_fittest = fittestValues.get(this.getName()).size();
 
-        ArrayList<Double> counts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
+        ArrayList<Double> fittestCounts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
         this.probabilities = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));
 
         HashMap<String, Integer> ddd = new HashMap<>();
@@ -590,8 +612,8 @@ public abstract class AbstractVariable {
                 throw new Exception("unexpected behaviour!");
             }
             // registers this individual occurrence
-            counts.set(indices[0], counts.get(indices[0]) + 1);
-            countsSum += 1;
+            fittestCounts.set(indices[0], fittestCounts.get(indices[0]) + 1);
+            fittestPopulationSize += 1;
 
             // annotates float values, if any
             for(String var : ddd.keySet()) {
@@ -605,26 +627,36 @@ public abstract class AbstractVariable {
             }
         }
 
-        addResidualProbabilities();  // TODO change formula here later!!!
+        boolean sameMutableParents = this.lastgen_mutable_parents.containsAll(this.mutable_parents) &&
+                this.mutable_parents.containsAll(this.lastgen_mutable_parents);
 
-        // updates probabilities
-        // also updates normal distributions, if this variable is continuous
+        // TODO now take into account previous gen mutable parents!!!
 
-        // indices now has the set of indices that parents match cond, but child variable has all its values
         HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices = this.iterateOverParentValues();
-        for(HashSet<Integer> indices : parentValIndices.values()) {
+
+        for(HashMap<String, String> parentCombination : parentValIndices.keySet()) {
             // updates normal distributions
             if(this instanceof ContinuousVariable) {
-                ((ContinuousVariable)this).updateNormalDistributions(indices, dda, ddc, ddd);
+                ((ContinuousVariable)this).updateNormalDistributions(parentValIndices.get(parentCombination), dda, ddc, ddd);
             }
 
-            for(int index : indices) {
-                this.probabilities.set(
-                        index,
-                        this.probabilities.get(index) + this.learningRate * (counts.get(index) / countsSum)
-                );
+            for(String selfValue : this.uniqueValues) {
+                // TODO double check!
+                HashSet<Integer> indices = this.getSetOfIndices(this.table, this.probabilities.size(), parentCombination, selfValue, true, allParents);
+                if(indices.size() > 1) {
+                    throw new Exception("should have return only one index!");
+                }
+
+                Integer index = (Integer)indices.toArray()[0];
+
+                double old_value = sameMutableParents? (1 - this.learningRate) * this.probabilities.get(index) : 0;
+                double new_value = (sameMutableParents? this.learningRate : 1) * fittestCounts.get(index) / fittestPopulationSize;
+
+                this.probabilities.set(index, old_value + new_value);
             }
         }
+        // updates probabilities
+        // also updates normal distributions, if this variable is continuous
 
         normalizeProbabilities(parentValIndices);
 
@@ -636,7 +668,7 @@ public abstract class AbstractVariable {
     }
 
     /**
-     * Iterates over all parent values (either fixed or mutable).
+     * Iterates over all parent values (either fixed or mutable); mutable variables are the ones in current generation.
      *
      * @return Returns a dictionary where the key is the combination of parent values (excluded child, i.e this variable
      * values) and the dictionary value for that key is the set of indices where that combination of parent values happen.
@@ -715,21 +747,15 @@ public abstract class AbstractVariable {
             lines.add("");
         }
 
-        ArrayList<ArrayList<String>> toProcess = new ArrayList<ArrayList<String>>(){{
-            add(mutable_parents);
-            add(fixed_parents);
-            add(new ArrayList<String>(){{
-                add(name);
-            }});
-        }};
+        Object[][] toProcess = {mutable_parents.toArray(), fixed_parents.toArray(), new String[]{name}};
 
-        for(ArrayList<String> current : toProcess) {
-            for(String variableName : current) {
-                HashMap<String, ArrayList<Integer>> variableValues = this.table.get(variableName);
+        for(Object[] current : toProcess) {
+            for(Object variableName : current) {
+                HashMap<String, ArrayList<Integer>> variableValues = this.table.get((String)variableName);
                 for(String variableVal : variableValues.keySet()) {
                     for(Integer index : variableValues.get(variableVal)) {
                         String oldLine = lines.get(index);
-                        String candidate = String.format(Locale.US, "%s=%s", variableName, variableVal);
+                        String candidate = String.format(Locale.US, "%s=%s", (String)variableName, variableVal);
                         lines.set(index, oldLine + (oldLine.length() > 0? "," : "") + candidate);
                     }
                 }
@@ -747,11 +773,11 @@ public abstract class AbstractVariable {
      *
      * @return An array with unique names of parents.
      */
-    public ArrayList<String> getMutableParentsNames() {
+    public HashSet<String> getMutableParentsNames() {
         return this.mutable_parents;
     }
 
-    public ArrayList<String> getFixedParentsNames() {
+    public HashSet<String> getFixedParentsNames() {
         return this.fixed_parents;
     }
 

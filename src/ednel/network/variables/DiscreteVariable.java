@@ -9,7 +9,7 @@ import java.util.HashSet;
 public class DiscreteVariable extends AbstractVariable {
 
     public DiscreteVariable(
-        String name, ArrayList<String> parents_names, HashMap<String, Boolean> isParentContinuous,
+        String name, HashSet<String> parents_names, HashMap<String, Boolean> isParentContinuous,
         HashMap<String, HashMap<String, ArrayList<Integer>>> table,
         ArrayList<String> values, ArrayList<Double> probabilities,
         MersenneTwister mt, double learningRate, int n_generations, int max_parents) throws Exception {
