@@ -3,7 +3,6 @@ package ednel.eda.aggregators;
 import ednel.eda.individual.FitnessCalculator;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
-import weka.core.Instance;
 import weka.core.Instances;
 
 import java.io.Serializable;

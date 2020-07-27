@@ -1,22 +1,18 @@
-package ednel.eda;
+package ednel;
 
-import org.apache.commons.cli.*;
-import ednel.eda.individual.FitnessCalculator;
+import ednel.eda.CompileResultsTask;
+import ednel.eda.RunTrainingPieceTask;
 import ednel.utils.PBILLogger;
-import weka.classifiers.AbstractClassifier;
+import org.apache.commons.cli.*;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.File;
-import java.io.PipedReader;
-import java.io.PipedWriter;
-import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
     /**

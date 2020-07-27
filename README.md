@@ -2,6 +2,56 @@
 
 ## Getting started
 
+### Installing
+
+#### On Windows:
+
+1. Download Java JDK SE version **8u261** from Oracle site: 
+https://www.oracle.com/br/java/technologies/javase/javase-jdk8-downloads.html (note: you'll need to have an Oracle 
+account to do so, to accept their software use agreement)
+2. Install using the Graphical Installer
+	Note: installing JDK on windows should have already installed the Java Runtime Environment (JRE). If not, 
+		download version **8u241** here: https://www.java.com/en/download/win10.jsp
+3. Test whether these two programs are in PATH variable:
+	```bash
+    java -version
+    javac -version
+    ```
+
+If any of the programs was not found, add their installation path to the PATH system variable (the installation path 
+is the one selected in steps 1 and 2)
+
+Note: the code uses JDK version 8, independent of the downloaded version.
+
+#### On Ubuntu (tested version 18.04):
+
+You still have to download JDK from Oracle. On Ubuntu this is a little more complicated because you have to use a third
+party tool to download it. Follow these steps:
+
+1. Create an Oracle account
+2. Download version 14.0.2 from this page: https://www.oracle.com/java/technologies/javase-jdk14-downloads.html
+Choose **Linux Compressed Archive**
+3. Unpack it wherever it seems fit in your machine, e.g. in your home directory: `tar -xf jdk-14.0.2_linux-x64_bin.tar.gz`
+4. A new folder of name `jdk-14.0.2` was created in this folder. Add this path to your PATH variable:
+    a. Open the .bashrc file in your HOME directory, e.g. `nano .bashrc`
+    b. Pre-pend the path to `jdk-14.0.2/bin` in your PATH variable: `export PATH=:/home/<your_user>/jdk-14.0.2/bin:$PATH`
+    c. You will have to either close and open the terminal or give a `source .bashrc` for modifications to have 
+    immediate effect
+    c. Check whether everything is working:
+    ```bash
+   which java
+   which javac
+    ```
+   It should point to your new installation path, as opposed to the system-wide java/javac.
+
+Install Weka version `3.9.3`
+Download it from Source Forge: https://sourceforge.net/projects/weka/files/weka-3-9/3.9.3/
+
+
+#### TODO add instructions from building code from command line
+
+### Using
+
 After you have generated a .jar for the project, run it by invoking the following command:
 
 ```
