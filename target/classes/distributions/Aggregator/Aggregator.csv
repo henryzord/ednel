@@ -1,0 +1,4 @@
+Aggregator,probability
+MajorityVotingAggregator,0.5
+CompetenceBasedAggregator,0.5
+RuleExtractorAggregator,0.0

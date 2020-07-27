@@ -1,0 +1,9 @@
+J48_pruning,J48_seed,probability
+unpruned,1,0.0
+unpruned,null,1.0
+reducedErrorPruning,1,1.0
+reducedErrorPruning,null,0.0
+confidenceFactor,1,0.0
+confidenceFactor,null,1.0
+null,1,0.0
+null,null,1.0

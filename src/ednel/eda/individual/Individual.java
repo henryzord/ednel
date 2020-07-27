@@ -1,9 +1,7 @@
 package ednel.eda.individual;
 
-import ednel.eda.aggregators.Aggregator;
-import ednel.eda.aggregators.CompetenceBasedAggregator;
-import ednel.eda.aggregators.MajorityVotingAggregator;
 import ednel.classifiers.trees.SimpleCart;
+import ednel.eda.aggregators.Aggregator;
 import org.reflections.Reflections;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
@@ -12,7 +10,6 @@ import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.*;
 
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
