@@ -94,7 +94,8 @@ public class DependencyNetwork {
         }
     }
 
-    private static ArrayList<ArrayList<Integer>> readSamplingOrderPath(String sampling_order_path, ArrayList<String> variable_names) throws IOException, ParseException {
+    private static ArrayList<ArrayList<Integer>> readSamplingOrderPath(
+            String sampling_order_path, ArrayList<String> variable_names) throws IOException, ParseException {
         JSONParser jsonParser = new JSONParser();
         JSONObject jobj = (JSONObject)jsonParser.parse(new FileReader(sampling_order_path));
 
@@ -110,7 +111,8 @@ public class DependencyNetwork {
         return clusters;
     }
 
-    private void readVariablesFromFiles(String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
+    private void readVariablesFromFiles(
+            String variables_path, String options_path, float learningRate, int n_generations) throws Exception {
         Object[] algorithms = Files.list(new File(variables_path).toPath()).toArray();
 
         this.currentGenConnections = 0;
@@ -181,9 +183,21 @@ public class DependencyNetwork {
                 isContinuous.remove(variableName);
 
                 if(amIContinuous) {
-                    variables.put(variableName, new ContinuousVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations, global_max_parents));
+                    variables.put(
+                            variableName,
+                            new ContinuousVariable(
+                                    variableName, parents_names, isContinuous, table, values, probabilities,
+                                    this.mt, learningRate, n_generations, global_max_parents
+                            )
+                    );
                 } else {
-                    variables.put(variableName, new DiscreteVariable(variableName, parents_names, isContinuous, table, values, probabilities, this.mt, learningRate, n_generations, global_max_parents));
+                    variables.put(
+                            variableName,
+                            new DiscreteVariable(
+                                    variableName, parents_names, isContinuous, table, values, probabilities,
+                                    this.mt, learningRate, n_generations, global_max_parents
+                            )
+                    );
                 }
                 this.currentGenConnections += this.variables.get(variableName).getParentCount();
             }
@@ -201,7 +215,7 @@ public class DependencyNetwork {
         for(ArrayList<Integer> cluster : this.samplingOrder) {
             for(int idx : cluster) {
                 String variableName = this.variable_names.get(idx);
-                String algorithmName = variableName.split("_")[0];
+                String algorithmName = AbstractVariable.getAlgorithmName(variableName);
 
                 String sampledValue = this.variables.get(variableName).conditionalSampling(lastStart);
 
@@ -262,7 +276,6 @@ public class DependencyNetwork {
         Individual[] individuals = new Individual [sampleSize];
 
         this.lastStart = lastStart;
-        this.currentGenDiscardedIndividuals = 0;
         this.currentGenEvals = 0;
 
         int outerCounter = 0;
@@ -276,7 +289,7 @@ public class DependencyNetwork {
             // updates currentLastStart and currentOptionTable
             this.sampleIndividual();
         }
-        this.currentGenDiscardedIndividuals += burn_in;
+        this.currentGenDiscardedIndividuals = burn_in;
 
         while(individualCounter < sampleSize) {
             HashMap<String, String> optionTable = this.sampleIndividual();
@@ -288,7 +301,7 @@ public class DependencyNetwork {
             for(int j = 0; j < algNames.length; j++) {
                 options[counter] = "-" + algNames[j];
                 String curVal = optionTable.get(algNames[j]);
-                options[counter + 1] =  curVal != null? curVal : "";
+                options[counter + 1] =  String.valueOf(curVal).equals("null")? "" : curVal;
                 counter += 2;
             }
 
@@ -711,6 +724,7 @@ public class DependencyNetwork {
                 candSet.addAll(this.variable_names);  // adds all variables
                 candSet.remove(variableName);  // removes itself, otherwise makes no sense
                 candSet.removeAll(this.variables.get(variableName).getFixedParentsNames());  // remove fixed parents
+                candSet.removeAll(this.variables.get(variableName).getCannotLink());  // removes cannot link variables
 
                 HashSet<String> parentSet = new HashSet<>(this.variables.get(variableName).getFixedParentsNames());
 
@@ -721,9 +735,6 @@ public class DependencyNetwork {
                     HashSet<String> toRemove = new HashSet<>();
 
                     for (String candidate : candSet) {
-//                        if(this.connectionsCount.get(candidate) >= this.global_max_parents) {
-//                            toRemove.add(candidate);
-//                        } else {
                         double heuristic = this.heuristic(
                                 this.variables.get(variableName),
                                 parentSet,

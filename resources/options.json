@@ -1,21 +1,13 @@
 {
-  "J48_unpruned": {
-    "optionName": "-U",
+  "J48_pruning": {
+    "optionName": {
+      "unpruned": "-U",
+      "reducedErrorPruning": "-R -Q 1",
+      "confidenceFactor": "-C"
+    },
     "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.bool"
-  },
-  "J48_reducedErrorPruning": {
-    "optionName": "-R",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.bool"
-  },
-  "J48_confidenceFactorValue": {
-    "optionName": "-C",
-    "presenceMeans": true,
-    "ptype": "continuous",
-    "dtype": "np.float64"
+    "dtype": "np.str_"
   },
   "J48_subtreeRaising": {
     "optionName": "-S",
@@ -25,12 +17,6 @@
   },
   "J48_numFolds": {
     "optionName": "-N",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "J48_seed": {
-    "optionName": "-Q",
     "presenceMeans": true,
     "ptype": "discrete",
     "dtype": "np.int64"
@@ -89,12 +75,6 @@
     "ptype": "discrete",
     "dtype": "np.bool"
   },
-  "DecisionTable_displayRules": {
-    "optionName": "-R",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.bool"
-  },
   "DecisionTable_crossVal": {
     "optionName": "-X",
     "presenceMeans": true,
@@ -125,35 +105,21 @@
     "ptype": "discrete",
     "dtype": "np.int64"
   },
-  "PART_confidenceFactorValue": {
-    "optionName": "-C",
-    "presenceMeans": true,
-    "ptype": "continuous",
-    "dtype": "np.float64"
-  },
-  "PART_seed": {
-    "optionName": "-Q",
+  "PART_pruning": {
+    "optionName": {
+      "unpruned": "-U",
+      "reducedErrorPruning": "-R -Q 1",
+      "confidenceFactor": "-C"
+    },
     "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "PART_reducedErrorPruning": {
-    "optionName": "-R",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.bool"
+    "dtype": "np.str_"
   },
   "PART_numFolds": {
     "optionName": "-N",
     "presenceMeans": true,
     "ptype": "discrete",
     "dtype": "np.int64"
-  },
-  "PART_unpruned": {
-    "optionName": "-U",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.bool"
   },
   "PART_binarySplits": {
     "optionName": "-B",
@@ -175,12 +141,6 @@
   },
   "PART_minNumObj": {
     "optionName": "-M",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "JRip_seed": {
-    "optionName": "-S",
     "presenceMeans": true,
     "ptype": "discrete",
     "dtype": "np.int64"
@@ -233,18 +193,6 @@
     "ptype": "discrete",
     "dtype": "np.int64"
   },
-  "SimpleCart_seed": {
-    "optionName": "-S",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
-  "SimpleCart_sizePer": {
-    "optionName": "-C",
-    "presenceMeans": true,
-    "ptype": "discrete",
-    "dtype": "np.int64"
-  },
   "SimpleCart_useOneSE": {
     "optionName": "-A",
     "presenceMeans": true,
@@ -252,10 +200,13 @@
     "dtype": "np.bool"
   },
   "SimpleCart_usePrune": {
-    "optionName": "-U",
-    "presenceMeans": false,
+    "optionName": {
+      "false": "-U",
+      "true": "-C 1.0 -S 1"
+    },
+    "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.bool"
+    "dtype": "np.str_"
   },
   "Aggregator": {
     "optionName": "",

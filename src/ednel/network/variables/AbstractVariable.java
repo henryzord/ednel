@@ -65,6 +65,21 @@ public abstract class AbstractVariable {
     protected ArrayList<Double> oldProbabilities;
 
     /**
+     * A variable has a set of "cannot link" variables, which this variable has no probabilistic relationship with them.
+     * For example: J48_pruning is probabilistically independent of J48; it is actually deterministically dependent
+     * on J48 being true.
+     * There are no values if J48 = false for J48_pruning.
+     */
+    protected HashSet<String> cannotLink;
+
+    /**
+     * Blocking variables are variables that must be sampled before this variable can be sampled.
+     * If any of the blocking variables is not present in the current generation of the Gibbs Sampler,
+     * this variable should not be sampled too.
+     */
+    protected HashSet<String> blocking;
+
+    /**
      * Should not contain null values. If a null value is present, then it is "null" (i.e. a string)
      */
     protected HashMap<String, HashMap<String, ArrayList<Integer>>> table;
@@ -98,6 +113,15 @@ public abstract class AbstractVariable {
         this.values = values;
         this.probabilities = probabilities;
 
+        String algorithmName = this.getAlgorithmName();
+        this.cannotLink = new HashSet<>();
+        this.blocking = new HashSet<>();
+
+        if(!this.name.equals(algorithmName)) {
+            this.cannotLink.add(algorithmName);
+            this.blocking.add(algorithmName);
+        }
+
         this.table = table;
 
         this.initVariablesCombinations();
@@ -113,6 +137,20 @@ public abstract class AbstractVariable {
                 break;
             }
         }
+    }
+
+    /**
+     * Given any name of a variable, Returns the algorithm to which the variable is surrogate
+     */
+    public static String getAlgorithmName(String variableName) {
+        return variableName.split("_")[0];
+    }
+
+    /**
+     * Returns the algorithm to which this variable is surrogate
+     */
+    public String getAlgorithmName() {
+        return this.name.split("_")[0];
     }
 
     /**
@@ -151,34 +189,43 @@ public abstract class AbstractVariable {
      * @return A new value for this variable.
      */
     public String conditionalSampling(HashMap<String, String> lastStart) {
+        // if any of the variables that the current variable depends is null, skip sampling and set it to null too
+        for(String block : blocking) {
+            if(String.valueOf(lastStart.getOrDefault(block, null)).equals("null")) {
+                return null;
+            }
+        }
+
         HashSet<String> allParents = new HashSet<>(this.fixed_parents);
         allParents.addAll(this.mutable_parents);
 
-        int[] indices = this.getArrayOfIndices(this.table, this.probabilities.size(), lastStart, null, false, allParents);
+        int[] indices = this.getArrayOfIndices(
+                this.table, this.probabilities.size(), lastStart, null, false, allParents
+        );
 
         double[] localProbs = new double [indices.length];
         for(int i = 0; i < localProbs.length; i++) {
             localProbs[i] = probabilities.get(indices[i]);
         }
         // samples values based on probabilities
-        try {
-            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
-            Shadowvalue val = this.values.get(localDist.sample());
-            if(!val.toString().equals("null")) {
-                return val.getValue();
-            }
-        } catch(MathArithmeticException mae) {
-            System.out.println("Variable: " + this.getName() + " value: " + lastStart.get(this.getName()));  // TODO remove!
-            System.out.println("fixed parents: " );
-            for(String parent : this.fixed_parents) {
-                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
-            }
-            System.out.println("mutable parents: ");
-            for(String parent : this.mutable_parents) {
-                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
-            }
-            throw mae;
+//        try {
+        EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
+        Shadowvalue val = this.values.get(localDist.sample());
+        if(!val.toString().equals("null")) {
+            return val.getValue();
         }
+//        } catch(MathArithmeticException mae) {
+//            System.out.println("Variable: " + this.getName() + " value: " + lastStart.get(this.getName()));
+//            System.out.println("fixed parents: " );
+//            for(String parent : this.fixed_parents) {
+//                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+//            }
+//            System.out.println("mutable parents: ");
+//            for(String parent : this.mutable_parents) {
+//                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+//            }
+//            throw mae;
+//        }
         return null;
     }
 
@@ -314,6 +361,12 @@ public abstract class AbstractVariable {
                                 HashMap<String, ArrayList<String>> fittest) throws Exception {
 
         this.lastgen_mutable_parents = (HashSet<String>)this.mutable_parents.clone();
+        this.blocking.clear();
+        this.cannotLink.clear();
+
+        String thisAlgorithmName = getAlgorithmName();
+        this.blocking.add(thisAlgorithmName);
+        this.cannotLink.add(thisAlgorithmName);
 
         for(String mutable_parent : this.mutable_parents) {
             this.isParentContinuous.remove(mutable_parent);
@@ -323,6 +376,10 @@ public abstract class AbstractVariable {
         // if variable is not among fixed parents
         for(AbstractVariable par : mutableParents) {
             if(!this.fixed_parents.contains(par.getName())) {
+                String thatAlgorithmName = AbstractVariable.getAlgorithmName(par.getName());
+                this.blocking.add(thatAlgorithmName);
+                this.cannotLink.add(thatAlgorithmName);
+
                 this.mutable_parents.add(par.getName());
                 this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
             }
@@ -795,5 +852,13 @@ public abstract class AbstractVariable {
 
     public int getMaxParents() {
         return max_parents;
+    }
+
+    public HashSet<String> getCannotLink() {
+        return cannotLink;
+    }
+
+    public HashSet<String> getBlocking() {
+        return blocking;
     }
 }

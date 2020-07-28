@@ -1,7 +1,3 @@
-J48,J48_binarySplits,probability
-true,true,0.4
-true,false,0.6
-true,null,0.0
-false,true,0.0
-false,false,0.0
-false,null,1.0
+J48_binarySplits,probability
+true,0.4
+false,0.6
