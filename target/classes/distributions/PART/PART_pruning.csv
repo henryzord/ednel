@@ -1,9 +1,0 @@
-PART,PART_pruning,probability
-true,unpruned,0.285
-true,reducedErrorPruning,0.285
-true,confidenceFactor,0.43
-true,null,0.0
-false,unpruned,0.0
-false,reducedErrorPruning,0.0
-false,confidenceFactor,0.0
-false,null,1.0

@@ -1,7 +1,0 @@
-DecisionTable,DecisionTable_displayRules,probability
-true,true,1.0
-true,false,0.0
-true,null,0.0
-false,true,0.0
-false,false,0.0
-false,null,1.0

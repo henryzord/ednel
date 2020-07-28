@@ -4,6 +4,7 @@ import ednel.eda.individual.Individual;
 import org.apache.commons.math3.linear.SingularMatrixException;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.json.simple.JSONObject;
 
 import java.util.*;
 
@@ -17,13 +18,13 @@ public class ContinuousVariable extends AbstractVariable {
     protected double scale;
     protected double scale_init;
 
-    public ContinuousVariable(String name, HashSet<String> parents_names, HashMap<String, Boolean> isParentContinuous,
+    public ContinuousVariable(String name, JSONObject fixedBlocking, HashMap<String, Boolean> isParentContinuous,
                               HashMap<String, HashMap<String, ArrayList<Integer>>> table,
                               ArrayList<String> values, ArrayList<Double> probabilities,
-                              MersenneTwister mt, double learningRate, int n_generations, int max_parents) throws Exception {
+                              MersenneTwister mt, int max_parents) throws Exception {
 
-        super(name, parents_names, isParentContinuous, table,
-            null, null, null, probabilities, mt, learningRate, n_generations, max_parents
+        super(name, fixedBlocking, isParentContinuous, table,
+            null, null, null, probabilities, mt, max_parents
         );
 
         this.values = new ArrayList<>(values.size());
@@ -96,7 +97,7 @@ public class ContinuousVariable extends AbstractVariable {
      * Method attached to updateProbabilities.
      */
     protected void updateNormalDistributions(
-            HashSet<Integer> parentIndices, double[][][] dda, int[][] ddc, HashMap<String, Integer> ddd) throws Exception {
+            HashSet<Integer> parentIndices, double[][][] dda, int[][] ddc, HashMap<String, Integer> ddd, int n_generations) throws Exception {
         HashSet<Integer> notNullSet = new HashSet<>(this.notNullLoc(this.getName()));
 
         // now nnSet has the indices that match parent values & this variable is not null
@@ -128,14 +129,14 @@ public class ContinuousVariable extends AbstractVariable {
             try {
                 this.addMultivariateDistribution(idx, multivariate, min_size, ddd, dda, insert, variableNames);
             } catch (SingularMatrixException sme) {
-                this.addUnivariateDistribution(idx, ddd, dda, ddc);
+                this.addUnivariateDistribution(idx, ddd, dda, ddc, n_generations);
             }
         } else {
-            this.addUnivariateDistribution(idx, ddd, dda, ddc);
+            this.addUnivariateDistribution(idx, ddd, dda, ddc, n_generations);
         }
     }
 
-    protected void addUnivariateDistribution(int idx, HashMap<String, Integer> ddd, double[][][] dda, int[][] ddc) throws Exception {
+    protected void addUnivariateDistribution(int idx, HashMap<String, Integer> ddd, double[][][] dda, int[][] ddc, int n_generations) throws Exception {
         double[] data = Arrays.copyOfRange(
                 dda[ddd.get(this.getName())][idx],
                 0,
@@ -143,7 +144,7 @@ public class ContinuousVariable extends AbstractVariable {
         );
         DescriptiveStatistics ds = new DescriptiveStatistics(data);
         double loc = ds.getMean();
-        double scale = (this.scale - (this.scale_init / this.n_generations));
+        double scale = (this.scale - (this.scale_init / n_generations));
         // this is an extreme case, where the normal distribution is reset to its initial value
         if(Double.isNaN(loc)) {
             loc = this.loc_init;

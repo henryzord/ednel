@@ -39,6 +39,7 @@ public class RunTrainingPieceTask implements Runnable {
         this.writeObj = writeObj;
 
         PBILLogger pbilLogger = new PBILLogger(
+                dataset_name,
                 commandLine.getOptionValue("metadata_path") + File.separator +
                         str_time + File.separator + dataset_name,
                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
@@ -60,9 +61,7 @@ public class RunTrainingPieceTask implements Runnable {
                 Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
                 Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
                 Integer.parseInt(commandLine.getOptionValue("max_parents")),
-                commandLine.getOptionValue("variables_path"),
-                commandLine.getOptionValue("options_path"),
-                commandLine.getOptionValue("sampling_order_path"),
+                commandLine.getOptionValue("resources_path"),
                 pbilLogger,
                 commandLine.getOptionValue("seed") == null?
                         null : Integer.parseInt(commandLine.getOptionValue("seed"))

@@ -21,8 +21,6 @@ public class EDNEL extends AbstractClassifier {
     protected final int early_stop_generations;
     protected final float early_stop_tolerance;
     protected final int thinning_factor;
-    protected final String options_path;
-    protected final String variables_path;
     protected final float learning_rate;
     protected final float selection_share;
     protected final int n_individuals;
@@ -49,9 +47,8 @@ public class EDNEL extends AbstractClassifier {
 
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
-                 int nearest_neighbor, int max_parents,
-                 String variables_path, String options_path, String sampling_order_path, PBILLogger pbilLogger,
-                 Integer seed) throws Exception {
+                 int nearest_neighbor, int max_parents, String resources_path, PBILLogger pbilLogger, Integer seed
+    ) throws Exception {
 
         this.learning_rate = learning_rate;
         this.selection_share = selection_share;
@@ -66,8 +63,6 @@ public class EDNEL extends AbstractClassifier {
         this.max_parents = max_parents;
 
         this.pbilLogger = pbilLogger;
-        this.variables_path = variables_path;
-        this.options_path = options_path;
 
         this.overallFitness = -1.0;
 
@@ -84,7 +79,7 @@ public class EDNEL extends AbstractClassifier {
         }
 
         this.dn = new DependencyNetwork(
-            mt, variables_path, options_path, sampling_order_path,
+            mt, resources_path,
             this.burn_in, this.thinning_factor,
             this.learning_rate, this.n_generations,
             this.nearest_neighbor, this.max_parents

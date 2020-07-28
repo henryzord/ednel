@@ -1,6 +1,8 @@
 package ednel.network.variables;
 
+import netscape.javascript.JSObject;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.json.simple.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,13 +11,13 @@ import java.util.HashSet;
 public class DiscreteVariable extends AbstractVariable {
 
     public DiscreteVariable(
-        String name, HashSet<String> parents_names, HashMap<String, Boolean> isParentContinuous,
-        HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-        ArrayList<String> values, ArrayList<Double> probabilities,
-        MersenneTwister mt, double learningRate, int n_generations, int max_parents) throws Exception {
+            String name, JSONObject fixedBlocking, HashMap<String, Boolean> isParentContinuous,
+            HashMap<String, HashMap<String, ArrayList<Integer>>> table,
+            ArrayList<String> values, ArrayList<Double> probabilities,
+            MersenneTwister mt, int max_parents) throws Exception {
 
-        super(name, parents_names, isParentContinuous, table,
-            null, null, null, probabilities, mt, learningRate, n_generations, max_parents
+        super(name, fixedBlocking, isParentContinuous, table,
+            null, null, null, probabilities, mt, max_parents
         );
 
         this.values = new ArrayList<>(values.size());

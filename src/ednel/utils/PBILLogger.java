@@ -31,8 +31,9 @@ import java.util.Locale;
 
 public class PBILLogger {
 
-    protected String dataset_overall_path;
-    protected String dataset_thisrun_path;
+    private final String dataset_name;
+    protected final String dataset_overall_path;
+    protected final String dataset_thisrun_path;
     protected HashMap<String,  // generation
             HashMap<String, // child variable
                     HashMap<String,  // parents (e.g. "PART=true,J48_pruning=J48_unpruned")
@@ -40,13 +41,13 @@ public class PBILLogger {
                     >
             >
     > pastDependencyStructures = null;
-    protected String dataset_metadata_path;
+    protected final String dataset_metadata_path;
     protected Individual overall;
     protected Individual last;
-    protected int n_sample;
-    protected int n_fold;
-    protected int n_individuals;
-    protected boolean log;
+    protected final int n_sample;
+    protected final int n_fold;
+    protected final int n_individuals;
+    protected final boolean log;
 
     protected int curGen;
 
@@ -111,7 +112,8 @@ public class PBILLogger {
      * @param n_fold
      * @param log Whether to implement more aggressive logging capabilities. May have a great impact in performance.
      */
-    public PBILLogger(String dataset_metadata_path, int n_individuals, int n_generations, int n_sample, int n_fold, boolean log) {
+    public PBILLogger(String dataset_name, String dataset_metadata_path, int n_individuals, int n_generations, int n_sample, int n_fold, boolean log) {
+        this.dataset_name = dataset_name;
         this.n_sample = n_sample;
         this.n_fold = n_fold;
         this.log = log;
@@ -455,7 +457,8 @@ public class PBILLogger {
         }
 
         System.out.println(String.format(
-                "%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f\t\t%04d\t\t\t\t%04d\t\t\t\t\t\t\t\t\t%04d",
+                "%s\t\t\t%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f\t\t%04d\t\t\t\t%04d\t\t\t\t\t\t\t\t\t%04d",
+                this.dataset_name,
                 this.curGen,
                 this.nevals.get(this.curGen - 1),
                 this.minFitness.get(this.curGen - 1),

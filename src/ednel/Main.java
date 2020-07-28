@@ -86,30 +86,13 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
-                .longOpt("variables_path")
+                .longOpt("resources_path")
                 .required(true)
                 .type(String.class)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Path to folder with variables and their parameters.")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("options_path")
-                .required(true)
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Path to options file.")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("sampling_order_path")
-                .required(true)
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Path to sampling order file.")
+                .desc("Path to folder that contains support files, such as .csv with probability distributions, blocking" +
+                        "variables, etc.")
                 .build());
 
         options.addOption(Option.builder()
@@ -129,13 +112,6 @@ public class Main {
                 .numberOfArgs(1)
                 .desc("Number of jobs to use. Will use one job per sample per fold. " +
                         "If unspecified or set to 1, will run in a single core.")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("cheat")
-                .type(Boolean.class)
-                .required(false)
-                .desc("Whether to log test metadata during evolution.")
                 .build());
 
         options.addOption(Option.builder()
@@ -236,7 +212,7 @@ public class Main {
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Maximum number of parents a variable is allowed to have.")
+                .desc("Maximum number of probabilistic parents a variable is allowed to have.")
                 .build());
 
         options.addOption(Option.builder()
@@ -294,8 +270,6 @@ public class Main {
             }
 
             for(String dataset_name : dataset_names) {
-                System.out.println(String.format("On dataset %s:", dataset_name));
-
                 HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
                         commandLine.getOptionValue("datasets_path"),
                         dataset_name
