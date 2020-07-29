@@ -88,7 +88,7 @@ public class EDNEL extends AbstractClassifier {
 
     @Override
     public void buildClassifier(Instances data) throws Exception {
-        FitnessCalculator fc = new FitnessCalculator(5, data, null);
+        FitnessCalculator fc = new FitnessCalculator(5, data);
 
         this.currentGenBest = new BaselineIndividual(data);
         LocalDateTime start = LocalDateTime.now();
@@ -106,11 +106,11 @@ public class EDNEL extends AbstractClassifier {
                     this.currentGenBest.getCharacteristics(), this.n_individuals, data
             );
 
-            Double[][] fitnesses = fc.evaluateEnsembles(seed, population);
-            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses[0]);
+            Double[] fitnesses = fc.evaluateEnsembles(seed, population);
+            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
 
             this.currentGenBest = population[sortedIndices[0]];
-            this.currentGenFitness = fitnesses[0][sortedIndices[0]];
+            this.currentGenFitness = fitnesses[sortedIndices[0]];
 
             if(this.currentGenFitness > this.overallFitness) {
                 this.overallFitness = this.currentGenFitness;
@@ -120,7 +120,7 @@ public class EDNEL extends AbstractClassifier {
             this.earlyStop.update(c, this.currentGenFitness);
             t2 = LocalDateTime.now();
             this.pbilLogger.log(
-                    fitnesses[0], sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
+                    fitnesses, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
             );
             this.dn.update(population, sortedIndices, this.selection_share);
             this.pbilLogger.print();

@@ -42,11 +42,10 @@ public class DiscreteVariable extends AbstractVariable {
      * @throws Exception
      */
     @Override
-    public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
-                                HashMap<String, ArrayList<String>> fittest) throws Exception {
+    public void updateStructure(AbstractVariable[] mutableParents, HashMap<String, ArrayList<String>> fittest) throws Exception {
         mutableParents = AbstractVariable.getOnlyDiscrete(mutableParents);
 
-        super.updateStructure(mutableParents, fixedParents, fittest);
+        super.updateStructure(mutableParents, fittest);
     }
 
     public void updateUniqueValues(HashMap<String, ArrayList<String>> fittest) {

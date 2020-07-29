@@ -19,13 +19,11 @@ import java.util.Random;
  */
 public class FitnessCalculator {
 
-    private Instances train_data, test_data;
+    private Instances train_data;
     private int n_folds;
 
-    // initializes the demo
-    public FitnessCalculator(int n_folds, Instances train_data, Instances test_data) throws Exception {
+    public FitnessCalculator(int n_folds, Instances train_data) {
         this.train_data = train_data;
-        this.test_data = test_data;
         this.n_folds = n_folds;
     }
 
@@ -48,11 +46,10 @@ public class FitnessCalculator {
         return unweighted / n_classes;
     }
 
-    public Double[][] evaluateEnsembles(int seed, Individual[] population) throws Exception {
+    public Double[] evaluateEnsembles(int seed, Individual[] population) throws Exception {
         int n_individuals = population.length;
 
         Double[] trainEvaluations = new Double [n_individuals];
-        Double[] testEvaluations = new Double [n_individuals];
 
         for(int k = 0; k < n_individuals; k++) {
             trainEvaluations[k] = 0.0;
@@ -70,22 +67,12 @@ public class FitnessCalculator {
                 population[j].buildClassifier(local_train);
                 trainEval.evaluateModel(population[j], local_val);
                 trainEvaluations[j] += getUnweightedAreaUnderROC(trainEval);
-
-                if((i == n_folds - 1) && (test_data != null)) {
-                    population[j].buildClassifier(train_data);
-
-                    Evaluation testEval = new Evaluation(test_data);
-                    testEval.evaluateModel(population[j], test_data);
-                    testEvaluations[j] = getUnweightedAreaUnderROC(testEval);
-                } else {
-                    testEvaluations[j] = null;
-                }
             }
         }
         for(int k = 0; k < n_individuals; k++) {
             trainEvaluations[k] /= n_folds;
         }
-        return new Double[][]{trainEvaluations, testEvaluations};
+        return trainEvaluations;
     }
 
 //    public Double[][] evaluateEnsembles(int seed,

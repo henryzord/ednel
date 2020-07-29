@@ -13,7 +13,7 @@ public abstract class AbstractVariable {
     /**
      * Mutable parents from previous generation.
      */
-    protected HashSet<String> lastgen_mutable_parents;
+    protected HashSet<String> lastgen_prob_parents;
 
     /**
      * Probabilistic parents of this variable.
@@ -121,7 +121,7 @@ public abstract class AbstractVariable {
         this.fixedBlocking = AbstractVariable.readBlockingJSONObject(fixedBlocking);
         this.mutableBlocking = new HashMap<>();
 
-        this.lastgen_mutable_parents = new HashSet<>();
+        this.lastgen_prob_parents = new HashSet<>();
         this.prob_parents = new HashSet<>();
 
         this.isParentContinuous = isParentContinuous;
@@ -210,10 +210,6 @@ public abstract class AbstractVariable {
         return true;
     }
 
-    private void updateBlockingVariables() {
-
-    }
-
     /**
      * Given any name of a variable, Returns the algorithm to which the variable is surrogate
      */
@@ -267,6 +263,10 @@ public abstract class AbstractVariable {
         if(!this.passBlockingTest(lastStart)) {
             return null;
         }
+
+        // TODO must come back here and check if a probabilistic parent is not present!
+        // TODO if so, ignore its value and sample from an uniform distribution!
+
 
         int[] indices = this.getArrayOfIndices(
                 this.table, this.probabilities.size(), lastStart, null, false, prob_parents
@@ -411,52 +411,39 @@ public abstract class AbstractVariable {
      * @param fittest Fittest individuals from the lattest generation
      * @throws Exception Exception thrower for children classes
      */
-    public void updateStructure(AbstractVariable[] mutableParents, AbstractVariable[] fixedParents,
-                                HashMap<String, ArrayList<String>> fittest) throws Exception {
+    public void updateStructure(AbstractVariable[] mutableParents, HashMap<String, ArrayList<String>> fittest) throws Exception {
+        this.lastgen_prob_parents = (HashSet<String>)this.prob_parents.clone();
+        for(String mutable_parent : this.prob_parents) {
+            this.isParentContinuous.remove(mutable_parent);
+        }
 
-        throw new Exception("not implemented yet!");
+        this.prob_parents.clear();
+        this.mutableBlocking.clear();
 
-//        this.lastgen_mutable_parents = (HashSet<String>)this.mutable_parents.clone();
-//        this.blocking.clear();
-//        this.cannotLink.clear();
-//
-//        String thisAlgorithmName = getAlgorithmName();
-//        this.blocking.add(thisAlgorithmName);
-//        this.cannotLink.add(thisAlgorithmName);
-//
-//        for(String mutable_parent : this.mutable_parents) {
-//            this.isParentContinuous.remove(mutable_parent);
-//        }
-//        this.mutable_parents.clear();
-//
-//        // if variable is not among fixed parents
-//        for(AbstractVariable par : mutableParents) {
-//            if(!this.fixed_parents.contains(par.getName())) {
-//                String thatAlgorithmName = AbstractVariable.getAlgorithmName(par.getName());
-//                this.blocking.add(thatAlgorithmName);
-//                this.cannotLink.add(thatAlgorithmName);
-//
-//                this.mutable_parents.add(par.getName());
-//                this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
-//            }
-//        }
-//
+        // if variable is not among fixed parents
+        for(AbstractVariable par : mutableParents) {
+            // adds algorithm of parent variable to mutable blocking variables
+            this.mutableBlocking.put(par.getAlgorithmName(), new ArrayList<String>(){{add("true");}});
+
+            this.prob_parents.add(par.getName());
+            this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
+        }
+
 //        this.oldTable = (HashMap<String, HashMap<String, ArrayList<Integer>>>) this.table.clone();
 //        this.oldValues = (ArrayList<Shadowvalue>) this.values.clone();
 //        this.oldProbabilities = (ArrayList<Double>) this.probabilities.clone();
-//
-//        this.probabilities.clear();
-//        this.table.clear();
-//        this.values.clear();
-//
-//        // continuous variable code
-//        HashMap<String, HashSet<String>> valuesCombinations = Combinator.getUniqueValuesFromVariables(mutableParents);
-//        valuesCombinations.putAll(Combinator.getUniqueValuesFromVariables(fixedParents));
-//        // adds unique values of this variable
-//        valuesCombinations.put(this.getName(), this.getUniqueValues());
-//
-//        this.updateTable(valuesCombinations);
-//        this.initVariablesCombinations();
+
+        this.probabilities.clear();
+        this.table.clear();
+        this.values.clear();
+
+        // continuous variable code
+        HashMap<String, HashSet<String>> valuesCombinations = Combinator.getUniqueValuesFromVariables(mutableParents);
+        // adds unique values of this variable
+        valuesCombinations.put(this.getName(), this.getUniqueValues());
+
+        this.updateTable(valuesCombinations);
+        this.initVariablesCombinations();
     }
 
     protected static int countDiscrete(AbstractVariable[] parents) {
@@ -670,113 +657,109 @@ public abstract class AbstractVariable {
      * @param fittestValues Fittest individuals from the last population
      * @throws Exception If any exception occurs
      */
-    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
-        // TODO reactivate later!
-//        int n_combinations = updateShadowValues();
-//        double fittestPopulationSize = 0;
-//        int n_continuous = 0;
-//        int n_fittest = fittestValues.get(this.getName()).size();
-//
-//        ArrayList<Double> fittestCounts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
-//        this.probabilities = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));
-//
-//        HashMap<String, Integer> ddd = new HashMap<>();
-//        HashSet<String> allParents = new HashSet<>();
-//        allParents.addAll(this.prob_parents);
-//        allParents.addAll(this.fixed_parents);
-//
-//        for (Iterator<String> it = allParents.iterator(); it.hasNext(); ) {
-//            String par = it.next();
-//            if(this.isParentContinuous.get(par)) {
-//                ddd.put(par, n_continuous);
-//                n_continuous += 1;
-//            }
-//        }
-//        if(this instanceof ContinuousVariable) {
-//            ddd.put(this.getName(), n_continuous);
-//            n_continuous += 1;
-//        }
-//
-//        // keeps track of double values for each one of the
-//        // combination of values in the fittest population
-//        double[][][] dda = new double[n_continuous][n_combinations][n_fittest];
-//        int[][] ddc = new int[n_continuous][n_combinations];
-//        for(int i = 0; i < n_continuous; i++) {
-//            Arrays.fill(ddc[i], 0);;
-//        }
-//
-//        // for each individual in the fittest population:
-//        // locates the index that represents its combination of values
-//        // adds 1 to the counter of occurrences
-//        for(int i = 0; i < n_fittest; i++) {
-//            int[] indices = this.getArrayOfIndices(
-//                    this.table,
-//                    this.probabilities.size(),
-//                    fittest[i].getCharacteristics(),
-//                    fittest[i].getCharacteristics().get(this.getName()),
-//                    true,
-//                    allParents
-//            );
-//
-//            // this individual shall return only one index. if returns more than one, then there's an error
-//            // in the code
-//            if(indices.length > 1) {
-//                throw new Exception("unexpected behaviour!");
-//            }
-//            // registers this individual occurrence
-//            fittestCounts.set(indices[0], fittestCounts.get(indices[0]) + 1);
-//            fittestPopulationSize += 1;
-//
-//            // annotates float values, if any
-//            for(String var : ddd.keySet()) {
-//                String val = fittestValues.get(var).get(i);
-//                if(val != null) {
-//                    // dda[index of continuous variable][index of combination][fittest counter]
-//                    dda[ddd.get(var)][indices[0]][ddc[ddd.get(var)][indices[0]]
-//                    ] = Double.parseDouble(val);
-//                    ddc[ddd.get(var)][indices[0]] += 1;
-//                }
-//            }
-//        }
-//
-//        boolean sameMutableParents = this.lastgen_mutable_parents.containsAll(this.prob_parents) &&
-//                this.prob_parents.containsAll(this.lastgen_mutable_parents);
-//
-//        // TODO now take into account previous gen mutable parents!!!
-//
-//        HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices = this.iterateOverParentValues();
-//
-//        for(HashMap<String, String> parentCombination : parentValIndices.keySet()) {
-//            // updates normal distributions
-//            if(this instanceof ContinuousVariable) {
-//                ((ContinuousVariable)this).updateNormalDistributions(parentValIndices.get(parentCombination), dda, ddc, ddd);
-//            }
-//
-//            for(String selfValue : this.uniqueValues) {
-//                // TODO double check!
-//                HashSet<Integer> indices = this.getSetOfIndices(this.table, this.probabilities.size(), parentCombination, selfValue, true, allParents);
-//                if(indices.size() > 1) {
-//                    throw new Exception("should have return only one index!");
-//                }
-//
-//                Integer index = (Integer)indices.toArray()[0];
-//
-//                double old_value = sameMutableParents? (1 - this.learningRate) * this.probabilities.get(index) : 0;
-//                double new_value = (sameMutableParents? this.learningRate : 1) * fittestCounts.get(index) / fittestPopulationSize;
-//
-//                this.probabilities.set(index, old_value + new_value);
-//            }
-//        }
-//        // updates probabilities
-//        // also updates normal distributions, if this variable is continuous
-//
-//        normalizeProbabilities(parentValIndices);
-//
-//        for(int i = 0; i < this.probabilities.size(); i++) {
-//            if(Double.isNaN(this.probabilities.get(i))) {
-//                this.probabilities.set(i, 0.0);
-//            }
-//        }
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest, float learningRate) throws Exception {
+        int n_combinations = updateShadowValues();
+        double fittestPopulationSize = 0;
+        int n_continuous = 0;
+        int n_fittest = fittestValues.get(this.getName()).size();
+
+        ArrayList<Double> fittestCounts = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));  // set 1 for laplace correction; 0 otherwise
+        this.probabilities = new ArrayList<>(Collections.nCopies(n_combinations, 0.0));
+
+        HashMap<String, Integer> ddd = new HashMap<>();
+
+        for (Iterator<String> it = prob_parents.iterator(); it.hasNext(); ) {
+            String par = it.next();
+            if(this.isParentContinuous.get(par)) {
+                ddd.put(par, n_continuous);
+                n_continuous += 1;
+            }
+        }
+        if(this instanceof ContinuousVariable) {
+            ddd.put(this.getName(), n_continuous);
+            n_continuous += 1;
+        }
+
+        // keeps track of double values for each one of the
+        // combination of values in the fittest population
+        double[][][] dda = new double[n_continuous][n_combinations][n_fittest];
+        int[][] ddc = new int[n_continuous][n_combinations];
+        for(int i = 0; i < n_continuous; i++) {
+            Arrays.fill(ddc[i], 0);;
+        }
+
+        // for each individual in the fittest population:
+        // locates the index that represents its combination of values
+        // adds 1 to the counter of occurrences
+        for(int i = 0; i < n_fittest; i++) {
+            int[] indices = this.getArrayOfIndices(
+                    this.table,
+                    this.probabilities.size(),
+                    fittest[i].getCharacteristics(),
+                    fittest[i].getCharacteristics().get(this.getName()),
+                    true,
+                    prob_parents
+            );
+
+            // this individual shall return only one index. if returns more than one, then there's an error
+            // in the code
+            if(indices.length > 1) {
+                throw new Exception("unexpected behaviour!");
+            }
+            // registers this individual occurrence
+            fittestCounts.set(indices[0], fittestCounts.get(indices[0]) + 1);
+            fittestPopulationSize += 1;
+
+            // annotates float values, if any
+            for(String var : ddd.keySet()) {
+                String val = fittestValues.get(var).get(i);
+                if(val != null) {
+                    // dda[index of continuous variable][index of combination][fittest counter]
+                    dda[ddd.get(var)][indices[0]][ddc[ddd.get(var)][indices[0]]
+                    ] = Double.parseDouble(val);
+                    ddc[ddd.get(var)][indices[0]] += 1;
+                }
+            }
+        }
+
+        boolean sameMutableParents = this.lastgen_prob_parents.containsAll(this.prob_parents) &&
+                this.prob_parents.containsAll(this.lastgen_prob_parents);
+
+        // TODO now take into account previous gen mutable parents!!!
+
+        HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices = this.iterateOverParentValues();
+
+        for(HashMap<String, String> parentCombination : parentValIndices.keySet()) {
+            // updates normal distributions
+            if(this instanceof ContinuousVariable) {
+                ((ContinuousVariable)this).updateNormalDistributions(parentValIndices.get(parentCombination), dda, ddc, ddd);
+            }
+
+            for(String selfValue : this.uniqueValues) {
+                // TODO double check!
+                HashSet<Integer> indices = this.getSetOfIndices(this.table, this.probabilities.size(), parentCombination, selfValue, true, prob_parents);
+                if(indices.size() > 1) {
+                    throw new Exception("should have return only one index!");
+                }
+
+                Integer index = (Integer)indices.toArray()[0];
+
+                double old_value = sameMutableParents? (1 - learningRate) * this.probabilities.get(index) : 0;
+                double new_value = (sameMutableParents? learningRate : 1) * fittestCounts.get(index) / fittestPopulationSize;
+
+                this.probabilities.set(index, old_value + new_value);
+            }
+        }
+        // updates probabilities
+        // also updates normal distributions, if this variable is continuous
+
+        normalizeProbabilities(parentValIndices);
+
+        for(int i = 0; i < this.probabilities.size(); i++) {
+            if(Double.isNaN(this.probabilities.get(i))) {
+                this.probabilities.set(i, 0.0);
+            }
+        }
     }
 
     /**
@@ -915,5 +898,9 @@ public abstract class AbstractVariable {
 
     public HashSet<String> getAllParents() {
         return this.prob_parents;
+    }
+
+    public HashSet<String> getFixedCannotLink() {
+        return this.fixedCannotLink;
     }
 }
