@@ -177,6 +177,17 @@ public abstract class AbstractVariable {
      * @return True if a value can be sampled from this variable; false otherwise.
      */
     private boolean passBlockingTest(HashMap<String, String> lastStart) {
+        // boolean proceed = true;
+        //            for(String block : this.variables.get(variableName).getAllBlocking()) {
+        //                // if variable was not sampled, or classifier of that variable is absent in ensemble
+        //                // (also works if variable name is algorithm name)
+        //                if(String.valueOf(lastStart.get(block)).equals("null") || lastStart.get(AbstractVariable.getAlgorithmName(block)).equals("false")) {
+        //                    lastStart.put(variableName, null);
+        //                    proceed = false;
+        //                    break;
+        //                }
+        //            }
+
         ArrayList<HashMap<String, ArrayList<String>>> toIter = new ArrayList<HashMap<String, ArrayList<String>>>(){{
             add(fixedBlocking);
             add(mutableBlocking);
@@ -890,5 +901,19 @@ public abstract class AbstractVariable {
 
     public int getMaxParents() {
         return max_parents;
+    }
+
+    /**
+     * Returns all variables that must be sampled before this variable, either fixed or mutable.
+     */
+    public HashSet<String> getAllBlocking() {
+        HashSet<String> set = new HashSet<>();
+        set.addAll(this.fixedBlocking.keySet());
+        set.addAll(this.mutableBlocking.keySet());
+        return set;
+    }
+
+    public HashSet<String> getAllParents() {
+        return this.prob_parents;
     }
 }

@@ -7,7 +7,7 @@
     },
     "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.str_"
+    "dtype": "dict"
   },
   "J48_subtreeRaising": {
     "optionName": "-S",
@@ -113,7 +113,7 @@
     },
     "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.str_"
+    "dtype": "dict"
   },
   "PART_numFolds": {
     "optionName": "-N",
@@ -206,7 +206,7 @@
     },
     "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.str_"
+    "dtype": "dict"
   },
   "Aggregator": {
     "optionName": "",

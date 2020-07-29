@@ -1,5 +1,5 @@
 /**
- * An individual with default hyper-parameters from Weka for each one of its eda.classifiers.
+ * An individual with default hyper-parameters from Weka for each one of its classifiers.
  */
 
 package ednel.eda.individual;
@@ -10,9 +10,6 @@ import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.Instances;
-
-import java.io.BufferedReader;
-import java.io.FileReader;
 
 public class BaselineIndividual extends Individual {
 
@@ -54,24 +51,18 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("J48_collapseTree", "true");
         this.characteristics.put("J48_doNotMakeSplitPointActualValue", "false");
         this.characteristics.put("J48_pruning", "confidenceFactor");
-        this.characteristics.put("J48_reducedErrorPruning", null);
-        this.characteristics.put("J48_unpruned", null);
         this.characteristics.put("J48_numFolds", null);
         this.characteristics.put("J48_subtreeRaising", "true");
-        this.characteristics.put("J48_seed", null);
         this.characteristics.put("J48_confidenceFactorValue", "0.25");
         this.characteristics.put("SimpleCart", "true");
         this.characteristics.put("SimpleCart_heuristic", "true");
         this.characteristics.put("SimpleCart_minNumObj", "2");
         this.characteristics.put("SimpleCart_usePrune", "true");
-        this.characteristics.put("SimpleCart_seed", "1");
         this.characteristics.put("SimpleCart_numFoldsPruning", "5");
         this.characteristics.put("SimpleCart_useOneSE", "false");
-        this.characteristics.put("SimpleCart_sizePer", "1");
         this.characteristics.put("JRip", "true");
         this.characteristics.put("JRip_checkErrorRate", "true");
         this.characteristics.put("JRip_minNo", "2");
-        this.characteristics.put("JRip_seed", "1");
         this.characteristics.put("JRip_usePruning", "true");
         this.characteristics.put("JRip_optimizations", "2");
         this.characteristics.put("JRip_folds", "3");
@@ -81,14 +72,10 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("PART_binarySplits", "false");
         this.characteristics.put("PART_useMDLcorrection", "true");
         this.characteristics.put("PART_pruning", "confidenceFactor");
-        this.characteristics.put("PART_unpruned", null);
-        this.characteristics.put("PART_reducedErrorPruning", null);
         this.characteristics.put("PART_confidenceFactorValue", "0.25");
-        this.characteristics.put("PART_seed", null);
         this.characteristics.put("PART_numFolds", null);
         this.characteristics.put("DecisionTable", "true");
         this.characteristics.put("DecisionTable_useIBk", "false");
-        this.characteristics.put("DecisionTable_displayRules", "true");
         this.characteristics.put("DecisionTable_crossVal", "1");
         this.characteristics.put("DecisionTable_evaluationMeasure", "auc");
         this.characteristics.put("DecisionTable_search", "weka.attributeSelection.BestFirst");
@@ -97,12 +84,4 @@ public class BaselineIndividual extends Individual {
         this.characteristics.put("GreedyStepwise_conservativeForwardSelection", null);
         this.characteristics.put("GreedyStepwise_searchBackwards", null);
     }
-
-    public static void main(String[] args) throws Exception {
-        Instances train_data = new Instances(new BufferedReader(new FileReader("/home/henry/Projects/eacomp/keel_datasets_10fcv/mammographic/mammographic-10-3tra.arff")));
-        train_data.setClassIndex(train_data.numAttributes() - 1);
-
-        BaselineIndividual bi = new BaselineIndividual(train_data);
-    }
-
 }

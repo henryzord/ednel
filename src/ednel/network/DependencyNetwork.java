@@ -17,6 +17,8 @@ import java.nio.file.Files;
 import java.util.*;
 
 public class DependencyNetwork {
+    private final float learningRate;
+    private final int n_generations;
     private HashMap<String, AbstractVariable> variables;
     private MersenneTwister mt;
     private ArrayList<String> variable_names;
@@ -35,7 +37,7 @@ public class DependencyNetwork {
      */
     private int global_max_parents;
 
-    private ArrayList<ArrayList<Integer>> samplingOrder = null;
+    private ArrayList<String> samplingOrder = null;
 
     private ArrayList<HashMap<String, AbstractVariable>> pastVariables;
 
@@ -59,6 +61,9 @@ public class DependencyNetwork {
         this.nearest_neighbor = nearest_neighbor;
         this.global_max_parents = global_max_parents;  // global max parents
 
+        this.learningRate = learningRate;
+        this.n_generations = n_generations;
+
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
         this.currentGenConnections = 0;
@@ -66,8 +71,6 @@ public class DependencyNetwork {
         this.lastStart = null;
 
         this.readVariablesFromFiles(resources_path);
-//        this.updateConnectionsCount(this.variables);
-
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.variables);
 
     }
@@ -93,23 +96,51 @@ public class DependencyNetwork {
 //        }
 //    }
 
-    private static ArrayList<ArrayList<Integer>> inferSamplingOrder(
-            HashMap<String, AbstractVariable> variables) throws IOException, ParseException {
-        throw new IOException("not implemented yet!");
-//        JSONParser jsonParser = new JSONParser();
-//        JSONObject jobj = (JSONObject)jsonParser.parse(new FileReader(sampling_order_path));
+    /**
+     * Infers sampling order from variables, based on the most requested variables in the dependency network.
+     * @param variables dictionary of names and AbstractVariable objects
+     * @return sampling order
+     */
+    private static ArrayList<String> inferSamplingOrder(HashMap<String, AbstractVariable> variables)  {
 
-//        ArrayList<ArrayList<Integer>> clusters = new ArrayList<>(jobj.size());
-//        for(Object key : jobj.keySet()) {
-//            JSONArray jarr = (JSONArray)jobj.get(key);
-//            ArrayList<Integer> localCluster = new ArrayList<>();
-//            for(Object localKey : jarr.toArray()) {
-//                localCluster.add(variable_names.indexOf(localKey));
-//            }
-//            clusters.add(localCluster);
-//        }
-//        return clusters;
-//        return null;
+        ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
+        HashSet<String> added_set = new HashSet<>();
+
+        int added_count = 0;
+        int current_vote_bar = 0;
+        boolean recompute_votes = true;
+        HashMap<String, Integer> votes = new HashMap<>();
+        while(added_count < variables.size()) {
+            if(recompute_votes) {
+                votes = new HashMap<>();
+                for(String var : variables.keySet()) {
+                    HashSet<String> set = new HashSet<>();
+                    set.addAll(variables.get(var).getAllBlocking());
+                    set.addAll(variables.get(var).getAllParents());
+                    set.removeAll(added_set);  // removes variables already included
+
+                    for(String overVar : set) {
+                        if(!votes.containsKey(overVar)) {
+                            votes.put(overVar, 1);
+                        } else {
+                            votes.put(overVar, votes.get(overVar) + 1);
+                        }
+                    }
+                }
+                recompute_votes = false;
+            }
+            for(String var : variables.keySet()) {
+                if(votes.getOrDefault(var, 0) == current_vote_bar) {
+                    samplingOrder.add(var);
+                    added_set.add(var);
+                    added_count += 1;
+                    recompute_votes = true;
+                }
+            }
+            current_vote_bar += 1;
+        }
+        Collections.reverse(samplingOrder);
+        return samplingOrder;
     }
 
     /**
@@ -224,62 +255,52 @@ public class DependencyNetwork {
      * @throws Exception IF any exception occurs
      */
     private HashMap<String, String> sampleIndividual() throws Exception {
-        HashMap<String, String> optionTable = new HashMap<>(this.variable_names.size());
+        HashMap<String, String> optionTable = new HashMap<>();
 
-        for(ArrayList<Integer> cluster : this.samplingOrder) {
-            for(int idx : cluster) {
-                String variableName = this.variable_names.get(idx);
-                String algorithmName = AbstractVariable.getAlgorithmName(variableName);
+        for(String variableName : this.samplingOrder) {
+            String sampledValue = this.variables.get(variableName).conditionalSampling(lastStart);
+            lastStart.put(variableName, sampledValue);
 
-                String sampledValue = this.variables.get(variableName).conditionalSampling(lastStart);
+            if(!String.valueOf(sampledValue).equals("null")) {
+                String algorithmName = this.variables.get(variableName).getAlgorithmName();
 
-                boolean sampleAlgorithmSurrogateVariables = true;
-                if(variableName.equals(algorithmName)) {
-                    if(sampledValue.equals("false")) {
-                        optionTable.put(algorithmName, null);
-                        lastStart.put(variableName, sampledValue);
-                        sampleAlgorithmSurrogateVariables = false;
-                    }
-                } else {
-
+                JSONObject optionObj = (JSONObject)options.getOrDefault(variableName, null);
+                if(optionObj == null) {
+                    optionObj = (JSONObject)options.getOrDefault(sampledValue, null);
                 }
 
+                // checks whether this is an option
+                if(optionObj != null) {
+                    Boolean presenceMeans = (Boolean)optionObj.get("presenceMeans");
+                    String optionName = String.valueOf(optionObj.get("optionName"));
+                    String dtype = String.valueOf(optionObj.get("dtype"));
 
-                // TODO here!!!!
-                if(lastStart.getOrDefault(algorithmName, null) == null) {
-                    lastStart.put(variableName, null);  // lastStart can have null values
-                } else {
-                    lastStart.put(variableName, sampledValue);
-
-                    JSONObject optionObj = (JSONObject) options.getOrDefault(variableName, null);
-                    if(optionObj == null) {
-                        optionObj = (JSONObject) options.getOrDefault(sampledValue, null);
-                    }
-
-                    // checks whether this is an option
-                    if(optionObj != null) {
-                        boolean presenceMeans = (boolean)optionObj.get("presenceMeans");
-                        String optionName = (String)optionObj.get("optionName");
-                        String dtype = (String)optionObj.get("dtype");
-
-                        if(dtype.equals("np.bool")) {
-                            if(sampledValue.toLowerCase().equals("false")) {
-                                if(!presenceMeans) {
-                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
-                                }
-                            } if(sampledValue.toLowerCase().equals("true")) {
-                                if(presenceMeans) {
-                                    optionTable.put(algorithmName, (optionTable.get(algorithmName) + " " + optionName).trim());
-                                }
+                    if(dtype.equals("np.bool")) {
+                        if(String.valueOf(sampledValue).toLowerCase().equals("false")) {
+                            if(!presenceMeans) {
+                                optionTable.put(algorithmName, (optionTable.getOrDefault(algorithmName, "") + " " + optionName).trim());
                             }
-                        } else {
-                            optionTable.put(
-                                algorithmName, (
-                                optionTable.getOrDefault(algorithmName, "") + " " + optionName + " " + sampledValue
-                                ).trim()
-                            );
                         }
-                   }
+                        if(String.valueOf(sampledValue).toLowerCase().equals("true")) {
+                            if(presenceMeans) {
+                                optionTable.put(algorithmName, (optionTable.getOrDefault(algorithmName, "") + " " + optionName).trim());
+                            }
+                        }
+                    } else if(dtype.equals("dict")) {
+                        JSONObject dict = (JSONObject)((new JSONParser()).parse(optionName));
+
+                        optionTable.put(
+                                algorithmName, (
+                                        optionTable.getOrDefault(algorithmName, "") + " " + dict.get(sampledValue)
+                                ).trim()
+                        );
+                    } else {
+                        optionTable.put(
+                                algorithmName, (
+                                        optionTable.getOrDefault(algorithmName, "") + " " + optionName + " " + sampledValue
+                                ).trim()
+                        );
+                    }
                 }
             }
         }
@@ -295,9 +316,6 @@ public class DependencyNetwork {
         int outerCounter = 0;
         int individualCounter = 0;
 
-        // shuffles sampling order
-        Collections.shuffle(this.samplingOrder, new Random(mt.nextInt()));
-
         // burns some individuals
         for(int i = 0; i < burn_in; i++) {
             // updates currentLastStart and currentOptionTable
@@ -309,20 +327,10 @@ public class DependencyNetwork {
             HashMap<String, String> optionTable = this.sampleIndividual();
             outerCounter += 1;
 
-            String[] options = new String [optionTable.size() * 2];
-            Object[] algNames = optionTable.keySet().toArray();
-            int counter = 0;
-            for(int j = 0; j < algNames.length; j++) {
-                options[counter] = "-" + algNames[j];
-                String curVal = optionTable.get(algNames[j]);
-                options[counter + 1] =  String.valueOf(curVal).equals("null")? "" : curVal;
-                counter += 2;
-            }
-
             // TODO only here for debugging purposes. can be removed later
-            String[] copyOptions = (String[])options.clone();
+//            String[] copyOptions = (String[])options.clone();
             try {
-                Individual individual = new Individual(options, this.lastStart, train_data);
+                Individual individual = new Individual(optionTable, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
                     outerCounter = 0;
                     individuals[individualCounter] = individual;
@@ -376,8 +384,6 @@ public class DependencyNetwork {
 
     public void update(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
         int to_select = Math.round(selectionShare * sortedIndices.length);
-
-//        System.err.println("TODO remove!!!"); // TODO remove!
 
         Individual[] fittestIndividuals = new Individual[to_select];
         for(int i = 0; i < to_select; i++) {

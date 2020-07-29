@@ -10,10 +10,7 @@ import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
 
@@ -53,6 +50,60 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.classifiers.put("DecisionTable", null);
 
         this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+    }
+
+    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics, Instances train_data) throws Exception {
+        this();
+
+        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
+        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
+            this.decisionTable = new DecisionTable();
+            this.classifiers.put("DecisionTable", this.decisionTable);
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
+            this.j48 = new J48();
+            this.classifiers.put("J48", this.j48);
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
+            this.simpleCart = new SimpleCart();
+            this.classifiers.put("SimpleCart", this.simpleCart);
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
+            this.part = new PART();
+            this.classifiers.put("PART", this.part);
+        }
+        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
+            this.jrip = new JRip();
+            this.classifiers.put("JRip", this.jrip);
+        }
+
+        String[] options = new String [optionTable.size() * 2];
+        HashSet<String> algNames = new HashSet<>(optionTable.keySet());
+//        algNames.remove("BestFirst");
+//        algNames.remove("GreedyStepwise");
+//        algNames.remove("DecisionTable");
+
+        int counter = 0;
+        for(String algName : algNames) {
+            options[counter] = "-" + algName;
+            String curVal = optionTable.get(algName);
+            options[counter + 1] =  String.valueOf(curVal).equals("null")? "" : curVal;
+            counter += 2;
+        }
+        // process decision table
+//        options[counter] = "-" + "DecisionTable";
+//        if(characteristics.get("DecisionTable").equals("true")) {
+//            counter += 1;
+//            String[] dtOptions = optionTable.get("DecisionTable").split(" ");
+//            String searchAlg_full = Utils.getOption("S", dtOptions);
+//            String searchAlg_short = searchAlg_full.split("\\.")[2];
+//
+//            options[counter] = (" " + String.join(" ", dtOptions).trim() +
+//                    " -S " + searchAlg_full + " " + optionTable.getOrDefault(searchAlg_short, "")).trim();
+//        }
+
+        this.setOptions(options);
+        this.buildClassifier(train_data);
     }
 
     public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
