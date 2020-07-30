@@ -453,7 +453,12 @@ public class PBILLogger {
 
     public void print() {
         if(this.curGen == 1) {
-            System.out.println(String.format("Gen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)\t\tDiscarded Individuals (w/ burn-in)\t\tDN Connections"));
+            System.out.println(
+                String.format(
+                    "Dataset\t\t\tGen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)\t\t" +
+                    "Discarded Individuals (w/ burn-in)\t\tDN Connections"
+                )
+            );
         }
 
         System.out.println(String.format(

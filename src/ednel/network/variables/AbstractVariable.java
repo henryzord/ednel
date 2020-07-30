@@ -9,7 +9,6 @@ import org.apache.commons.math3.random.MersenneTwister;
 
 import java.io.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public abstract class AbstractVariable {
     protected String name;
@@ -399,6 +398,20 @@ public abstract class AbstractVariable {
     }
 
     /**
+     * Casts to string a combination of variables and variable values.
+     * @return
+     */
+    private static String conditionsToString(HashMap<String, String> conditions) {
+        StringBuilder concatenated = new StringBuilder("");
+        if(conditions != null) {
+            for(String key : conditions.keySet()) {
+                concatenated.append(String.format("%s=%s ", key, conditions.get(key)));
+            }
+        }
+        return concatenated.toString();
+    }
+
+    /**
      * Given values for parent variables of the current variable, gets the indices
      * on the table that correspond to those values.
      * Already treats continuous variables (that may not have an exact value in the table entry).
@@ -420,6 +433,12 @@ public abstract class AbstractVariable {
             HashSet<String> allParents
     ) throws CombinationNotPresentException {
 
+        if(locOnVariable && variableValue == null) {
+            throw new CombinationNotPresentException(
+                    "combination of values not present in probability table: " + AbstractVariable.conditionsToString(conditions)
+            );
+        }
+
         HashSet<Integer> intersection = new HashSet<>();
         HashSet<Integer> allNumbers = new HashSet<>();
         // adds all indices to answer
@@ -432,6 +451,11 @@ public abstract class AbstractVariable {
         for (Iterator<String> it = allParents.iterator(); it.hasNext(); ) {
             String parentName = it.next();
             String parentVal = conditions.get(parentName);
+            if(parentVal == null) {
+                throw new CombinationNotPresentException(
+                        "combination of values not present in probability table: " + AbstractVariable.conditionsToString(conditions)
+                );
+            }
 
             if (this.isParentContinuous.get(parentName)) {
                 if (!String.valueOf(parentVal).equals("null")) {
@@ -443,11 +467,9 @@ public abstract class AbstractVariable {
                 localIndices = table.get(parentName).get(String.valueOf(parentVal));
             }
             if(localIndices == null) {
-                StringBuilder concatenated = new StringBuilder();
-                for(String key : conditions.keySet()) {
-                    concatenated.append(String.format("%s=%s ", key, conditions.get(key)));
-                }
-                throw new CombinationNotPresentException(String.format("combination of values not present in probability table: %s", concatenated.toString()));
+                throw new CombinationNotPresentException(
+                        "combination of values not present in probability table: " + AbstractVariable.conditionsToString(conditions)
+                );
             } else {
                 intersection.retainAll(new HashSet<>(localIndices));
             }
@@ -466,6 +488,12 @@ public abstract class AbstractVariable {
             }
             intersection.retainAll(new HashSet<>(localIndices));
         }
+        if(intersection.isEmpty()) {
+            throw new CombinationNotPresentException(
+                    "combination of values not present in probability table: " + AbstractVariable.conditionsToString(conditions)
+            );
+        }
+
         return intersection;
     }
 
@@ -695,18 +723,17 @@ public abstract class AbstractVariable {
      * @throws Exception If any exception occurs
      */
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest, float learningRate, int n_generations) throws Exception {
-        double relevantFittestSize = 0;
         int n_continuous = 0;
 
         int n_fittest = fittestValues.get(this.getName()).size();
 
         // TODO laplace correction might be needed next. come here and set value to 1 if probability distributions sum up to zero
-        ArrayList<Double> relevantFittestCounts = new ArrayList<>(Collections.nCopies(this.values.size(), 0.0));  // set 1 for laplace correction; 0 otherwise
+        ArrayList<Double> relevantFittestCounts = new ArrayList<>(Collections.nCopies(this.values.size(), 1.0));  // set 1 for laplace correction; 0 otherwise
+        double relevantFittestSize = this.values.size();  // TODO set to this.values.size() for laplace correction; 0 otherwise
 
         ArrayList<Double> oldProbabilities = sameParentsFromLastGeneration()? (ArrayList<Double>)this.probabilities.clone() : null;
-        this.probabilities = new ArrayList<>(Collections.nCopies(this.values.size(), 0.0));
-        this.unconditionalProbabilities.clear();
 
+        this.probabilities = new ArrayList<>(Collections.nCopies(this.values.size(), 0.0));
         this.setUnconditionalProbabilities(fittestValues);
 
         HashMap<String, Integer> ddd = new HashMap<>();
@@ -736,6 +763,8 @@ public abstract class AbstractVariable {
         // adds 1 to the counter of occurrences
         for(int i = 0; i < n_fittest; i++) {
             try {
+                // TODo if self is null, don't even search it
+
                 int[] indices = this.getArrayOfIndices(
                         this.table,
                         this.values.size(),
@@ -772,6 +801,9 @@ public abstract class AbstractVariable {
         boolean sameParents = this.sameParentsFromLastGeneration();
         HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices = this.iterateOverParentValues();
 
+        // TODO what if variable does not have parents?
+        // TODO has to iterate over all values. but then indices (below) should be adapted too
+
         // now has to iterate over parent values, because probabilities
         // are normalized based on exact parent values
         for(HashMap<String, String> parentCombination : parentValIndices.keySet()) {
@@ -783,11 +815,15 @@ public abstract class AbstractVariable {
 
             // iterates over child values
             for(Shadowvalue selfValue : this.uniqueShadowvalues) {
-                HashSet<Integer> indices = this.getSetOfIndices(this.table, this.values.size(), parentCombination, selfValue.toString(), true, prob_parents);
+                HashSet<Integer> indices = this.getSetOfIndices(
+                        this.table, this.values.size(), parentCombination,
+                        selfValue.toString(), true, prob_parents
+                );
+
                 if(indices.size() != 1) {
                     throw new Exception("should have return only one index!");
                 }
-//
+
                 Integer index = (Integer)indices.toArray()[0];
 
                 double old_value = sameParents ? (1 - learningRate) * oldProbabilities.get(index) : 0;
@@ -813,18 +849,17 @@ public abstract class AbstractVariable {
         this.unconditionalProbabilities = new HashMap<>();
 
         ArrayList<String> assumedValues = fittestValues.get(this.getName());
-        Map<String, Long> counts = assumedValues.stream().collect(Collectors.groupingBy(e -> e, Collectors.counting()));
-
         long sum = 0;
         for(Shadowvalue unique : this.uniqueShadowvalues) {
+            int count = 0;
             String uniqueStr = unique.toString();
-            if(counts.containsKey(uniqueStr)) {
-                sum += counts.get(uniqueStr);
-
-                this.unconditionalProbabilities.put(unique, (double)counts.get(uniqueStr));
-            } else {
-                this.unconditionalProbabilities.put(unique, 0.0);
+            for(int i = 0; i < assumedValues.size(); i++) {
+                if(String.valueOf(assumedValues.get(i)).equals(uniqueStr)) {
+                    count += 1;
+                }
             }
+            sum += count;
+            this.unconditionalProbabilities.put(unique, (double)count);
         }
 
         // normalizes
@@ -859,6 +894,16 @@ public abstract class AbstractVariable {
      * values) and the dictionary value for that key is the set of indices where that combination of parent values happen.
      */
     private HashMap<HashMap<String, String>, HashSet<Integer>> iterateOverParentValues() {
+        HashMap<HashMap<String, String>, HashSet<Integer>> results = new HashMap<>();
+        if(this.prob_parents.size() == 0) {
+            HashSet<Integer> allIndices = new HashSet<>();
+            for(int i = 0; i < this.values.size(); i++) {
+                allIndices.add(i);
+            }
+            results.put(new HashMap<String, String>(), allIndices);
+            return results;
+        }
+
         HashMap<String, Object[]> parentsArrayOfValues = new HashMap<>();
         int[] sizes = new int [prob_parents.size() + 1];
         int[] carousel = new int [prob_parents.size() + 1];
@@ -875,8 +920,6 @@ public abstract class AbstractVariable {
             parent_combinations *= sizes[i];
             carousel[i] = 0;
         }
-
-        HashMap<HashMap<String, String>, HashSet<Integer>> results = new HashMap<>(parent_combinations);
 
         int counter = 0;
         while(counter < parent_combinations) {
@@ -895,11 +938,11 @@ public abstract class AbstractVariable {
 
             try {
                 HashSet<Integer> indices = this.getSetOfIndices(
-                        this.table, this.probabilities.size(), cond, null, false, this.prob_parents
+                        this.table, this.values.size(), cond, null, false, this.prob_parents
                 );
                 results.put(cond, indices);
             } catch(CombinationNotPresentException cnp) {
-                System.err.println("Unexpected behavior!");
+                System.err.println("unexpected behavior!");
             }
 
         }

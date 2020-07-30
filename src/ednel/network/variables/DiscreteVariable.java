@@ -31,7 +31,7 @@ public class DiscreteVariable extends AbstractVariable {
         super.updateStructure(mutableParents, fittest);
     }
 
-    public void setValues(HashMap<String, ArrayList<String>> fittest) {
-        // nothing happens
+    public void setValues(HashMap<String, ArrayList<String>> fittest) throws Exception {
+        super.setValues(fittest);
     }
 }
