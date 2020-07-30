@@ -1,2 +1,5 @@
 PART_confidenceFactorValue,probability
-"(loc=0.250000,scale=0.200000,a_min=0.050000,a_max=0.500000,scale_init=0.200000)",1.0
+0.15,0.25
+0.25,0.25
+0.35,0.25
+0.45,0.25

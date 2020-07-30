@@ -3,12 +3,21 @@ package ednel.network.variables;
 import java.lang.reflect.Method;
 import java.util.Objects;
 
+/**
+ * A shadow value is a samplabe value from a probabilistic distribution, stored in an AbstractVariable.
+ * To access the sampled value from a Shadowvalue object, one must invoke method getValue. This will unpack the value.
+ *
+ * This class is necessary since continuous variables (that encode normal distributions in this EDA) may have a
+ * shadow value (i.e. the normal distribution mean, standard deviation) and a sampled value (i.e. the actual value sampled
+ * from that distribution).
+ */
 public class Shadowvalue implements Comparable<String> {
     protected Method method;
     protected Object obj;
 
     /**
      * method must not have any parameters.
+     *
      * @param method Method to call when this class getValue method is called.
      * @param obj Object used to call method.
      */
@@ -22,8 +31,7 @@ public class Shadowvalue implements Comparable<String> {
             try {
                 return String.valueOf(method.invoke(obj));
             } catch(Exception e) {
-                // TODO double check!
-                System.out.println("Deu erro aqui!!!");
+                System.err.println("Deu erro aqui!!!");  // TODO double check!
                 return null;
             }
         }
@@ -31,13 +39,13 @@ public class Shadowvalue implements Comparable<String> {
     }
 
     @Override
-    public int compareTo(String o) {
-        return this.toString().compareTo(o);
+    public String toString() {
+        return String.valueOf(obj);
     }
 
     @Override
-    public String toString() {
-        return String.valueOf(obj);
+    public int compareTo(String o) {
+        return this.toString().compareTo(o);
     }
 
     @Override

@@ -20,46 +20,11 @@ public class ContinuousVariable extends AbstractVariable {
 
     public ContinuousVariable(String name, JSONObject fixedBlocking, HashMap<String, Boolean> isParentContinuous,
                               HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-                              ArrayList<String> values, ArrayList<Double> probabilities,
+                              ArrayList<String> initial_values, ArrayList<Double> probabilities,
                               MersenneTwister mt, int max_parents) throws Exception {
 
-        super(name, fixedBlocking, isParentContinuous, table,
-            null, null, null, probabilities, mt, max_parents
+        super(name, fixedBlocking, isParentContinuous, table, initial_values, probabilities, mt, max_parents
         );
-
-        this.values = new ArrayList<>(values.size());
-        this.uniqueValues = new HashSet<>();
-        this.uniqueShadowvalues = new HashSet<>();
-
-        for(int i = 0; i < values.size(); i++) {
-            if(!values.get(i).equals("null")) {
-                HashMap<String, Double> properties = this.fromStringToProperty(values.get(i));
-                this.a_max = properties.get("a_max");
-                this.a_min = properties.get("a_min");
-                this.scale = properties.get("scale");
-                this.loc_init = properties.get("loc");
-                this.scale_init = properties.get("scale_init");
-
-                Shadowvalue sv;
-                if(properties.containsKey("means")) {
-                    throw new Exception("not implemented yet!");  // TODO implement
-                } else {
-                    sv = new ShadowNormalDistribution(this.mt, properties);
-                }
-                this.values.add(sv);
-                this.uniqueValues.add(sv.toString());
-                this.uniqueShadowvalues.add(sv);
-            } else {
-                Shadowvalue sv = new Shadowvalue(
-                    String.class.getMethod("toString"),
-                    "null"
-                );
-
-                this.values.add(sv);
-                this.uniqueValues.add(sv.toString());
-                this.uniqueShadowvalues.add(sv);
-            }
-        }
     }
 
     /**
@@ -68,7 +33,7 @@ public class ContinuousVariable extends AbstractVariable {
      * @param str The string.
      * @return A dictionary.
      */
-    private HashMap<String, Double> fromStringToProperty(String str) {
+    protected HashMap<String, Double> fromStringToProperty(String str) {
         String[] property = str.replaceAll("[\\(\\)\"]", "").split(",");
 
         HashMap<String, Double> thisProperty = new HashMap<>(property.length);
@@ -81,14 +46,17 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
-        super.updateProbabilities(fittestValues, fittest);
-        // updates shadow values
-        this.uniqueShadowvalues = new HashSet<>(this.values);
-        this.uniqueValues = new HashSet<>();
-        for(Shadowvalue val : this.uniqueShadowvalues) {
-            this.uniqueValues.add(val.toString());
-        }
+    public void updateStructure(AbstractVariable[] mutableParents, HashMap<String, ArrayList<String>> fittest) throws Exception {
+        super.updateStructure(mutableParents, fittest);
+        throw new Exception("implement!");
+    }
+
+    @Override
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest, float learningRate, int n_generations) throws Exception {
+        throw new Exception("implement!");
+//        super.updateProbabilities(fittestValues, fittest, learningRate, n_generations);
+//        // updates shadow values
+//        this.uniqueShadowvalues = new HashSet<>(this.values);
     }
 
     /**
@@ -183,32 +151,29 @@ public class ContinuousVariable extends AbstractVariable {
         );
     }
 
-    public void updateUniqueValues(HashMap<String, ArrayList<String>> fittest) {
-        int counter = 0;
-        for(String fit : fittest.get(this.getName())) {
-            if(fit != null) {
-                counter += 1;
-            }
-        }
-        double[] values = new double [counter];
-        counter = 0;
-        for(String fit : fittest.get(this.getName())) {
-            if(fit != null) {
-                values[counter] = Double.parseDouble(fit);
-                counter += 1;
-            }
-        }
-        DescriptiveStatistics ds = new DescriptiveStatistics(values);
-
-        String descriptiveString = String.format(
-            Locale.US,
-            "(loc=%01.6f,scale=%01.6f,a_min=%01.6f,a_max=%01.6f,scale_init=%01.6f)",
-            ds.getMean(), ds.getStandardDeviation(), this.a_min, this.a_max, this.scale_init
-        );
-
-        this.uniqueValues.clear();
-        this.uniqueValues.add("null");
-        this.uniqueValues.add(descriptiveString);
+    public void setValues(HashMap<String, ArrayList<String>> fittest) throws Exception {
+        throw new Exception("not implemented yet!");
+//        int counter = 0;
+//        for(String fit : fittest.get(this.getName())) {
+//            if(fit != null) {
+//                counter += 1;
+//            }
+//        }
+//        double[] values = new double [counter];
+//        counter = 0;
+//        for(String fit : fittest.get(this.getName())) {
+//            if(fit != null) {
+//                values[counter] = Double.parseDouble(fit);
+//                counter += 1;
+//            }
+//        }
+//        DescriptiveStatistics ds = new DescriptiveStatistics(values);
+//
+//        String descriptiveString = String.format(
+//            Locale.US,
+//            "(loc=%01.6f,scale=%01.6f,a_min=%01.6f,a_max=%01.6f,scale_init=%01.6f)",
+//            ds.getMean(), ds.getStandardDeviation(), this.a_min, this.a_max, this.scale_init
+//        );
     }
 
     public double getMinValue() {

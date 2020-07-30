@@ -5,11 +5,11 @@ import java.util.HashSet;
 
 public class Combinator {
 
-    public static HashMap<String, HashSet<String>> getUniqueValuesFromVariables(AbstractVariable[] parents) {
-        HashMap<String, HashSet<String>> uniqueValues = new HashMap<>(parents.length + 1);
+    public static HashMap<String, HashSet<Shadowvalue>> getUniqueValuesFromVariables(AbstractVariable[] parents) {
+        HashMap<String, HashSet<Shadowvalue>> uniqueValues = new HashMap<>(parents.length + 1);
 
         for (AbstractVariable parent : parents) {
-            uniqueValues.put(parent.getName(), parent.getUniqueValues());
+            uniqueValues.put(parent.getName(), parent.getUniqueShadowvalues());
         }
         return uniqueValues;
     }

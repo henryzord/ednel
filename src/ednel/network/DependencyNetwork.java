@@ -73,28 +73,8 @@ public class DependencyNetwork {
     }
 
     /**
-     * Updates the number of (probabilistic) connections that the dependency network/probabilistic graphical model
-     * has.
-     * @param variables Variables of the dependency network.
-     */
-//    private void updateConnectionsCount(HashMap<String, AbstractVariable> variables) {
-//        this.connectionsCount = new HashMap<>();
-//
-//        for(String var : variables.keySet()) {
-//            this.connectionsCount.put(var, 0);
-//        }
-//
-//        for(String var : variables.keySet()) {
-//            HashSet<String> probParentsNames = variables.get(var).getProbabilisticParentsNames();
-//            for(String prob : probParentsNames) {
-//                this.connectionsCount.put(prob, this.connectionsCount.get(prob) + 1);
-//                this.connectionsCount.put(var, this.connectionsCount.get(var) + 1);
-//            }
-//        }
-//    }
-
-    /**
      * Infers sampling order from variables, based on the most requested variables in the dependency network.
+     *
      * @param variables dictionary of names and AbstractVariable objects
      * @return sampling order
      */
@@ -113,7 +93,7 @@ public class DependencyNetwork {
                 for(String var : variables.keySet()) {
                     HashSet<String> set = new HashSet<>();
                     set.addAll(variables.get(var).getAllBlocking());
-                    set.addAll(variables.get(var).getAllParents());
+                    set.addAll(variables.get(var).getProbabilisticParents());
                     set.removeAll(added_set);  // removes variables already included
 
                     for(String overVar : set) {
@@ -142,6 +122,7 @@ public class DependencyNetwork {
 
     /**
      * Reads variables from file.
+     *
      * @param resources_path Path to resources folder.
      * @throws Exception If any exception occurs
      */
@@ -157,90 +138,13 @@ public class DependencyNetwork {
                 new File(resources_path + File.separator + "distributions").toPath()
         ).toArray();
 
-        String row;
         for(int i = 0; i < algorithmsPaths.length; i++) {
             Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
 
             for(Object variablePath : variablePaths) {
-                String variableName = variablePath.toString().substring(
-                        variablePath.toString().lastIndexOf(File.separator) + 1,
-                        variablePath.toString().lastIndexOf(".")
-                );
-
-                BufferedReader csvReader = new BufferedReader(new FileReader(variablePath.toString()));
-
-                row = csvReader.readLine();
-                String[] header = row.split(",(?![^(]*\\))");
-
-                HashMap<String, Boolean> isContinuous = new HashMap<>();
-
-//                String variableName = header[header.length - 2];
-                // isContinuous.put(variableName, false);
-                int n_variables_table = 1;
-                HashSet<String> parents_names = new HashSet<>();
-
-                HashMap<String, HashMap<String, ArrayList<Integer>>> table = new HashMap<>(header.length);
-                table.put(variableName, new HashMap<>());
-
-                // if there are more entries than simply the name of this variable plus column "probability"
-                if(header.length > 2) {
-                    n_variables_table = n_variables_table + header.length - 2;
-                    for(int k = 0; k < header.length - 2; k++) {
-                        parents_names.add(header[k]);
-                        table.put(header[k], new HashMap<>());
-                    }
-                }
-
-                ArrayList<Double> probabilities = new ArrayList<>((int)Math.pow(2, n_variables_table));
-                ArrayList<String> values = new ArrayList<>((int)Math.pow(2, n_variables_table));
-
-                int index = 0;
-
-                while ((row = csvReader.readLine()) != null) {
-                    String[] this_data = row.split(",(?![^(]*\\))");
-
-                    probabilities.add(Double.valueOf(this_data[this_data.length - 1]));
-                    values.add(this_data[this_data.length - 2]);
-
-                    for(int k = 0; k < this_data.length - 1; k++) {
-                        isContinuous.put(
-                            header[k],
-                            isContinuous.getOrDefault(header[k], false) ||
-                                    (this_data[k].contains("loc") && this_data[k].contains("scale")) ||  // univariate normal distribution
-                                        this_data[k].contains("means")  // multivariate normal distribution
-                        );
-
-                        // if this variable does not have this value
-                        if(!table.get(header[k]).containsKey(this_data[k])) {
-                            table.get(header[k]).put(this_data[k], new ArrayList<>());
-                        }
-                        table.get(header[k]).get(this_data[k]).add(index);
-                    }
-                    index++;
-                }
-                csvReader.close();  // finishes reading this file
-
-                boolean amIContinuous = isContinuous.get(variableName);
-                isContinuous.remove(variableName);
-
-                if(amIContinuous) {
-                    variables.put(
-                            variableName,
-                            new ContinuousVariable(
-                                    variableName, (JSONObject)initialBlocking.get(variableName), isContinuous, table,
-                                    values, probabilities, this.mt, max_parents
-                            )
-                    );
-                } else {
-                    variables.put(
-                            variableName,
-                            new DiscreteVariable(
-                                    variableName, (JSONObject)initialBlocking.get(variableName), isContinuous, table,
-                                    values, probabilities, this.mt, max_parents
-                            )
-                    );
-                }
-                this.currentGenConnections += this.variables.get(variableName).getParentCount();
+                AbstractVariable newVariable = AbstractVariable.fromPath(variablePath.toString(), initialBlocking, this.max_parents, this.mt);
+                this.variables.put(newVariable.getName(), newVariable);
+                this.currentGenConnections += this.variables.get(newVariable.getName()).getParentCount();
             }
         }
     }
@@ -353,15 +257,15 @@ public class DependencyNetwork {
         HashSet<String> parents = this.variables.get(variableName).getProbabilisticParentsNames();
 
         ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.size() + 1);
-        Object[] thisUniqueValues = this.variables.get(variableName).getUniqueValues().toArray();
+        Object[] thisUniqueValues = this.variables.get(variableName).getUniqueShadowvalues().toArray();
         for(Object value : thisUniqueValues) {
             HashMap<String, String> data = new HashMap<>(parents.size() + 1);
-            data.put(variableName, (String)value);
+            data.put(variableName, value.toString());
             combinations.add(data);
         }
 
         for(String parent : parents) {
-            Object[] values = this.variables.get(parent).getUniqueValues().toArray();
+            Object[] values = this.variables.get(parent).getUniqueShadowvalues().toArray();
             int outer = values.length * combinations.size();
 
             ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>(outer);
@@ -369,7 +273,7 @@ public class DependencyNetwork {
             for(int j = 0; j < values.length; j++) {
                 for(int i = 0; i < combinations.size(); i++) {
                     HashMap<String, String> local = (HashMap<String, String>) combinations.get(i).clone();
-                    local.put(parent, (String)values[j]);
+                    local.put(parent, values[j].toString());
                     new_combinations.add(local);
                 }
             }
@@ -399,11 +303,12 @@ public class DependencyNetwork {
 
         this.updateStructure(fittestValues);
         this.updateProbabilities(fittestValues, fittestIndividuals);
+        this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.variables);
     }
 
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
         for(String variableName : this.samplingOrder) {
-            this.variables.get(variableName).updateProbabilities(fittestValues, fittest, this.learningRate);
+            this.variables.get(variableName).updateProbabilities(fittestValues, fittest, this.learningRate, this.n_generations);
         }
     }
 
@@ -722,15 +627,13 @@ public class DependencyNetwork {
 
     /**
      * Updates structure of dependency network/probabilistic graphical model.
+     * Uses an heuristic to detect which variables are more suitable to be parents of a given child variable.
+     *
      * @param fittest HashMap of variable values for fittest individuals.
      * @throws Exception
      */
     private void updateStructure(HashMap<String, ArrayList<String>> fittest) throws Exception {
         this.currentGenConnections = 0;
-//
-        for(String varName : this.samplingOrder) {
-            this.variables.get(varName).updateUniqueValues(fittest);
-        }
 
         for(String variableName : this.samplingOrder) {
             // candidates to be parents of a variable
