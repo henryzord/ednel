@@ -87,15 +87,6 @@ public abstract class AbstractVariable {
     protected HashMap<String, ArrayList<String>> fixedBlocking;
 
     /**
-     * Blocking variables are variables that must be sampled before this variable can be sampled.
-     * If any of the blocking variables is not present in the current generation of the Gibbs Sampler,
-     * this variable should not be sampled too.
-     *
-     * This attribute contains information on variables that may change from one generation to another.
-     */
-    protected HashMap<String, ArrayList<String>> mutableBlocking;
-
-    /**
      * Should not contain null values. If a null value is present, then it is "null" (i.e. a string)
      */
     protected HashMap<String, HashMap<String, ArrayList<Integer>>> table;
@@ -114,7 +105,6 @@ public abstract class AbstractVariable {
 
         this.name = name;
         this.fixedBlocking = AbstractVariable.readBlockingJSONObject(fixedBlocking);
-        this.mutableBlocking = new HashMap<>();
 
         this.lastgen_prob_parents = new HashSet<>();
         this.prob_parents = new HashSet<>();
@@ -203,34 +193,16 @@ public abstract class AbstractVariable {
      * @return True if a value can be sampled from this variable; false otherwise.
      */
     private boolean passBlockingTest(HashMap<String, String> lastStart) {
-        // boolean proceed = true;
-        //            for(String block : this.variables.get(variableName).getAllBlocking()) {
-        //                // if variable was not sampled, or classifier of that variable is absent in ensemble
-        //                // (also works if variable name is algorithm name)
-        //                if(String.valueOf(lastStart.get(block)).equals("null") || lastStart.get(AbstractVariable.getAlgorithmName(block)).equals("false")) {
-        //                    lastStart.put(variableName, null);
-        //                    proceed = false;
-        //                    break;
-        //                }
-        //            }
-
-        ArrayList<HashMap<String, ArrayList<String>>> toIter = new ArrayList<HashMap<String, ArrayList<String>>>(){{
-            add(fixedBlocking);
-            add(mutableBlocking);
-        }};
-
-        for(HashMap<String, ArrayList<String>> block : toIter) {
-            for(String var : block.keySet()) {
-                boolean pass = false;
-                for(String value : block.get(var)) {
-                    if(String.valueOf(lastStart.getOrDefault(var, null)).equals(value)) {
-                        pass = true;
-                        break;
-                    }
+        for(String var : fixedBlocking.keySet()) {
+            boolean pass = false;
+            for(String value : fixedBlocking.get(var)) {
+                if(String.valueOf(lastStart.getOrDefault(var, null)).equals(value)) {
+                    pass = true;
+                    break;
                 }
-                if(!pass) {
-                    return false;
-                }
+            }
+            if(!pass) {
+                return false;
             }
         }
         return true;
@@ -511,13 +483,9 @@ public abstract class AbstractVariable {
         }
 
         this.prob_parents.clear();
-        this.mutableBlocking.clear();
 
         // if variable is not among fixed parents
         for(AbstractVariable par : mutableParents) {
-            // adds algorithm of parent variable to mutable blocking variables
-            this.mutableBlocking.put(par.getAlgorithmName(), new ArrayList<String>(){{add("true");}});
-
             this.prob_parents.add(par.getName());
             this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
         }
@@ -1019,11 +987,8 @@ public abstract class AbstractVariable {
     /**
      * Returns all variables that must be sampled before this variable, either fixed or mutable.
      */
-    public HashSet<String> getAllBlocking() {
-        HashSet<String> set = new HashSet<>();
-        set.addAll(this.fixedBlocking.keySet());
-        set.addAll(this.mutableBlocking.keySet());
-        return set;
+    public HashSet<String> getFixedBlocking() {
+        return new HashSet<>(this.fixedBlocking.keySet());
     }
 
     public HashSet<String> getProbabilisticParents() {

@@ -92,7 +92,7 @@ public class DependencyNetwork {
                 votes = new HashMap<>();
                 for(String var : variables.keySet()) {
                     HashSet<String> set = new HashSet<>();
-                    set.addAll(variables.get(var).getAllBlocking());
+                    set.addAll(variables.get(var).getFixedBlocking());
                     set.addAll(variables.get(var).getProbabilisticParents());
                     set.removeAll(added_set);  // removes variables already included
 
