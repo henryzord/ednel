@@ -1,7 +1,7 @@
 package ednel.eda.aggregators;
 
 import ednel.classifiers.trees.SimpleCart;
-import ednel.eda.rules.RealRule;
+import ednel.eda.rules.ExtractedRule;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
@@ -9,15 +9,20 @@ import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.Instance;
 import weka.core.Instances;
-import weka.core.converters.ConverterUtils;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.lang.reflect.Array;
+import java.util.*;
 
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
+    ArrayList<ExtractedRule> rules;
+    int n_classes;
+
     public RuleExtractorAggregator() {
+        rules = new ArrayList<>();
+        this.competences = new double[0];
+        n_classes = 0;
     }
 
     /**
@@ -28,22 +33,61 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
      */
     @Override
     public void setCompetences(AbstractClassifier[] clfs, Instances train_data) throws Exception {
-        int n_active_classifiers = this.getActiveClassifiersCount(clfs);
+        HashSet<ExtractedRule> candidate_rules = new HashSet<>();
 
-        RealRule[][] all_rules = new RealRule[n_active_classifiers][];
-
-        int counter = 0;
-        for(int i = 0; i < clfs.length; i++) {
-            if(clfs[i] != null) {
-                all_rules[counter] = RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data);
-                counter += 1;
+        for(AbstractClassifier clf : clfs) {
+            // algorithm generates unordered rules; proceed
+            if(!clf.getClass().equals(JRip.class) && !clf.getClass().equals(PART.class)) {
+                candidate_rules.addAll(Arrays.asList(RuleExtractorAggregator.fromClassifierToRules(clf, train_data)));
             }
         }
 
-        int z = 0;
+        this.rules = new ArrayList<>();
+        this.n_classes = train_data.numClasses();
+        ArrayList<Double> qualities = new ArrayList<>();
 
-        // TODO now set competences!
+        boolean activated[] = new boolean[train_data.size()];
+        for(int i = 0; i < train_data.size(); i++) {
+            activated[i] = true;
+        }
 
+        double bestQuality;
+        ExtractedRule bestRule;
+
+        int remaining_instances = train_data.size();
+        while(remaining_instances > 0) {
+            bestRule = null;
+            bestQuality = 0.0;
+            for(ExtractedRule rule : candidate_rules) {
+                double quality = rule.quality(train_data, activated);
+                if(quality > bestQuality) {
+                    bestQuality = quality;
+                    bestRule = rule;
+                }
+            }
+            if(bestRule == null) {
+                break;  // nothing else to do!
+            }
+
+            // TODO using quality on instances that this rule could see during training!
+            rules.add(bestRule);
+            qualities.add(bestQuality);
+
+            candidate_rules.remove(bestRule);
+            remaining_instances = 0;
+
+            boolean[] covered = bestRule.covers(train_data, activated);
+            for(int i = 0; i < train_data.size(); i++) {
+                activated[i] = activated[i] && !(covered[i] && (bestRule.getConsequent() == train_data.get(i).classValue()));
+                remaining_instances += activated[i]? 1 : 0;
+            }
+        }
+
+        this.competences = new double[qualities.size()];
+        for(int i = 0; i < qualities.size(); i++) {
+            this.competences[i] = qualities.get(i);
+        }
+        qualities = null;
     }
 
     @Override
@@ -53,16 +97,50 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
     @Override
     public double[][] aggregateProba(AbstractClassifier[] clfs, Instances batch) throws Exception {
-        return new double[0][];
+        double[][] classProbs = new double[batch.size()][this.n_classes];
+        
+        for(int i = 0; i < batch.size(); i++) {
+            int votesSum = 0;
+            for(int c = 0; c < this.n_classes; c++) {
+                classProbs[i][c] = 0.0;
+            }
+
+            for(int j = 0; j < this.rules.size(); j++) {
+                if(this.rules.get(j).covers(batch.get(i))) {
+                    classProbs[i][(int)this.rules.get(j).getConsequent()] += 1;
+                    votesSum += 1;
+                }
+            }
+            for(int c = 0; c < this.n_classes; c++) {
+                classProbs[i][c] /= (double)votesSum;
+            }
+        }
+        return classProbs;
     }
 
     @Override
     public double[] aggregateProba(AbstractClassifier[] clfs, Instance instance) throws Exception {
-        return new double[0];
+        double[] classProbs = new double[this.n_classes];
+        int votesSum = 0;
+        for(int c = 0; c < this.n_classes; c++) {
+            classProbs[c] = 0.0;
+        }
+
+        for(int j = 0; j < this.rules.size(); j++) {
+            if(this.rules.get(j).covers(instance)) {
+                classProbs[(int)this.rules.get(j).getConsequent()] += 1;
+                votesSum += 1;
+            }
+        }
+        for(int c = 0; c < this.n_classes; c++) {
+            classProbs[c] /= (double)votesSum;
+        }
+
+        return classProbs;
     }
 
 
-    public static RealRule[] fromClassifierToRules(AbstractClassifier clf, Instances train_data) throws Exception {
+    public static ExtractedRule[] fromClassifierToRules(AbstractClassifier clf, Instances train_data) throws Exception {
         if(clf instanceof J48) {
             return RuleExtractorAggregator.fromJ48ToRules((J48)clf, train_data);
         } else if(clf instanceof DecisionTable) {
@@ -80,7 +158,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         );
     }
 
-    private static RealRule[] fromPARTToRules(PART clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromPARTToRules(PART clf, Instances train_data) throws Exception {
         String str = clf.toString();
 
         String[] lines = str.substring(
@@ -94,16 +172,16 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             rule_lines.add(lines[i].replaceAll("AND\n", "and "));
         }
 
-        RealRule[] rules = new RealRule[rule_lines.size()];
-        ArrayList<RealRule> cumulativeRules = new ArrayList<>();
+        ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
+        ArrayList<ExtractedRule> cumulativeRules = new ArrayList<>();
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
             cumulativeRules.add(rules[i]);
         }
         return rules;
     }
 
-    private static RealRule[] fromJRipToRules(JRip clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromJRipToRules(JRip clf, Instances train_data) throws Exception {
         String str = clf.toString();
 
         String[] lines = str.substring(str.indexOf("===========") + "===========".length(), str.indexOf("Number of Rules")).trim().split("\n");
@@ -117,16 +195,16 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             rule_lines.add(String.format("%s: %s", priors, posteriori.split("=")[1]));
 //            }
         }
-        RealRule[] rules = new RealRule[rule_lines.size()];
-        ArrayList<RealRule> cumulativeRules = new ArrayList<>();
+        ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
+        ArrayList<ExtractedRule> cumulativeRules = new ArrayList<>();
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
             cumulativeRules.add(rules[i]);
         }
         return rules;
     }
 
-    private static RealRule[] fromSimpleCartToRules(SimpleCart clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromSimpleCartToRules(SimpleCart clf, Instances train_data) throws Exception {
         String str = clf.toString();
 
         String[] lines = (
@@ -201,14 +279,14 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             }
         }
 
-        RealRule[] rules = new RealRule[rule_lines.size()];
+        ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data, null);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, null);
         }
         return rules;
     }
 
-    private static RealRule[] fromJ48ToRules(J48 clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromJ48ToRules(J48 clf, Instances train_data) throws Exception {
         String str = clf.toString();
         String[] lines = (
                 str.substring(
@@ -253,14 +331,16 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             }
         }
 
-        RealRule[] rules = new RealRule[rule_lines.size()];
+        ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new RealRule(rule_lines.get(i), train_data, null);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, null);
         }
         return rules;
     }
 
-    private static String formatNumericDecisionTableCell(String pre) throws Exception {
+    private static String formatNumericDecisionTableCell(String pre, String column_name) throws Exception {
+        // TODO method breaks when interval does not involve inf values! (e.g. '(87.5-98.5]')
+
         pre = pre.replaceAll("\'", "");
 
         String[] parts = pre.substring(1, pre.length() - 1).split("-");
@@ -278,9 +358,9 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
         if(!parts[0].equals("-inf")) {
             if(opening_char == '(') {
-                post_process += "%s > " + parts[0];
+                post_process += String.format("%s > " + parts[0], column_name);
             } else if(opening_char == '[') {
-                post_process += "%s >= " + parts[0];
+                post_process += String.format("%s >= " + parts[0], column_name);
             } else {
                 throw new Exception("pre must be opened either by a ( or a [ character!");
             }
@@ -290,9 +370,9 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
         if(!parts[1].equals("inf")) {
             if(closing_char == ')') {
-                post_process += "%s < " + parts[1];
+                post_process += String.format("%s < " + parts[1], column_name);
             } else if (closing_char == ']') {
-                post_process += "%s <= " + parts[1];
+                post_process += String.format("%s <= " + parts[1], column_name);
             } else {
                 throw new Exception("pre must be closed either by a ) or a ] character!");
             }
@@ -300,7 +380,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         return post_process;
     }
 
-    public static RealRule[] fromDecisionTableToRules(DecisionTable decisionTable, Instances train_data) throws Exception {
+    public static ExtractedRule[] fromDecisionTableToRules(DecisionTable decisionTable, Instances train_data) throws Exception {
         decisionTable.setDisplayRules(true);
         String str = decisionTable.toString();
 
@@ -313,7 +393,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             }
         }
 
-        RealRule[] realRules = new RealRule[rules.length - 4];
+        ExtractedRule[] extractedRules = new ExtractedRule[rules.length - 4];
 
         StringBuffer prior = new StringBuffer("");
         if (headerColumns.size() > 1) {
@@ -327,8 +407,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 for(int j = 0; j < priors.length - 1; j++) {
                     String post = priors[j];
                     if(priors[j].contains("\'")) {
-                        post = RuleExtractorAggregator.formatNumericDecisionTableCell(priors[j]);
-                        post = String.format(post, headerColumns.get(j));
+                        post = RuleExtractorAggregator.formatNumericDecisionTableCell(priors[j], headerColumns.get(j));
                     } else {
                         post = String.format("%s = %s", headerColumns.get(j), post);
                     }
@@ -339,42 +418,44 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 }
                 newline.append(": ").append(posterior);
 
-                realRules[counter] = new RealRule(newline.toString(), train_data, null);
+                extractedRules[counter] = new ExtractedRule(newline.toString(), train_data, null);
                 counter += 1;
             }
         } else {  // has only default rule!
-            return new RealRule[0];
+            return new ExtractedRule[0];
         }
-        return realRules;
+        return extractedRules;
     }
 
     public static void main(String[] args) {
         try {
-//            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");
-
-            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Desktop\\play_tennis.arff");
-
-            AbstractClassifier[] clfs = new AbstractClassifier[]{new JRip(), new PART(), new J48(), new DecisionTable(), new SimpleCart()};
-
-            Instances train_data = train_set.getDataSet();
-            train_data.setClassIndex(train_data.numAttributes() - 1);
-
-            RealRule[][] all_rules = new RealRule[clfs.length][];
-
-            for(int i = 0; i < clfs.length; i++) {
-                clfs[i].buildClassifier(train_data);
-                all_rules[i] = RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data);
-            }
-            for(int c = 0; c < clfs.length; c++) {
-                for(int r = 0; r < all_rules[c].length; r++) {
-                    if(all_rules[c][r].covers(train_data.get(0))) {
-                        System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
-                    }
-                }
-            }
-
+            System.out.println(RuleExtractorAggregator.formatNumericDecisionTableCell("(87.5-98.5]", "any_column"));
         } catch (Exception e) {
             e.printStackTrace();
         }
+//            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Desktop\\play_tennis.arff");
+//
+//            AbstractClassifier[] clfs = new AbstractClassifier[]{new JRip(), new PART(), new J48(), new DecisionTable(), new SimpleCart()};
+//
+//            Instances train_data = train_set.getDataSet();
+//            train_data.setClassIndex(train_data.numAttributes() - 1);
+//
+//            RealRule[][] all_rules = new RealRule[clfs.length][];
+//
+//            for(int i = 0; i < clfs.length; i++) {
+//                clfs[i].buildClassifier(train_data);
+//                all_rules[i] = RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data);
+//            }
+//            for(int c = 0; c < clfs.length; c++) {
+//                for(int r = 0; r < all_rules[c].length; r++) {
+//                    if(all_rules[c][r].covers(train_data.get(0))) {
+//                        System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
+//                    }
+//                }
+//            }
+//
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
     }
 }
