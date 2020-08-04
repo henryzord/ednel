@@ -2,6 +2,7 @@ package ednel.eda.aggregators;
 
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.rules.ExtractedRule;
+import sun.reflect.annotation.ExceptionProxy;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
@@ -17,12 +18,16 @@ import java.util.*;
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
     ArrayList<ExtractedRule> rules;
+    ArrayList<Double> ruleQualities;
     int n_classes;
+    double aggregatedRuleCompetence;
 
     public RuleExtractorAggregator() {
-        rules = new ArrayList<>();
+        this.rules = new ArrayList<>();
+        this.ruleQualities = new ArrayList<>();
         this.competences = new double[0];
-        n_classes = 0;
+        this.aggregatedRuleCompetence = 0;
+        this.n_classes = 0;
     }
 
     /**
@@ -33,18 +38,28 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
      */
     @Override
     public void setCompetences(AbstractClassifier[] clfs, Instances train_data) throws Exception {
+
+        this.competences = new double[clfs.length];
         HashSet<ExtractedRule> candidate_rules = new HashSet<>();
 
-        for(AbstractClassifier clf : clfs) {
+        int n_classifiers = this.getActiveClassifiersCount(clfs);
+        int n_unordered_classifiers = 0;
+
+        for(int i = 0; i < clfs.length; i++) {
             // algorithm generates unordered rules; proceed
-            if(!clf.getClass().equals(JRip.class) && !clf.getClass().equals(PART.class)) {
-                candidate_rules.addAll(Arrays.asList(RuleExtractorAggregator.fromClassifierToRules(clf, train_data)));
+            if(!clfs[i].getClass().equals(JRip.class) && !clfs[i].getClass().equals(PART.class)) {
+                candidate_rules.addAll(Arrays.asList(RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data)));
+                this.competences[i] = 0;
+                n_unordered_classifiers += 1;
+            } else {
+                this.competences[i] = 1. / n_classifiers;
             }
         }
+        this.aggregatedRuleCompetence = n_unordered_classifiers / (double)n_classifiers;
 
         this.rules = new ArrayList<>();
         this.n_classes = train_data.numClasses();
-        ArrayList<Double> qualities = new ArrayList<>();
+        this.ruleQualities = new ArrayList<>();
 
         boolean activated[] = new boolean[train_data.size()];
         for(int i = 0; i < train_data.size(); i++) {
@@ -71,7 +86,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
             // TODO using quality on instances that this rule could see during training!
             rules.add(bestRule);
-            qualities.add(bestQuality);
+            ruleQualities.add(bestQuality);
 
             candidate_rules.remove(bestRule);
             remaining_instances = 0;
@@ -82,12 +97,6 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 remaining_instances += activated[i]? 1 : 0;
             }
         }
-
-        this.competences = new double[qualities.size()];
-        for(int i = 0; i < qualities.size(); i++) {
-            this.competences[i] = qualities.get(i);
-        }
-        qualities = null;
     }
 
     @Override
@@ -98,17 +107,26 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
     @Override
     public double[][] aggregateProba(AbstractClassifier[] clfs, Instances batch) throws Exception {
         double[][] classProbs = new double[batch.size()][this.n_classes];
-        
+
         for(int i = 0; i < batch.size(); i++) {
-            int votesSum = 0;
+            double votesSum = 0.0;
             for(int c = 0; c < this.n_classes; c++) {
                 classProbs[i][c] = 0.0;
+            }
+            // unagroupated classifiers vote first
+            for(int k = 0; k < clfs.length; k++) {
+                if(this.competences[k] > 0) {
+                    double voteWeight = this.competences[k];
+                    classProbs[i][(int)clfs[k].classifyInstance(batch.get(i))] += voteWeight;
+                    votesSum += voteWeight;
+                }
             }
 
             for(int j = 0; j < this.rules.size(); j++) {
                 if(this.rules.get(j).covers(batch.get(i))) {
-                    classProbs[i][(int)this.rules.get(j).getConsequent()] += 1;
-                    votesSum += 1;
+                    double voteWeight = this.ruleQualities.get(j) * this.aggregatedRuleCompetence;
+                    classProbs[i][(int)this.rules.get(j).getConsequent()] += voteWeight;
+                    votesSum += voteWeight;
                 }
             }
             for(int c = 0; c < this.n_classes; c++) {
@@ -121,15 +139,24 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
     @Override
     public double[] aggregateProba(AbstractClassifier[] clfs, Instance instance) throws Exception {
         double[] classProbs = new double[this.n_classes];
-        int votesSum = 0;
+        double votesSum = 0.0;
         for(int c = 0; c < this.n_classes; c++) {
             classProbs[c] = 0.0;
+        }
+        // unagroupated classifiers vote first
+        for(int k = 0; k < clfs.length; k++) {
+            if(this.competences[k] > 0) {
+                double voteWeight = this.competences[k];
+                classProbs[(int)clfs[k].classifyInstance(instance)] += voteWeight;
+                votesSum += voteWeight;
+            }
         }
 
         for(int j = 0; j < this.rules.size(); j++) {
             if(this.rules.get(j).covers(instance)) {
-                classProbs[(int)this.rules.get(j).getConsequent()] += 1;
-                votesSum += 1;
+                double voteWeight = this.ruleQualities.get(j) * this.aggregatedRuleCompetence;
+                classProbs[(int)this.rules.get(j).getConsequent()] += voteWeight;
+                votesSum += voteWeight;
             }
         }
         for(int c = 0; c < this.n_classes; c++) {
