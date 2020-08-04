@@ -2,10 +2,13 @@ package ednel.eda.individual;
 
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.trees.J48;
 import weka.core.Instances;
 import weka.core.Utils;
+import weka.core.converters.ConverterUtils;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.util.Random;
 
@@ -38,7 +41,7 @@ public class FitnessCalculator {
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
             if(Utils.isMissingValue(evaluation.areaUnderROC(i))) {
-                unweighted += 0;  // TODO check this code. not sure if this works
+                unweighted += 0;
             } else {
               unweighted += evaluation.areaUnderROC(i);
             }
@@ -75,27 +78,29 @@ public class FitnessCalculator {
         return trainEvaluations;
     }
 
-//    public Double[][] evaluateEnsembles(int seed,
-//                                        String[][] j48Parameters, String[][] simpleCartParameters,
-//                                        String[][] partParameters, String[][] jripParameters, String[][] decisionTableParameters,
-//                                        String[][] aggregatorParameters) throws Exception {
-//
-//        int n_individuals = j48Parameters.length;
-//
-//        Individual[] population = new Individual [n_individuals];
-//
-//        for(int j = 0; j < n_individuals; j++) {
-//            Individual individual = new Individual();
-//            individual.setOptions(new String[]{
-//                    "-J48", String.join(" ", j48Parameters[j]),
-//                    "-SimpleCart", String.join(" ", simpleCartParameters[j]),
-//                    "-PART", String.join(" ", partParameters[j]),
-//                    "-JRip", String.join(" ", jripParameters[j]),
-//                    "-DecisionTable", String.join(" ", decisionTableParameters[j]),
-//                    "-Aggregator", String.join(" ", aggregatorParameters[j])
-//            });
-//            population[j] = individual;
-//        }
-//        return this.evaluateEnsembles(seed, population);
-//    }
+    public static void main(String[] args) {
+        try {
+            J48 j48 = new J48();
+            j48.setConfidenceFactor((float)0.4);
+
+            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\iris\\iris-10-1tra.arff");
+            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\iris\\iris-10-1tst.arff");
+
+            Instances train_data = train_set.getDataSet();
+            Instances test_data = test_set.getDataSet();
+            train_data.setClassIndex(train_data.numAttributes() - 1);
+            test_data.setClassIndex(test_data.numAttributes() - 1);
+
+            j48.buildClassifier(train_data);
+            Evaluation ev = new Evaluation(train_data);
+            ev.evaluateModel(j48, test_data);
+
+            for(int i = 0; i < train_data.numClasses(); i++) {
+                System.out.println(ev.areaUnderROC(i));
+            }
+        } catch(Exception e) {
+            System.err.println(e.getMessage());
+        }
+
+    }
 }
