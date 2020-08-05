@@ -28,6 +28,7 @@ public class FitnessCalculator {
     public FitnessCalculator(int n_folds, Instances train_data) {
         this.train_data = train_data;
         this.n_folds = n_folds;
+        this.train_data.stratify(this.n_folds);
     }
 
     public static double getUnweightedAreaUnderROC(Instances train_data, Instances test_data, AbstractClassifier clf) throws Exception {
@@ -36,12 +37,13 @@ public class FitnessCalculator {
         return getUnweightedAreaUnderROC(evaluation);
     }
 
-    public static double getUnweightedAreaUnderROC(Evaluation evaluation) {
+    public static double getUnweightedAreaUnderROC(Evaluation evaluation) throws Exception {
         int n_classes = evaluation.confusionMatrix().length;
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
             if(Utils.isMissingValue(evaluation.areaUnderROC(i))) {
-                unweighted += 0;
+                throw new Exception("un-stratified code!");
+//                unweighted += 0;
             } else {
               unweighted += evaluation.areaUnderROC(i);
             }
@@ -64,7 +66,8 @@ public class FitnessCalculator {
 
         // do the folds
         for (int i = 0; i < n_folds; i++) {
-            Instances local_train = train_data.trainCV(n_folds, i, random), local_val = train_data.testCV(n_folds, i);
+            Instances local_train = train_data.trainCV(n_folds, i, random);
+            Instances local_val = train_data.testCV(n_folds, i);
 
             for(int j = 0; j < n_individuals; j++) {
                 population[j].buildClassifier(local_train);

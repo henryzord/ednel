@@ -203,8 +203,7 @@ public class PBILLogger {
         }
     }
 
-    private String getEvaluationLineForClassifier(String name, Evaluation evaluation)
-            throws InvocationTargetException, IllegalAccessException {
+    private String getEvaluationLineForClassifier(String name, Evaluation evaluation) throws Exception {
 
         String line = name;
 

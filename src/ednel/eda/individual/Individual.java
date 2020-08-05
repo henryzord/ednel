@@ -265,8 +265,14 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.n_active_classifiers = 0;
         for(AbstractClassifier clf : this.orderedClassifiers) {
             if(clf != null) {
-                clf.buildClassifier(data);
-                n_active_classifiers += 1;
+                try {
+                    clf.buildClassifier(data);  // TODO remove!
+                    n_active_classifiers += 1;
+                }  catch(Exception e) {
+                    clf = null;
+//                    clf.buildClassifier(data);  // TODO remove!
+                }
+
             }
         }
 
