@@ -119,11 +119,17 @@ public class EDNEL extends AbstractClassifier {
 
             this.earlyStop.update(c, this.currentGenFitness);
             t2 = LocalDateTime.now();
-            this.pbilLogger.log(
-                    fitnesses, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
-            );
+            if(this.pbilLogger != null) {
+                this.pbilLogger.log(
+                        fitnesses, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
+                );
+            }
+
             this.dn.update(population, sortedIndices, this.selection_share);
-            this.pbilLogger.print();
+
+            if(this.pbilLogger != null) {
+                this.pbilLogger.print();
+            }
         }
         this.fitted = true;
     }

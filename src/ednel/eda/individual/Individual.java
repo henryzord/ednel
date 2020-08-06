@@ -263,19 +263,16 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         train_data = data;
 
         this.n_active_classifiers = 0;
-        for(AbstractClassifier clf : this.orderedClassifiers) {
-            if(clf != null) {
+        for(int i = 0; i < this.orderedClassifiers.length; i++) {
+            if(this.orderedClassifiers[i] != null) {
                 try {
-                    clf.buildClassifier(data);  // TODO remove!
+                    this.orderedClassifiers[i].buildClassifier(data);
                     n_active_classifiers += 1;
                 }  catch(Exception e) {
-                    clf = null;
-//                    clf.buildClassifier(data);  // TODO remove!
+                    this.orderedClassifiers[i] = null;
                 }
-
             }
         }
-
         if(n_active_classifiers <= 0) {
             throw new Exception("Ensemble must contain at least one classifier!");
         }
