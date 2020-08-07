@@ -118,7 +118,9 @@ def update_gen_structure_map(structs, gen, var_color_dict):
     )
 
     # adds projections
-    G = nx.from_dict_of_lists(structs[gen])
+    # todo build digraph, not graph!
+    # G = nx.from_dict_of_lists(structs[gen])
+    G = nx.DiGraph(structs[gen])
     pos = graphviz_layout(G, prog='neato')
 
     variable_names = list(pos.keys())
@@ -129,25 +131,48 @@ def update_gen_structure_map(structs, gen, var_color_dict):
 
     node_colors = [var_color_dict[nd[0]] for nd in node_list]
 
-    x_edges = []
-    y_edges = []
     for a, b in edge_list:
         a_coord = pos[a]
         b_coord = pos[b]
-
-        x_edges += [a_coord[0], b_coord[0], None]
-        y_edges += [a_coord[1], b_coord[1], None]
-
-    fig.add_trace(
-        go.Scatter(
-            x=x_edges,
-            y=y_edges,
-            marker=dict(
-                color='black',
-            ),
-            name='%03d edges' % int(gen)
+        fig.add_annotation(
+            x=a_coord[0],  # arrows' head
+            y=a_coord[1],  # arrows' head
+            ax=b_coord[0],  # arrows' tail
+            ay=b_coord[1],  # arrows' tail
+            xref='x',
+            yref='y',
+            axref='x',
+            ayref='y',
+            text='',
+            showarrow=True,
+            arrowhead=3,
+            arrowsize=1,
+            arrowwidth=2,
+            standoff=11,  # move away head of arrow n pixels
+            startstandoff=9,  # move away base of arrow n pixels
+            arrowcolor='grey',  # for probabilistic dependencies
         )
-    )
+
+    # TODO edges without arrows
+    # x_edges = []
+    # y_edges = []
+    # for a, b in edge_list:
+    #     a_coord = pos[a]
+    #     b_coord = pos[b]
+    #
+    #     x_edges += [a_coord[0], b_coord[0], None]
+    #     y_edges += [a_coord[1], b_coord[1], None]
+
+    # fig.add_trace(
+    #     go.Scatter(
+    #         x=x_edges,
+    #         y=y_edges,
+    #         marker=dict(
+    #             color='black',
+    #         ),
+    #         name='%03d edges' % int(gen)
+    #     )
+    # )
 
     fig.add_trace(
         go.Scatter(
@@ -190,8 +215,8 @@ def add_generation_slider(gens: list):
                 min=min(int_gens),  # min value
                 max=max(int_gens),  # max value
                 value=min(int_gens),  # current value
-                marks={gen: gen for gen in gens},
-                step=None
+                marks={int_gens[0]: gens[0], int_gens[-1]: gens[-1], int_gens[int(len(int_gens)/2)] : gens[int(len(gens)/2)]},
+                step=1
             )
     return generation_slider
 
@@ -205,8 +230,8 @@ def init_app(structure_map, probabilities_table, generation_slider, variable_dro
             generation_slider
         ], className="six columns"),
         html.Div([
-            probabilities_table,
-            variable_dropdown
+            variable_dropdown,
+            probabilities_table
         ], className="six columns"),
     ], id='dash-container')
 
