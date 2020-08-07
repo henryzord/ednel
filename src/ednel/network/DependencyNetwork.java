@@ -2,14 +2,13 @@ package ednel.network;
 
 import ednel.network.variables.AbstractVariable;
 import ednel.network.variables.ContinuousVariable;
-import ednel.network.variables.DiscreteVariable;
 import ednel.eda.individual.Individual;
-import ednel.utils.comparators.Argsorter;
+import ednel.utils.MyMathUtils;
+import org.apache.commons.math3.analysis.function.Exp;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import weka.core.Instances;
-import org.apache.commons.math3.special.Gamma;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -80,7 +79,13 @@ public class DependencyNetwork {
      */
     private static ArrayList<String> inferSamplingOrder(HashMap<String, AbstractVariable> variables)  {
 
+        // TODO change!
+        // TODO  lay out graph for deterministic dependencies.
+        // TODO the relative order between variables that have deterministic parents is not important
+        // TODO but deterministic relationships must not be violated!
+
         ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
+
         HashSet<String> added_set = new HashSet<>();
 
         int added_count = 0;
@@ -330,299 +335,192 @@ public class DependencyNetwork {
     ) throws Exception {
         double localMIs = 0;
         for(String parent : parentSet) {
-            localMIs += this.mutualInformation(candidate, this.variables.get(parent), fittest);
+            localMIs += this.adjustedMutualInformation(candidate, this.variables.get(parent), fittest);
         }
-        return this.mutualInformation(child, candidate, fittest) - (localMIs / (parentSet.size() + 1));
+        return this.adjustedMutualInformation(child, candidate, fittest) - (localMIs / (parentSet.size() + 1));
     }
 
     /**
-     * Implements a method for calculating Mutual Information between Discrete and Continuous variables
-     * proposed in
+     * Computes (unadjusted) mutual information between two discrete variables.
      *
-     * Ross, Brian C. "Mutual information between discrete and continuous data sets." PloS one 9.2 (2014).
-     *
-     * The specific method is Equation 5 of the paper.
-     *
-     * It has the same behavior as the method used by scikit-learn:
-     * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
-     *
-     * @param a Values of discrete variable a
-     * @param b Values of continuous variable b
-     * @param k number of neighbors to consider
-     * @return The mutual information between these two variables, given data points.
+     * @param contigencyMatrix The contigency matrix for two discrete variables.
+     * @param N number of combinations in contigencyMatrix
+     * @param ais Number of occurrences in fittest population for each a value
+     * @param bjs Number of occurrences in fittest population for each b value
+     * @return (unadjusted) mutual information between two discrete variables.
      */
-    public static double discreteContinuousMutualInformation(String[] a, Double[] b, int k) {
-
-        HashSet<String> aUnique = new HashSet<String>(Arrays.asList(a));
-        HashMap<String, Integer> a_counts = new HashMap<>(aUnique.size());
-
-        // captures information
-        for(int i = 0; i < a.length; i++) {
-            a_counts.put(
-                a[i],
-                a_counts.getOrDefault(a[i], 0) + 1
-            );
-        }
-
-        // this implementation is very naive. A better implementation is described in
-        // Kraskov, Alexander, Harald Stögbauer, and Peter Grassberger.
-        // "Estimating mutual information." Physical review E 69.6 (2004): 066138.
-        // Where one sorts the continuous array by magnitude, and then looks into the vicinity of values
-        // for nearest neighbors.
-        // But since a.length will probably be <300 for this EDA, this code shall pass.
-        int N = 0;
-        double m_all = 0;
-        double k_all = 0;
-        double label_counts = 0;
-        for(int i = 0; i < a.length; i++) {
-            // ignores labels that have only one instance
-            if(a_counts.get(a[i]) == 1) {
-                continue;
-            }
-            N += 1;
-
-            // computes distances
-            Double[] dists = new Double [a.length];
-            for(int j = 0; j < a.length; j++) {
-                if(i == j) {
-                    dists[j] = Double.MAX_VALUE;
-                } else {
-                    dists[j] = Math.abs(b[i] - b[j]);
-                }
-            }
-
-            Integer[] sortedIndices = Argsorter.crescent_argsort(dists);
-            double maxDist = Double.MAX_VALUE;
-            int neighbor_counter = 0;
-            for(int j = 0; j < a.length; j++) {
-                if(a[sortedIndices[j]].equals(a[i])) {
-                    neighbor_counter += 1;
-                    if(neighbor_counter == k) {
-                        maxDist = Math.nextAfter(dists[sortedIndices[j]], 0);
-                        break;
-                    }
-                }
-            }
-
-            int m = 0;
-            while((m < a.length) && (dists[sortedIndices[m]] <= maxDist)) {
-                m += 1;
-            }
-            k_all += Gamma.digamma(neighbor_counter);
-            m_all += Gamma.digamma(m + 1);
-            label_counts += Gamma.digamma(a_counts.get(a[i]));
-        }
-
-        double before = Gamma.digamma(N) - (label_counts / N) + (k_all / N) - (m_all / N);
-        return Math.max(0, before);
-    }
-
-    /**
-     * Implements a method for calculating Mutual Information between two Continuous Variables. The variables need
-     * not to be Gaussians. The method was proposed in<br>
-     *
-     * Kraskov, Alexander, Harald Stögbauer, and Peter Grassberger.
-     * "Estimating mutual information." Physical review E 69.6 (2004): 066138.<br>
-     *
-     * The specific method is Equation 8 of the paper.<br>
-     *
-     * It has the same behavior as the method used by scikit-learn:
-     * https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html
-     *
-     * @param a Values of continuous variable a
-     * @param b Values of continuous variable b
-     * @param k number of neighbors to consider
-     * @return The mutual information between these two variables, given data points.
-     */
-    public static double continuousContinuousMutualInformation(Double[] a, Double[] b, int k) {
-
-        int N = a.length;
-        double a_counts = 0;
-        double b_counts = 0;
-        for(int i = 0; i < a.length; i++) {
-            Double[] dists = new Double [a.length];
-
-            for(int j = 0; j < a.length; j++) {
-                if(i == j) {
-                    dists[j] = Double.MAX_VALUE;
-                } else {
-                    // Chebyshev distance
-                    dists[j] = Math.max(
-                        Math.abs(a[i] - a[j]),
-                        Math.abs(b[i] - b[j])
-                    );
-                }
-            }
-            Integer[] sortedIndices = Argsorter.crescent_argsort(dists);
-            double kth_distance = Math.nextAfter(dists[sortedIndices[k - 1]], 0);
-            int nx = 0;
-            int ny = 0;
-
-            for(int j = 0; j < N; j++) {
-                // does that for a
-                if(Math.abs(a[i] - a[j]) <= kth_distance) {
-                    nx += 1;
-                }
-                // now does that for b
-                if(Math.abs(b[i] - b[j]) <= kth_distance) {
-                    ny += 1;
-                }
-            }
-            a_counts += Gamma.digamma(nx);
-            b_counts += Gamma.digamma(ny);
-        }
-
-        double before = Gamma.digamma(N) + Gamma.digamma(k) - (a_counts/N) - (b_counts/N);
-        return Math.max(0, before);
-    }
-
-    /**
-     * This method uses natural logarithms, and Laplace correction
-     * for computing mutual information between two discrete variables.
-     *
-     * @param a Array of discrete variable a values
-     * @param b Array of discrete variable b values
-     * @return Mutual information between two discrete variables.
-     */
-    private double discreteDiscreteMutualInformation(String[] a, String[] b) {
-        HashSet<String> aUnique = new HashSet<String>(Arrays.asList(a));
-        HashSet<String> bUnique = new HashSet<String>(Arrays.asList(b));
-
-        HashMap<String, Integer> a_counts = new HashMap<>(aUnique.size());
-        HashMap<String, Integer> b_counts = new HashMap<>(bUnique.size());
-
-        HashMap<String, Integer> joint_counts = new HashMap<>(
-                aUnique.size() * bUnique.size()
-        );
-
-        // uses additive correction
-        for(String value : aUnique) {
-            a_counts.put(String.valueOf(value), bUnique.size());
-        }
-        for(String value : bUnique) {
-            b_counts.put(String.valueOf(value), aUnique.size());
-        }
-        for(String a_value : aUnique) {
-            for(String b_value : bUnique) {
-                joint_counts.put(String.format("%s,%s", a_value, b_value), 1);
-            }
-        }
-
-        int total_cases = a.length + joint_counts.size();
-
-        for(int i = 0; i < a.length; i++) {
-            a_counts.put(
-                a[i],
-                a_counts.get(String.valueOf(a[i])) + 1
-            );
-            b_counts.put(
-                b[i],
-                b_counts.get(String.valueOf(b[i])) + 1
-            );
-
-            String joint_name = String.format("%s,%s", String.valueOf(a[i]), String.valueOf(b[i]));
-
-            joint_counts.put(
-                joint_name,
-                joint_counts.get(joint_name) + 1
-            );
-        }
-
-        // mutual information
+    private double getMutualInformation(HashMap<String, HashMap<String, Integer>> contigencyMatrix, int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
         double mi = 0;
-        for(String joint_name : joint_counts.keySet()) {
-            String a_value = joint_name.split(",")[0];
-            String b_value = joint_name.split(",")[1];
-
-            double joint_prob = (double)joint_counts.get(joint_name) / (double)total_cases;
-            double a_prob = (double)a_counts.get(a_value) / (double)total_cases;
-            double b_prob = (double)b_counts.get(b_value) / (double)total_cases;
-
-            mi += joint_prob * Math.log(joint_prob / (a_prob * b_prob));
+        for(String ai : contigencyMatrix.keySet()) {
+            for(String bj : contigencyMatrix.get(ai).keySet()) {
+                mi += (contigencyMatrix.get(ai).get(bj) / (double)N) * Math.log(
+                        (contigencyMatrix.get(ai).get(bj) / (double)N)/((ais.get(ai)/(double)N) * (bjs.get(bj)/(double)N))
+                );
+            }
         }
         return mi;
     }
 
+    /**
+     * Generates a contigency table for discrete variables a and b. That is, for each discrete value that a can assume,
+     * computes how many times (for each b value) that combination occurred in the fittest population.
+     *
+     * Null values are not taken into consideration, since no variable can (probabilistic) assume a null value.
+     *
+     * The table is - atcd  implementation level - a dictionary of dictionaries, where the super-dictionary contain variable
+     * a values and subdictionary contain variable b values. The value of the subdictionary is the number of occurences
+     * of (A=a, B=b) values in the fittest population.
+     *
+     * @param a First discrete variable
+     * @param b Second discrete variable
+     * @param fittest Fittest population
+     * @return contigency table for variables a and b.
+     * @throws Exception if any of the variables is not Discrete.
+     */
+    private HashMap<String, HashMap<String, Integer>> getContigencyMatrix(
+            AbstractVariable a, AbstractVariable b, HashMap<String, ArrayList<String>> fittest) throws Exception {
+
+        if(a instanceof ContinuousVariable || b instanceof ContinuousVariable) {
+            throw new Exception("Both variables must be discrete!");
+        }
+
+        HashMap<String, HashMap<String, Integer>> table = new HashMap<>();
+
+        ArrayList<String> a_values = fittest.get(a.getName());
+        ArrayList<String> b_values = fittest.get(b.getName());
+
+        if(a_values.size() != b_values.size()) {
+            throw new Exception("Bad built fittest population dictionary!");
+        }
+
+        for(int i = 0; i < a_values.size(); i++) {
+            if(String.valueOf(a_values.get(i)).equals("null") || String.valueOf(b_values.get(i)).equals("null")) {
+                continue;
+            }
+
+            if(!table.containsKey(a_values.get(i))) {
+                table.put(a_values.get(i), new HashMap<>());
+            }
+            HashMap<String, Integer> subDic = table.get(a_values.get(i));
+
+            if(!subDic.containsKey(b_values.get(i))) {
+                subDic.put(b_values.get(i), 1);
+            } else {
+                subDic.put(b_values.get(i), subDic.get(b_values.get(i)) + 1);
+            }
+            table.put(a_values.get(i), subDic);
+        }
+        return table;
+    }
 
     /**
-     * Computes mutual information between variables, regardless of the nature of each variable.
+     * The expected Mutual Information value for two random discrete variables, as given by
+     * https://en.wikipedia.org/wiki/Adjusted_mutual_information#Adjustment_for_chance
+     * equation.
      *
-     * If a variable is continuous, adds a little noise, as suggested in
-     * Kraskov, Alexander, Harald Stögbauer, and Peter Grassberger.
-     * "Estimating mutual information." Physical review E 69.6 (2004): 066138.
+     * This means that mutual information will be zero if the two variables are correlated by chance, and 1
+     * for perfect correlation.
+     *
+     * @return Adjusted Mutual Information
+     * @throws Exception if any of the variables is not discrete, or if fittest is misaligned (i.e. one variable has more
+     *                   values than the other)
+     */
+    private double expectedMutualInformation(HashMap<String, HashMap<String, Integer>> contigencyTable, int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
+        double expect = 0.0;
+        for(String a_val : contigencyTable.keySet()) {
+            for(String b_val : contigencyTable.get(a_val).keySet()) {
+                int ai = ais.get(a_val);
+                int bj = bjs.get(b_val);
+
+                int lower_limit = Math.max(1, ai + bj - N);
+                int upper_limit = Math.min(ai, bj);
+                for(int nij = lower_limit; nij < upper_limit; nij++) {
+                    if(((N * nij)/(double)(ai * bj)) > 0) {
+                        double fracNum = MyMathUtils.factorial(ai) * MyMathUtils.factorial(bj) * MyMathUtils.factorial(N - ai) * MyMathUtils.factorial(N - bj);
+                        double fracDen = MyMathUtils.factorial(N) * MyMathUtils.factorial(nij) * MyMathUtils.factorial(ai - nij) * MyMathUtils.factorial(bj - nij) * MyMathUtils.factorial(N - ai - bj + nij);
+
+                        expect += (nij/(double)N) * Math.log((N * nij)/(double)(ai * bj)) * (fracNum / fracDen);
+                    }  // else otherwise is zero because log_e((N * nij)/(double)(ai * bj)) is undefined
+                }
+            }
+        }
+        return expect;
+    }
+
+    /**
+     * Calculates entropy for a given discrete variable.
+     *
+     * @param a A discrete variable
+     * @param fittest Array of values
+     * @return The entropy for the given variable
+     * @throws Exception If a is not a discrete variable
+     */
+    private double getEntropy(AbstractVariable a, HashMap<String, ArrayList<String>> fittest) throws Exception {
+        if(a instanceof ContinuousVariable) {
+            throw new Exception("Variable must be discrete!");
+        }
+        HashMap<String, Integer> counts = new HashMap<>();
+
+        ArrayList<String> sampled = fittest.get(a.getName());
+        int N = 0;
+        for(String val : sampled) {
+            if(!String.valueOf(val).equals("null")) {
+                counts.put(val, counts.getOrDefault(val, 0) + 1);
+                N += 1;
+            }
+        }
+        double entropy = 0;
+        for(String key : counts.keySet()) {
+            entropy += (counts.get(key) / (double)N) * Math.log(counts.get(key) / (double)N);
+        }
+
+        return -entropy;
+    }
+
+    /**
+     * Computes adjusted mutual information between two discrete variables.
      *
      * @param a First variable
      * @param b Second variable
      * @param fittest Array of fittest individuals from the current generation
-     * @return Mutual information between variables
+     * @return Adjusted mutual information between variables
      * @throws Exception If any exception occurs
      */
-    private double mutualInformation(
+    private double adjustedMutualInformation(
             AbstractVariable a, AbstractVariable b, HashMap<String, ArrayList<String>> fittest
     ) throws Exception {
-        String a_name = a.getName();
-        String b_name = b.getName();
 
-        int n_data = fittest.get(a_name).size();
+        HashMap<String, HashMap<String, Integer>> contigencyMatrix = this.getContigencyMatrix(a, b, fittest);
+        int N = 0;  // number of individuals in relevant-elite
 
-        Double[] aContinuous = new Double [n_data];
-        Double[] bContinuous =  new Double [n_data];
+        HashMap<String, Integer> ais = new HashMap<>();
+        HashMap<String, Integer> bjs = new HashMap<>();
 
-        String[] aDiscrete = new String [n_data];
-        String[] bDiscrete = new String [n_data];
+        for(String a_val : contigencyMatrix.keySet()) {
+            for(String b_val : contigencyMatrix.get(a_val).keySet()) {
+                int this_combination = contigencyMatrix.get(a_val).get(b_val);
 
-        int a_lack_count = 0;
-        int b_lack_count = 0;
+                N += this_combination;
 
-        for(int i = 0; i < n_data; i++) {
-            String a_value = String.valueOf(fittest.get(a_name).get(i));
-            String b_value = String.valueOf(fittest.get(b_name).get(i));
-
-            if(a instanceof DiscreteVariable) {
-                aDiscrete[i] = a_value;
-            } else {
-                // adds noise, as suggested by Kraskov et al
-                double noise = (double)mt.nextInt(10) / 10e-10;
-                if(!a_value.toLowerCase().equals("null")) {
-                    aContinuous[i] = Double.parseDouble(a_value) + noise;
-                } else {
-                    aContinuous[i] = (((ContinuousVariable)a).getMinValue() - 1)  + noise;
-                    a_lack_count += 1;
+                // computes ai
+                if(!ais.containsKey(a_val)) {
+                    ais.put(a_val, 0);
                 }
-            }
-            if(b instanceof DiscreteVariable) {
-                bDiscrete[i] = b_value;
-            } else {
-                // adds noise, as suggested by Kraskov et al
-                double noise = (double)mt.nextInt(10) / 10e-10;
-                if(!b_value.toLowerCase().equals("null")) {
-                    bContinuous[i] = Double.parseDouble(b_value) + noise;
-                } else {
-                    bContinuous[i] = (((ContinuousVariable)b).getMinValue() - 1) + noise;
-                    b_lack_count += 1;
+                ais.put(a_val, ais.get(a_val) + this_combination);
+                // computes bj
+                if(!bjs.containsKey(b_val)) {
+                    bjs.put(b_val, 0);
                 }
+                bjs.put(b_val, bjs.get(b_val) + this_combination);
             }
         }
 
-        // the two variables are continuous, but they severely lack data to compute mutual information (e.g. only
-        // one data point for each distribution)
-        if((n_data - a_lack_count) <= 1 || (n_data - b_lack_count) <= 1) {
-            return 0;
-        }
+        double mi = this.getMutualInformation(contigencyMatrix, N, ais, bjs);
+        double e_mi = this.expectedMutualInformation(contigencyMatrix, N, ais, bjs);
+        double a_entropy = this.getEntropy(a, fittest);
 
-        if(a instanceof DiscreteVariable) {
-            if(b instanceof DiscreteVariable) {
-                return this.discreteDiscreteMutualInformation(aDiscrete, bDiscrete);
-            } else {  // b is instance of ContinuousVariable
-                return discreteContinuousMutualInformation(aDiscrete, bContinuous, this.nearest_neighbor);
-            }
-        } else {  // a is instance of ContinuousVariable
-            if(b instanceof DiscreteVariable) {
-                return discreteContinuousMutualInformation(bDiscrete, aContinuous, this.nearest_neighbor);
-            } else { // a and b are instances of ContinuousVariable
-                return continuousContinuousMutualInformation(aContinuous, bContinuous, this.nearest_neighbor);
-            }
-        }
+        double b_entropy = this.getEntropy(b, fittest);
+        return (mi - e_mi) / (Math.max(a_entropy, b_entropy) - e_mi);
     }
 
     /**

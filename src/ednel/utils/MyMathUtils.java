@@ -1,12 +1,15 @@
 package ednel.utils;
 
-public class Math {
+public class MyMathUtils {
     /**
      * Computes n!
      * @param n An integer
      * @return n!
      */
     public static int factorial(int n) {
+        if(n < 0) {
+            return n;
+        }
         if(n == 0) {
             return 1;
         }

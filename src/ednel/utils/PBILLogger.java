@@ -341,7 +341,7 @@ public class PBILLogger {
         if(this.log) {
             FileWriter fw = new FileWriter(dataset_thisrun_path + File.separator + "dependency_network_structure.json");
             Gson converter = new GsonBuilder().setPrettyPrinting().create();
-            fw.write(converter.toJson(pastDependencyStructures));
+            fw.write(converter.toJson(this.pastDependencyStructures));
             fw.flush();
             fw.close();
         }

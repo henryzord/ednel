@@ -805,12 +805,14 @@ public abstract class AbstractVariable {
         // normalizes everything - if needed
         this.normalizeProbabilities(parentValIndices);
 
-        for(int i = 0; i < this.probabilities.size(); i++) {
-            if(Double.isNaN(this.probabilities.get(i))) {
-                throw new Exception("unexpected behavior!");
-//                this.probabilities.set(i, 0.0);
-            }
-        }
+        // TODO not setting probabilities to zero if they are nan!
+
+//        for(int i = 0; i < this.probabilities.size(); i++) {
+//            if(Double.isNaN(this.probabilities.get(i))) {
+//                throw new Exception("unexpected behavior!");
+////                this.probabilities.set(i, 0.0);
+//            }
+//        }
     }
 
     private void setUnconditionalProbabilities(HashMap<String, ArrayList<String>> fittestValues) {
