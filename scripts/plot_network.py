@@ -230,9 +230,9 @@ def read_deterministic_graph(deterministic_path=None):
         return nx.DiGraph()
 
     raw = json.load(open(deterministic_path, 'r'))
-    built = dict()
     G = nx.DiGraph()
     for variable, parents in raw.items():
+        G.add_node(variable)
         for parent in list(parents.keys()):
             G.add_edge(variable, parent, type='deterministic')
 
