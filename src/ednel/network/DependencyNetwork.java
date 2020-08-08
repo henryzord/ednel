@@ -353,9 +353,11 @@ public class DependencyNetwork {
         double mi = 0;
         for(String ai : contigencyMatrix.keySet()) {
             for(String bj : contigencyMatrix.get(ai).keySet()) {
-                mi += (contigencyMatrix.get(ai).get(bj) / (double)N) * Math.log(
-                        (contigencyMatrix.get(ai).get(bj) / (double)N)/((ais.get(ai)/(double)N) * (bjs.get(bj)/(double)N))
-                );
+                double p_ab = (contigencyMatrix.get(ai).get(bj)/(double)N);
+                double p_a = ais.get(ai)/(double)N;
+                double p_b = bjs.get(bj)/(double)N;
+
+                mi += p_ab * Math.log(p_ab / (p_a * p_b));
             }
         }
         return mi;
@@ -416,14 +418,11 @@ public class DependencyNetwork {
     /**
      * The expected Mutual Information value for two random discrete variables, as given by
      * https://en.wikipedia.org/wiki/Adjusted_mutual_information#Adjustment_for_chance
-     * equation.
      *
      * This means that mutual information will be zero if the two variables are correlated by chance, and 1
      * for perfect correlation.
      *
      * @return Adjusted Mutual Information
-     * @throws Exception if any of the variables is not discrete, or if fittest is misaligned (i.e. one variable has more
-     *                   values than the other)
      */
     private double expectedMutualInformation(HashMap<String, HashMap<String, Integer>> contigencyTable, int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
         double expect = 0.0;
@@ -435,12 +434,13 @@ public class DependencyNetwork {
                 int lower_limit = Math.max(1, ai + bj - N);
                 int upper_limit = Math.min(ai, bj);
                 for(int nij = lower_limit; nij < upper_limit; nij++) {
-                    if(((N * nij)/(double)(ai * bj)) > 0) {
-                        double fracNum = MyMathUtils.factorial(ai) * MyMathUtils.factorial(bj) * MyMathUtils.factorial(N - ai) * MyMathUtils.factorial(N - bj);
-                        double fracDen = MyMathUtils.factorial(N) * MyMathUtils.factorial(nij) * MyMathUtils.factorial(ai - nij) * MyMathUtils.factorial(bj - nij) * MyMathUtils.factorial(N - ai - bj + nij);
+                    double fracNum = MyMathUtils.factorial(ai) * MyMathUtils.factorial(bj) *
+                            MyMathUtils.factorial(N - ai) * MyMathUtils.factorial(N - bj);
+                    double fracDen = MyMathUtils.factorial(N) * MyMathUtils.factorial(nij) *
+                            MyMathUtils.factorial(ai - nij) * MyMathUtils.factorial(bj - nij) *
+                            MyMathUtils.factorial(N - ai - bj + nij);
 
-                        expect += (nij/(double)N) * Math.log((N * nij)/(double)(ai * bj)) * (fracNum / fracDen);
-                    }  // else otherwise is zero because log_e((N * nij)/(double)(ai * bj)) is undefined
+                    expect += (nij/(double)N) * Math.log((N * nij)/(double)(ai * bj)) * (fracNum / fracDen);
                 }
             }
         }
@@ -450,25 +450,11 @@ public class DependencyNetwork {
     /**
      * Calculates entropy for a given discrete variable.
      *
-     * @param a A discrete variable
-     * @param fittest Array of values
+     * @param counts All values that a can assume, with the count of times a assumed that value, in the relevant elite subset.
+     * @param N number of individuals in relevant elite.
      * @return The entropy for the given variable
-     * @throws Exception If a is not a discrete variable
      */
-    private double getEntropy(AbstractVariable a, HashMap<String, ArrayList<String>> fittest) throws Exception {
-        if(a instanceof ContinuousVariable) {
-            throw new Exception("Variable must be discrete!");
-        }
-        HashMap<String, Integer> counts = new HashMap<>();
-
-        ArrayList<String> sampled = fittest.get(a.getName());
-        int N = 0;
-        for(String val : sampled) {
-            if(!String.valueOf(val).equals("null")) {
-                counts.put(val, counts.getOrDefault(val, 0) + 1);
-                N += 1;
-            }
-        }
+    private double getEntropy(HashMap<String, Integer> counts, int N) {
         double entropy = 0;
         for(String key : counts.keySet()) {
             entropy += (counts.get(key) / (double)N) * Math.log(counts.get(key) / (double)N);
@@ -498,28 +484,26 @@ public class DependencyNetwork {
 
         for(String a_val : contigencyMatrix.keySet()) {
             for(String b_val : contigencyMatrix.get(a_val).keySet()) {
-                int this_combination = contigencyMatrix.get(a_val).get(b_val);
+                int nij = contigencyMatrix.get(a_val).get(b_val);
 
-                N += this_combination;
+                N += nij;
 
-                // computes ai
                 if(!ais.containsKey(a_val)) {
                     ais.put(a_val, 0);
                 }
-                ais.put(a_val, ais.get(a_val) + this_combination);
-                // computes bj
+                ais.put(a_val, ais.get(a_val) + nij);
+
                 if(!bjs.containsKey(b_val)) {
                     bjs.put(b_val, 0);
                 }
-                bjs.put(b_val, bjs.get(b_val) + this_combination);
+                bjs.put(b_val, bjs.get(b_val) + nij);
             }
         }
 
         double mi = this.getMutualInformation(contigencyMatrix, N, ais, bjs);
         double e_mi = this.expectedMutualInformation(contigencyMatrix, N, ais, bjs);
-        double a_entropy = this.getEntropy(a, fittest);
-
-        double b_entropy = this.getEntropy(b, fittest);
+        double a_entropy = this.getEntropy(ais, N);
+        double b_entropy = this.getEntropy(bjs, N);
         return (mi - e_mi) / (Math.max(a_entropy, b_entropy) - e_mi);
     }
 
