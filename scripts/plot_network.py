@@ -22,7 +22,7 @@ from matplotlib.colors import to_hex
 from networkx.drawing.nx_agraph import graphviz_layout
 
 
-def read_probabilistic_graphs(json_path: str):
+def read_probabilistic_graphs(json_path: str, det_G):
     """
     Given a path to a json file, reads a JSON that encodes a Dependency Network structure (with probabilities)
     throughout an evolutionary process of EDNEL.
@@ -37,7 +37,7 @@ def read_probabilistic_graphs(json_path: str):
     co_splitter = lambda x: re.split(',(?![^(]*\))', x)
 
     for gen in _dict.keys():
-        this_gen_structures = dict()
+        G = copy.deepcopy(det_G)
         this_gen_probabilities = dict()
         for variable in _dict[gen].keys():
             lines = list(_dict[gen][variable].keys())
@@ -51,10 +51,12 @@ def read_probabilistic_graphs(json_path: str):
                 table += [list(_vals) + [probs[i]]]
                 parentnames = _vars
 
-            this_gen_structures[variable] = list(set(parentnames) - {variable})
+            for parent in list(set(parentnames) - {variable}):
+                G.add_edge(variable, parent, type='probabilistic')
+
             this_gen_probabilities[variable] = pd.DataFrame(table, columns=list(parentnames) + ['probability'])
 
-        structure_dict[gen] = this_gen_structures
+        structure_dict[gen] = G
         probabilities_dict[gen] = this_gen_probabilities
 
     return structure_dict, probabilities_dict
@@ -103,7 +105,7 @@ def add_probabilities_table(probs, gen, variable):
     return probabilities_table
 
 
-def update_gen_structure_map(prob_structs, det_structs, gen, var_color_dict):
+def update_gen_structure_map(prob_structs, gen, var_color_dict):
     fig = go.Figure(
         layout=go.Layout(
             title='Dependency network structure throughout generations',
@@ -118,15 +120,7 @@ def update_gen_structure_map(prob_structs, det_structs, gen, var_color_dict):
         )
     )
 
-    G = copy.deepcopy(det_structs)
-    prob_G = nx.DiGraph(prob_structs[gen])  # adds variables
-    prob_edge_list = prob_G.edges(data=False)
-
-    for a, b in prob_edge_list:
-        G.add_edge(a, b, type='probabilistic')
-
-    # TODO enhance G with deterministic dependencies for improving layout generation
-
+    G = prob_structs[gen]
     pos = graphviz_layout(G, prog='neato')  # generates layout for variables
 
     variable_names = list(pos.keys())
@@ -139,9 +133,12 @@ def update_gen_structure_map(prob_structs, det_structs, gen, var_color_dict):
 
     # adds probabilistic relationship between variables
     for some_tuple in edge_list:
-        a = some_tuple[1]
-        b = some_tuple[0]
         edge_properties = some_tuple[2]
+
+        is_probabilistic = edge_properties['type'] == 'probabilistic'
+
+        a = some_tuple[0]
+        b = some_tuple[1]
 
         a_coord = pos[a]
         b_coord = pos[b]
@@ -161,7 +158,7 @@ def update_gen_structure_map(prob_structs, det_structs, gen, var_color_dict):
             arrowwidth=2,
             standoff=11,  # move away head of arrow n pixels
             startstandoff=9,  # move away base of arrow n pixels
-            arrowcolor='grey' if (('type' in edge_properties) and (edge_properties['type'] == 'probabilistic')) else 'black'
+            arrowcolor='grey' if is_probabilistic else 'black'
         )
 
     fig.add_trace(
@@ -182,8 +179,8 @@ def update_gen_structure_map(prob_structs, det_structs, gen, var_color_dict):
     return fig
 
 
-def add_gen_structure_map(prob_structs, det_structs, gen, var_color_dict):
-    fig = update_gen_structure_map(prob_structs=prob_structs, det_structs=det_structs, gen=gen, var_color_dict=var_color_dict)
+def add_gen_structure_map(prob_structs, gen, var_color_dict):
+    fig = update_gen_structure_map(prob_structs=prob_structs, gen=gen, var_color_dict=var_color_dict)
     structure_map = dcc.Graph(id='structure-map', figure=fig)
     return structure_map
 
@@ -234,15 +231,17 @@ def read_deterministic_graph(deterministic_path=None):
 
     raw = json.load(open(deterministic_path, 'r'))
     built = dict()
+    G = nx.DiGraph()
     for variable, parents in raw.items():
-        built[variable] = list(parents.keys())
+        for parent in list(parents.keys()):
+            G.add_edge(variable, parent, type='deterministic')
 
-    return nx.from_dict_of_lists(built)
+    return G
 
 
 def main(args):
-    prob_structs, probs = read_probabilistic_graphs(args.json_path)
-    det_structs = read_deterministic_graph(args.deterministic_path)
+    det_G = read_deterministic_graph(args.deterministic_path)
+    prob_structs, probs = read_probabilistic_graphs(args.json_path, det_G=det_G)
 
     gens = sorted(list(probs.keys()))
     first_gen = gens[0]
@@ -250,7 +249,7 @@ def main(args):
     any_var = variables[0]
     var_color_dict = get_colors(all_variables=variables)
 
-    structure_map = add_gen_structure_map(prob_structs=prob_structs, det_structs=det_structs, gen=first_gen, var_color_dict=var_color_dict)
+    structure_map = add_gen_structure_map(prob_structs=prob_structs, gen=first_gen, var_color_dict=var_color_dict)
     probabilities_table = add_probabilities_table(probs=probs, gen=first_gen, variable=any_var)
     generation_slider = add_generation_slider(gens=gens)
     variable_dropdown = add_variable_dropdown(variables=variables)
@@ -263,7 +262,7 @@ def main(args):
     def structure_map_callback(gen):
         _str_gen = '%03d' % gen
 
-        struct_map_fig = update_gen_structure_map(prob_structs=prob_structs, det_structs=det_structs, gen=_str_gen, var_color_dict=var_color_dict)
+        struct_map_fig = update_gen_structure_map(prob_structs=prob_structs, gen=_str_gen, var_color_dict=var_color_dict)
         return struct_map_fig
 
     @app.callback(
