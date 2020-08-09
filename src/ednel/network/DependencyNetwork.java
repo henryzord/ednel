@@ -84,44 +84,64 @@ public class DependencyNetwork {
         // TODO the relative order between variables that have deterministic parents is not important
         // TODO but deterministic relationships must not be violated!
 
-        ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
+//        throw new Exception("TODO change sampling order! use lexicographic sorting; first set of variables = the ones most requested & with ZERO number of parents!");
 
+        ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
         HashSet<String> added_set = new HashSet<>();
 
-        int added_count = 0;
-        int current_vote_bar = 0;
-        boolean recompute_votes = true;
-        HashMap<String, Integer> votes = new HashMap<>();
-        while(added_count < variables.size()) {
-            if(recompute_votes) {
-                votes = new HashMap<>();
-                for(String var : variables.keySet()) {
-                    HashSet<String> set = new HashSet<>();
-                    set.addAll(variables.get(var).getFixedBlocking());
-                    set.addAll(variables.get(var).getProbabilisticParents());
-                    set.removeAll(added_set);  // removes variables already included
+        HashMap<String, HashSet<String>> parentsOf = new HashMap<>();
 
-                    for(String overVar : set) {
-                        if(!votes.containsKey(overVar)) {
-                            votes.put(overVar, 1);
-                        } else {
-                            votes.put(overVar, votes.get(overVar) + 1);
-                        }
-                    }
+        // computes votes for all variables
+        HashMap<String, Integer> votes = new HashMap<>();
+        for(String var : variables.keySet()) {
+            HashSet<String> set = new HashSet<>();
+            set.addAll(variables.get(var).getFixedBlocking());
+            set.addAll(variables.get(var).getProbabilisticParents());
+            set.removeAll(added_set);  // removes variables already included
+            parentsOf.put(var, set);
+
+            for(String overVar : set) {
+                if(!votes.containsKey(overVar)) {
+                    votes.put(overVar, 1);
+                } else {
+                    votes.put(overVar, votes.get(overVar) + 1);
                 }
-                recompute_votes = false;
             }
+        }
+
+        // tries to add variables with the least amount of parents
+        while(added_set.size() < variables.size()) {  // while there are still variables to add
+            String best_candidate = null;
+            int best_missing_parents = Integer.MAX_VALUE;
+            int best_voting = 0;
+
+            boolean addedAny = false;
             for(String var : variables.keySet()) {
-                if(votes.getOrDefault(var, 0) == current_vote_bar) {
+                if(added_set.contains(var)) {
+                    continue;
+                }
+                Set<String> intersection = new HashSet<>(parentsOf.get(var)); // use the copy constructor
+                intersection.retainAll(added_set);
+
+                int missing_parents = parentsOf.get(var).size() - intersection.size();
+
+                // if there are no missing parents, add right away
+                if(missing_parents == 0) {
+                    addedAny = true;
                     samplingOrder.add(var);
                     added_set.add(var);
-                    added_count += 1;
-                    recompute_votes = true;
+                } else if((missing_parents < best_missing_parents) && (votes.getOrDefault(var, 0) >= best_voting)) {
+                    best_missing_parents = missing_parents;
+                    best_candidate = var;
+                    best_voting = votes.getOrDefault(var, 0);
                 }
             }
-            current_vote_bar += 1;
+            // will have to make sacrifices
+            if(!addedAny) {
+                samplingOrder.add(best_candidate);
+                added_set.add(best_candidate);
+            }
         }
-        Collections.reverse(samplingOrder);
         return samplingOrder;
     }
 
