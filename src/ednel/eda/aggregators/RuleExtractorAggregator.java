@@ -53,6 +53,9 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
 
         for(int i = 0; i < clfs.length; i++) {
+            if(clfs[i] == null) {
+                continue;
+            }
             // algorithm generates unordered rules; proceed
             if(!clfs[i].getClass().equals(JRip.class) && !clfs[i].getClass().equals(PART.class)) {
 

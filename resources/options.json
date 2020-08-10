@@ -3,7 +3,7 @@
     "optionName": {
       "unpruned": "-U",
       "reducedErrorPruning": "-R -Q 1",
-      "confidenceFactor": "-C"
+      "confidenceFactor": "-C J48_confidenceFactorValue"
     },
     "presenceMeans": true,
     "ptype": "discrete",
@@ -109,7 +109,7 @@
     "optionName": {
       "unpruned": "-U",
       "reducedErrorPruning": "-R -Q 1",
-      "confidenceFactor": "-C"
+      "confidenceFactor": "-C PART_confidenceFactorValue"
     },
     "presenceMeans": true,
     "ptype": "discrete",

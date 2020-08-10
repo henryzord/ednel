@@ -78,14 +78,6 @@ public class DependencyNetwork {
      * @return sampling order
      */
     private static ArrayList<String> inferSamplingOrder(HashMap<String, AbstractVariable> variables)  {
-
-        // TODO change!
-        // TODO  lay out graph for deterministic dependencies.
-        // TODO the relative order between variables that have deterministic parents is not important
-        // TODO but deterministic relationships must not be violated!
-
-//        throw new Exception("TODO change sampling order! use lexicographic sorting; first set of variables = the ones most requested & with ZERO number of parents!");
-
         ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
         HashSet<String> added_set = new HashSet<>();
 
@@ -191,6 +183,12 @@ public class DependencyNetwork {
 
                 JSONObject optionObj = (JSONObject)options.getOrDefault(variableName, null);
                 if(optionObj == null) {
+                    String algorithmOptions = optionTable.getOrDefault(algorithmName, "");
+
+                    if(algorithmOptions.contains(variableName)) {
+                        optionTable.put(algorithmName, algorithmOptions.replace(variableName, sampledValue));
+                    }
+
                     optionObj = (JSONObject)options.getOrDefault(sampledValue, null);
                 }
 
@@ -252,8 +250,6 @@ public class DependencyNetwork {
             HashMap<String, String> optionTable = this.sampleIndividual();
             outerCounter += 1;
 
-            // TODO only here for debugging purposes. can be removed later
-//            String[] copyOptions = (String[])options.clone();
             try {
                 Individual individual = new Individual(optionTable, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
