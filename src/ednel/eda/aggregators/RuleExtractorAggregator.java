@@ -2,7 +2,6 @@ package ednel.eda.aggregators;
 
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.rules.ExtractedRule;
-import sun.reflect.annotation.ExceptionProxy;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
@@ -12,59 +11,79 @@ import weka.core.Instance;
 import weka.core.Instances;
 
 import java.io.Serializable;
-import java.lang.reflect.Array;
 import java.util.*;
 
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
-    ArrayList<ExtractedRule> rules;
-    ArrayList<Double> ruleQualities;
+    ArrayList<ExtractedRule> unorderedRules;
+    ArrayList<Double> unorderedRulesQualities;
     int n_classes;
-    double aggregatedRuleCompetence;
+    HashMap<String, ExtractedRule[]> orderedRules;
+    HashMap<String, Double[]> orderedRuleQualities;
+//    double aggregatedRuleCompetence;
 
     public RuleExtractorAggregator() {
-        this.rules = new ArrayList<>();
-        this.ruleQualities = new ArrayList<>();
+        this.unorderedRules = new ArrayList<>();
+        this.unorderedRulesQualities = new ArrayList<>();
         this.competences = new double[0];
-        this.aggregatedRuleCompetence = 0;
         this.n_classes = 0;
+        this.orderedRules = new HashMap<>();
+        this.orderedRuleQualities = new HashMap<>();
     }
 
     /**
      * Set competences for rules (i.e. not classifiers).
+     *
      * @param clfs List of classifiers
      * @param train_data Training data
      * @throws Exception
      */
     @Override
     public void setCompetences(AbstractClassifier[] clfs, Instances train_data) throws Exception {
+        this.n_classes = train_data.numClasses();
 
-        this.competences = new double[clfs.length];
-        HashSet<ExtractedRule> candidate_rules = new HashSet<>();
+        HashSet<ExtractedRule> unordered_cand_rules = new HashSet<>();
 
-        int n_classifiers = this.getActiveClassifiersCount(clfs);
-        int n_unordered_classifiers = 0;
+        this.orderedRules = new HashMap<>();
+        this.orderedRuleQualities = new HashMap<>();
+
+        final boolean[] all_activated = new boolean[train_data.size()];
+        for(int i = 0; i < train_data.size(); i++) {
+            all_activated[i] = true;
+        }
 
         for(int i = 0; i < clfs.length; i++) {
             // algorithm generates unordered rules; proceed
             if(!clfs[i].getClass().equals(JRip.class) && !clfs[i].getClass().equals(PART.class)) {
-                candidate_rules.addAll(Arrays.asList(RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data)));
-                this.competences[i] = 0;
-                n_unordered_classifiers += 1;
-            } else {
-                this.competences[i] = 1. / n_classifiers;
+
+                unordered_cand_rules.addAll(Arrays.asList(
+                        RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data)
+                ));
+            } else if(clfs[i].getClass().equals(PART.class) || clfs[i].getClass().equals(JRip.class)) {
+                String clf_name = clfs[i].getClass().getSimpleName();
+                ExtractedRule[] ordered_rules = RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data);
+                orderedRules.put(clf_name, ordered_rules);
+
+                boolean[] activated = all_activated.clone();
+                Double[] rule_qualities = new Double[ordered_rules.length];
+
+                for(int j = 0; j < ordered_rules.length; j++) {
+                    rule_qualities[j] = ordered_rules[j].quality(train_data, activated);
+
+                    boolean[] covered = ordered_rules[j].covers(train_data, activated);
+                    for(int n = 0; n < train_data.size(); n++) {
+                        activated[n] = activated[n] && !(covered[n] && (ordered_rules[j].getConsequent() == train_data.get(n).classValue()));
+                    }
+                }
+                orderedRuleQualities.put(clf_name, rule_qualities);
             }
         }
-        this.aggregatedRuleCompetence = n_unordered_classifiers / (double)n_classifiers;
 
-        this.rules = new ArrayList<>();
-        this.n_classes = train_data.numClasses();
-        this.ruleQualities = new ArrayList<>();
+        this.selectUnorderedRules(train_data, unordered_cand_rules, all_activated);
+    }
 
-        boolean activated[] = new boolean[train_data.size()];
-        for(int i = 0; i < train_data.size(); i++) {
-            activated[i] = true;
-        }
+    private void selectUnorderedRules(Instances train_data, HashSet<ExtractedRule> candidateRules, boolean[] all_activated) {
+        boolean[] activated = all_activated.clone();
 
         double bestQuality;
         ExtractedRule bestRule;
@@ -73,7 +92,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         while(remaining_instances > 0) {
             bestRule = null;
             bestQuality = 0.0;
-            for(ExtractedRule rule : candidate_rules) {
+            for(ExtractedRule rule : candidateRules) {
                 double quality = rule.quality(train_data, activated);
                 if(quality > bestQuality) {
                     bestQuality = quality;
@@ -84,11 +103,10 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 break;  // nothing else to do!
             }
 
-            // TODO using quality on instances that this rule could see during training!
-            rules.add(bestRule);
-            ruleQualities.add(bestQuality);
+            unorderedRules.add(bestRule);
+            unorderedRulesQualities.add(bestRule.quality(train_data, all_activated));
 
-            candidate_rules.remove(bestRule);
+            candidateRules.remove(bestRule);
             remaining_instances = 0;
 
             boolean[] covered = bestRule.covers(train_data, activated);
@@ -113,24 +131,28 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             for(int c = 0; c < this.n_classes; c++) {
                 classProbs[i][c] = 0.0;
             }
-            // unagroupated classifiers vote first
-            for(int k = 0; k < clfs.length; k++) {
-                if(this.competences[k] > 0) {
-                    double voteWeight = this.competences[k];
-                    classProbs[i][(int)clfs[k].classifyInstance(batch.get(i))] += voteWeight;
-                    votesSum += voteWeight;
+            // ordered classifiers vote first
+            for(String classifier : this.orderedRules.keySet()) {
+                ExtractedRule[] rules = this.orderedRules.get(classifier);
+                for(int j = 0; j < rules.length; j++) {
+                    if(rules[j].covers(batch.get(i))) {
+                        double voteWeight = this.orderedRuleQualities.get(classifier)[j];
+                        classProbs[i][(int)rules[j].getConsequent()] += voteWeight;
+                        votesSum += voteWeight;
+                    }
                 }
             }
 
-            for(int j = 0; j < this.rules.size(); j++) {
-                if(this.rules.get(j).covers(batch.get(i))) {
-                    double voteWeight = this.ruleQualities.get(j) * this.aggregatedRuleCompetence;
-                    classProbs[i][(int)this.rules.get(j).getConsequent()] += voteWeight;
+            // unordered/grouped classifiers vote next
+            for(int j = 0; j < this.unorderedRules.size(); j++) {
+                if(this.unorderedRules.get(j).covers(batch.get(i))) {
+                    double voteWeight = this.unorderedRulesQualities.get(j);
+                    classProbs[i][(int)this.unorderedRules.get(j).getConsequent()] += voteWeight;
                     votesSum += voteWeight;
                 }
             }
             for(int c = 0; c < this.n_classes; c++) {
-                classProbs[i][c] /= (double)votesSum;
+                classProbs[i][c] /= votesSum;
             }
         }
         return classProbs;
@@ -143,24 +165,28 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         for(int c = 0; c < this.n_classes; c++) {
             classProbs[c] = 0.0;
         }
-        // unagroupated classifiers vote first
-        for(int k = 0; k < clfs.length; k++) {
-            if(this.competences[k] > 0) {
-                double voteWeight = this.competences[k];
-                classProbs[(int)clfs[k].classifyInstance(instance)] += voteWeight;
-                votesSum += voteWeight;
+        // ordered classifiers vote first
+        for(String classifier : this.orderedRules.keySet()) {
+            ExtractedRule[] rules = this.orderedRules.get(classifier);
+            for(int j = 0; j < rules.length; j++) {
+                if(rules[j].covers(instance)) {
+                    double voteWeight = this.orderedRuleQualities.get(classifier)[j];
+                    classProbs[(int)rules[j].getConsequent()] += voteWeight;
+                    votesSum += voteWeight;
+                }
             }
         }
 
-        for(int j = 0; j < this.rules.size(); j++) {
-            if(this.rules.get(j).covers(instance)) {
-                double voteWeight = this.ruleQualities.get(j) * this.aggregatedRuleCompetence;
-                classProbs[(int)this.rules.get(j).getConsequent()] += voteWeight;
+        // unordered/grouped classifiers vote next
+        for(int j = 0; j < this.unorderedRules.size(); j++) {
+            if(this.unorderedRules.get(j).covers(instance)) {
+                double voteWeight = this.unorderedRulesQualities.get(j);
+                classProbs[(int)this.unorderedRules.get(j).getConsequent()] += voteWeight;
                 votesSum += voteWeight;
             }
         }
         for(int c = 0; c < this.n_classes; c++) {
-            classProbs[c] /= (double)votesSum;
+            classProbs[c] /= votesSum;
         }
 
         return classProbs;
@@ -200,10 +226,8 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
 
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
-        ArrayList<ExtractedRule> cumulativeRules = new ArrayList<>();
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
-            cumulativeRules.add(rules[i]);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
         }
         return rules;
     }
@@ -223,10 +247,8 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 //            }
         }
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
-        ArrayList<ExtractedRule> cumulativeRules = new ArrayList<>();
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, i == 0? null : cumulativeRules);
-            cumulativeRules.add(rules[i]);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
         }
         return rules;
     }
@@ -308,7 +330,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, null);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
         }
         return rules;
     }
@@ -360,7 +382,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, null);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
         }
         return rules;
     }
@@ -445,7 +467,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 }
                 newline.append(": ").append(posterior);
 
-                extractedRules[counter] = new ExtractedRule(newline.toString(), train_data, null);
+                extractedRules[counter] = new ExtractedRule(newline.toString(), train_data);
                 counter += 1;
             }
         } else {  // has only default rule!

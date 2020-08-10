@@ -95,7 +95,5 @@ public class RunTrainingPieceTask implements Runnable {
             System.err.println(e.getMessage());
             e.printStackTrace();
         }
-
-
     }
 }

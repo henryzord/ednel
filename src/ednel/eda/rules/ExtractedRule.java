@@ -16,11 +16,6 @@ public class ExtractedRule extends Rule {
     private int[] attrIndex;
     private double[] thresholds;
     private AbstractOperator[] operators;
-    /**
-     * Negative preconditions are rules that should NOT be triggered
-     * before triggering this rule.
-     */
-    private ArrayList<ExtractedRule> negativePreconditions;
 
     /**
      * Number of classes.
@@ -41,9 +36,7 @@ public class ExtractedRule extends Rule {
      */
     private Double originalErrors;
 
-    public ExtractedRule(String line, Instances train_data, ArrayList<ExtractedRule> negativePreconditions) throws Exception {
-        this.negativePreconditions = negativePreconditions == null? new ArrayList<>() : (ArrayList<ExtractedRule>)negativePreconditions.clone();
-
+    public ExtractedRule(String line, Instances train_data) throws Exception {
         if(line.contains("(")) {
             String[] metadata_splited = line.substring(line.indexOf("(") + 1, line.indexOf(")")).split("/");
             this.originalCoverage = Double.parseDouble(metadata_splited[0]);
@@ -93,12 +86,6 @@ public class ExtractedRule extends Rule {
 
     @Override
     public boolean covers(Instance datum) {
-        // checks if negative pre-conditions cover data. if so, returns false
-        for(int i = 0; i < this.negativePreconditions.size(); i++) {
-            if(this.negativePreconditions.get(i).covers(datum)) {
-                return false;
-            }
-        }
         boolean pass = true;
         int i = 0;
         while(pass && (i < this.attrIndex.length)) {
@@ -127,7 +114,7 @@ public class ExtractedRule extends Rule {
 
     @Override
     public boolean hasAntds() {
-        return (this.attrIndex.length > 0) || this.negativePreconditions.size() > 0;
+        return this.attrIndex.length > 0;
     }
 
     @Override
@@ -137,13 +124,7 @@ public class ExtractedRule extends Rule {
 
     @Override
     public double size() {
-        int negative_count = 0;
-        for (Iterator<ExtractedRule> iterator = this.negativePreconditions.iterator(); iterator.hasNext(); ) {
-            ExtractedRule antcd = iterator.next();
-            negative_count += antcd.size();
-        }
-
-        return negative_count + this.attrIndex.length;
+        return this.attrIndex.length;
     }
 
 
@@ -180,18 +161,7 @@ public class ExtractedRule extends Rule {
 
     @Override
     public String toString() {
-        String answer = this.string;
-
-        // TODO to completely fix this, it will be needed an algorithm to remove redundancies
-
-//        if(this.negativePreconditions.size() > 0) {
-//            String negatives_joined = this.negativePreconditions.get(0).toString();
-//            for(int i = 1; i < this.negativePreconditions.size(); i++) {
-//                negatives_joined += " and " + this.negativePreconditions.get(i).toString();
-//            }
-//            answer = String.format("not (%s) and %s", negatives_joined, answer);
-//        }
-        return answer;
+        return this.string;
     }
 
     @Override
