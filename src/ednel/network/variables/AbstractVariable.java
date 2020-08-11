@@ -997,7 +997,7 @@ public abstract class AbstractVariable {
         return this.prob_parents;
     }
 
-    public HashSet<String> getFixedCannotLink() {
+    public HashSet<String> getCannotLink() {
         return this.fixedCannotLink;
     }
 

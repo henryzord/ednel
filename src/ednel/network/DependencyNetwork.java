@@ -3,12 +3,13 @@ package ednel.network;
 import ednel.network.variables.AbstractVariable;
 import ednel.network.variables.ContinuousVariable;
 import ednel.eda.individual.Individual;
-import ednel.utils.MyMathUtils;
-import org.apache.commons.math3.analysis.function.Exp;
+import static ednel.utils.MyMathUtils.lfactorial;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import weka.core.Instances;
+import static java.lang.Math.exp;
+import static java.lang.Math.log;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -77,7 +78,7 @@ public class DependencyNetwork {
      * @param variables dictionary of names and AbstractVariable objects
      * @return sampling order
      */
-    private static ArrayList<String> inferSamplingOrder(HashMap<String, AbstractVariable> variables)  {
+    private static ArrayList<String> inferSamplingOrder(HashMap<String, AbstractVariable> variables) {
         ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
         HashSet<String> added_set = new HashSet<>();
 
@@ -149,7 +150,7 @@ public class DependencyNetwork {
         JSONParser jsonParser = new JSONParser();
         options = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "options.json"));
         JSONObject initialBlocking = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "blocking.json"));
-        Set<String> variables_names  = (Set<String>)initialBlocking.keySet();
+        Set<String> variables_names = (Set<String>)initialBlocking.keySet();
 
         Object[] algorithmsPaths = Files.list(
                 new File(resources_path + File.separator + "distributions").toPath()
@@ -168,6 +169,7 @@ public class DependencyNetwork {
 
     /**
      * Samples a single individual.
+     *
      * @return A new individual, in the format of a dictionary of characteristics.
      * @throws Exception IF any exception occurs
      */
@@ -231,7 +233,7 @@ public class DependencyNetwork {
     }
 
     public Individual[] gibbsSample(HashMap<String, String> lastStart, int sampleSize, Instances train_data) throws Exception {
-        Individual[] individuals = new Individual [sampleSize];
+        Individual[] individuals = new Individual[sampleSize];
 
         this.lastStart = lastStart;
         this.currentGenEvals = 0;
@@ -260,7 +262,7 @@ public class DependencyNetwork {
                 } else {
                     this.currentGenDiscardedIndividuals += 1;
                 }
-            } catch(Exception e) {  // invalid individual generated
+            } catch (Exception e) {  // invalid individual generated
                 this.currentGenDiscardedIndividuals += 1;
             }
         }
@@ -293,7 +295,7 @@ public class DependencyNetwork {
 
             for(int j = 0; j < values.length; j++) {
                 for(int i = 0; i < combinations.size(); i++) {
-                    HashMap<String, String> local = (HashMap<String, String>) combinations.get(i).clone();
+                    HashMap<String, String> local = (HashMap<String, String>)combinations.get(i).clone();
                     local.put(parent, values[j].toString());
                     new_combinations.add(local);
                 }
@@ -335,45 +337,45 @@ public class DependencyNetwork {
 
     /**
      * A modified Mutual Information metric derived from
-     * J.A. Gámez, J.L. Mateo, J.M. Puerta. EDNA: Estimation of Dependenc Networks Algorithm.
+     * J.A. Gámez, J.L. Mateo, J.M. Puerta. EDNA: Estimation of Dependency Networks Algorithm.
      *
-     * @param child Current child variable
+     * @param child     Current child variable
      * @param parentSet Parents of this variable
      * @param candidate Candidate parent for this variable
-     * @param fittest Fittest individuals from current generation
+     * @param fittest   Fittest individuals from current generation
      * @return A modified mutual information metric, which is greater than zero if the candidate parent
-     *         is significantly correlated to this variable, or negative otherwise
+     * is significantly correlated to this variable, or negative otherwise
      * @throws Exception If any exception occurs
      */
     private double heuristic(
-        AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate,
-        HashMap<String, ArrayList<String>> fittest
+            AbstractVariable child, HashSet<String> parentSet, AbstractVariable candidate,
+            HashMap<String, ArrayList<String>> fittest
     ) throws Exception {
         double localMIs = 0;
         for(String parent : parentSet) {
-            localMIs += this.adjustedMutualInformation(candidate, this.variables.get(parent), fittest);
+            localMIs += this.getAdjustedMutualInformation(candidate, this.variables.get(parent), fittest);
         }
-        return this.adjustedMutualInformation(child, candidate, fittest) - (localMIs / (parentSet.size() + 1));
+        return this.getAdjustedMutualInformation(child, candidate, fittest) - (localMIs / (parentSet.size() + 1));
     }
 
     /**
      * Computes (unadjusted) mutual information between two discrete variables.
      *
      * @param contigencyMatrix The contigency matrix for two discrete variables.
-     * @param N number of combinations in contigencyMatrix
-     * @param ais Number of occurrences in fittest population for each a value
-     * @param bjs Number of occurrences in fittest population for each b value
+     * @param N                number of combinations in contigencyMatrix
+     * @param ais              Number of occurrences in fittest population for each a value
+     * @param bjs              Number of occurrences in fittest population for each b value
      * @return (unadjusted) mutual information between two discrete variables.
      */
-    private double getMutualInformation(HashMap<String, HashMap<String, Integer>> contigencyMatrix, int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
+    private static double getMutualInformation(HashMap<String, HashMap<String, Integer>> contigencyMatrix, int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
         double mi = 0;
         for(String ai : contigencyMatrix.keySet()) {
             for(String bj : contigencyMatrix.get(ai).keySet()) {
-                double p_ab = (contigencyMatrix.get(ai).get(bj)/(double)N);
-                double p_a = ais.get(ai)/(double)N;
-                double p_b = bjs.get(bj)/(double)N;
+                double p_ab = (contigencyMatrix.get(ai).get(bj) / (double)N);
+                double p_a = ais.get(ai) / (double)N;
+                double p_b = bjs.get(bj) / (double)N;
 
-                mi += p_ab * Math.log(p_ab / (p_a * p_b));
+                mi += p_ab * log(p_ab / (p_a * p_b));
             }
         }
         return mi;
@@ -382,20 +384,20 @@ public class DependencyNetwork {
     /**
      * Generates a contigency table for discrete variables a and b. That is, for each discrete value that a can assume,
      * computes how many times (for each b value) that combination occurred in the fittest population.
-     *
+     * <p>
      * Null values are not taken into consideration, since no variable can (probabilistic) assume a null value.
-     *
+     * <p>
      * The table is - atcd  implementation level - a dictionary of dictionaries, where the super-dictionary contain variable
      * a values and subdictionary contain variable b values. The value of the subdictionary is the number of occurences
      * of (A=a, B=b) values in the fittest population.
      *
-     * @param a First discrete variable
-     * @param b Second discrete variable
+     * @param a       First discrete variable
+     * @param b       Second discrete variable
      * @param fittest Fittest population
      * @return contigency table for variables a and b.
      * @throws Exception if any of the variables is not Discrete.
      */
-    private HashMap<String, HashMap<String, Integer>> getContigencyMatrix(
+    private static HashMap<String, HashMap<String, Integer>> getContigencyMatrix(
             AbstractVariable a, AbstractVariable b, HashMap<String, ArrayList<String>> fittest) throws Exception {
 
         if(a instanceof ContinuousVariable || b instanceof ContinuousVariable) {
@@ -434,29 +436,30 @@ public class DependencyNetwork {
     /**
      * The expected Mutual Information value for two random discrete variables, as given by
      * https://en.wikipedia.org/wiki/Adjusted_mutual_information#Adjustment_for_chance
-     *
+     * <p>
      * This means that mutual information will be zero if the two variables are correlated by chance, and 1
      * for perfect correlation.
      *
+     * The code is an slight adaptation from slime implementation:
+     * https://github.com/haifengl/smile/blob/1826b2f0fd9ba57ec0956792f00a419e950c850f/core/src/main/java/smile/validation/AdjustedMutualInformation.java#L133
+     *
      * @return Adjusted Mutual Information
      */
-    private double expectedMutualInformation(HashMap<String, HashMap<String, Integer>> contigencyTable, int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
+    private static double getExpectedMutualInformation(int N, HashMap<String, Integer> ais, HashMap<String, Integer> bjs) {
         double expect = 0.0;
-        for(String a_val : contigencyTable.keySet()) {
-            for(String b_val : contigencyTable.get(a_val).keySet()) {
+        for(String a_val : ais.keySet()) {
+            for(String b_val : bjs.keySet()) {
                 int ai = ais.get(a_val);
                 int bj = bjs.get(b_val);
 
                 int lower_limit = Math.max(1, ai + bj - N);
                 int upper_limit = Math.min(ai, bj);
-                for(int nij = lower_limit; nij < upper_limit; nij++) {
-                    double fracNum = MyMathUtils.factorial(ai) * MyMathUtils.factorial(bj) *
-                            MyMathUtils.factorial(N - ai) * MyMathUtils.factorial(N - bj);
-                    double fracDen = MyMathUtils.factorial(N) * MyMathUtils.factorial(nij) *
-                            MyMathUtils.factorial(ai - nij) * MyMathUtils.factorial(bj - nij) *
-                            MyMathUtils.factorial(N - ai - bj + nij);
-
-                    expect += (nij/(double)N) * Math.log((N * nij)/(double)(ai * bj)) * (fracNum / fracDen);
+                for(int nij = lower_limit; nij <= upper_limit; nij++) {
+                    expect += (nij / (double)N) * log((N * nij) / (double)(ai * bj)) * exp(
+                            (lfactorial(ai) + lfactorial(bj) + lfactorial(N - ai) + lfactorial(N - bj))
+                            - (lfactorial(N) + lfactorial(nij) + lfactorial(ai - nij) + lfactorial(bj - nij) +
+                                    lfactorial(N - ai - bj + nij))
+                    );
                 }
             }
         }
@@ -467,13 +470,13 @@ public class DependencyNetwork {
      * Calculates entropy for a given discrete variable.
      *
      * @param counts All values that a can assume, with the count of times a assumed that value, in the relevant elite subset.
-     * @param N number of individuals in relevant elite.
+     * @param N      number of individuals in relevant elite.
      * @return The entropy for the given variable
      */
-    private double getEntropy(HashMap<String, Integer> counts, int N) {
+    private static double getEntropy(HashMap<String, Integer> counts, int N) {
         double entropy = 0;
         for(String key : counts.keySet()) {
-            entropy += (counts.get(key) / (double)N) * Math.log(counts.get(key) / (double)N);
+            entropy += (counts.get(key) / (double)N) * log(counts.get(key) / (double)N);
         }
 
         return -entropy;
@@ -482,17 +485,17 @@ public class DependencyNetwork {
     /**
      * Computes adjusted mutual information between two discrete variables.
      *
-     * @param a First variable
-     * @param b Second variable
+     * @param a       First variable
+     * @param b       Second variable
      * @param fittest Array of fittest individuals from the current generation
      * @return Adjusted mutual information between variables
      * @throws Exception If any exception occurs
      */
-    private double adjustedMutualInformation(
+    private double getAdjustedMutualInformation(
             AbstractVariable a, AbstractVariable b, HashMap<String, ArrayList<String>> fittest
     ) throws Exception {
 
-        HashMap<String, HashMap<String, Integer>> contigencyMatrix = this.getContigencyMatrix(a, b, fittest);
+        HashMap<String, HashMap<String, Integer>> contigencyMatrix = DependencyNetwork.getContigencyMatrix(a, b, fittest);
         int N = 0;  // number of individuals in relevant-elite
 
         HashMap<String, Integer> ais = new HashMap<>();
@@ -516,10 +519,10 @@ public class DependencyNetwork {
             }
         }
 
-        double mi = this.getMutualInformation(contigencyMatrix, N, ais, bjs);
-        double e_mi = this.expectedMutualInformation(contigencyMatrix, N, ais, bjs);
-        double a_entropy = this.getEntropy(ais, N);
-        double b_entropy = this.getEntropy(bjs, N);
+        double mi = DependencyNetwork.getMutualInformation(contigencyMatrix, N, ais, bjs);
+        double e_mi = DependencyNetwork.getExpectedMutualInformation(N, ais, bjs);
+        double a_entropy = DependencyNetwork.getEntropy(ais, N);
+        double b_entropy = DependencyNetwork.getEntropy(bjs, N);
         return (mi - e_mi) / (Math.max(a_entropy, b_entropy) - e_mi);
     }
 
@@ -538,69 +541,87 @@ public class DependencyNetwork {
             HashSet<String> candSet = new HashSet<>(this.samplingOrder.size());
             candSet.addAll(this.variables.keySet());  // adds all variables
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
-            candSet.removeAll(this.variables.get(variableName).getFixedCannotLink());  // removes cannot link variables
+            candSet.removeAll(this.variables.get(variableName).getCannotLink());  // removes cannot link variables
 
             // probabilistic parent set starts empty
             HashSet<String> parentSet = new HashSet<>();
 
-            while ((candSet.size() > 0) && (parentSet.size() < this.max_parents)) {
+            while((candSet.size() > 0) && (parentSet.size() < this.max_parents)) {
                 double bestHeuristic = -1;
                 String bestCandidate = null;
 
                 HashSet<String> toRemove = new HashSet<>();
 
-                for (String candidate : candSet) {
-                    double heuristic = this.heuristic(
-                            this.variables.get(variableName),
-                            parentSet,
-                            this.variables.get(candidate),
-                            fittest
-                    );
-                    if (heuristic > 0) {
-                        if (heuristic > bestHeuristic) {
-                            bestHeuristic = heuristic;
-                            bestCandidate = candidate;
-                        }
-                    } else {
+                for(String candidate : candSet) {
+                    if(this.variables.get(candidate).getCannotLink().contains(variableName)) {
                         toRemove.add(candidate);
+                    } else {
+                        double heuristic = this.heuristic(
+                                this.variables.get(variableName),
+                                parentSet,
+                                this.variables.get(candidate),
+                                fittest
+                        );
+                        if(heuristic > 0) {
+                            if(heuristic > bestHeuristic) {
+                                bestHeuristic = heuristic;
+                                bestCandidate = candidate;
+                            }
+                        } else {
+                            toRemove.add(candidate);
+                        }
                     }
                 }
                 candSet.removeAll(toRemove);
 
-                if (bestHeuristic > 0) {
+                if(bestHeuristic > 0) {
                     parentSet.add(bestCandidate);
                     candSet.remove(bestCandidate);
                 }
             }
-            // TODo now the magic happens
-
             AbstractVariable thisVariable = this.variables.get(variableName);
             AbstractVariable[] mutableParents = new AbstractVariable[parentSet.size()];
 
             Object[] parentList = parentSet.toArray();
-            for (int i = 0; i < parentSet.size(); i++) {
+            for(int i = 0; i < parentSet.size(); i++) {
                 mutableParents[i] = this.variables.get((String)parentList[i]);
             }
 
             thisVariable.updateStructure(mutableParents, fittest);
 
             this.currentGenConnections += thisVariable.getParentCount();
-            }
-        }
-
-        public int getCurrentGenDiscardedIndividuals() {
-            return currentGenDiscardedIndividuals;
-        }
-
-        public HashMap<String, AbstractVariable> getVariables() {
-            return this.variables;
-        }
-
-        public Integer getCurrentGenEvals() {
-            return this.currentGenEvals;
-        }
-
-        public Integer getCurrentGenConnections() {
-            return this.currentGenConnections;
         }
     }
+
+    public int getCurrentGenDiscardedIndividuals() {
+        return currentGenDiscardedIndividuals;
+    }
+
+    public HashMap<String, AbstractVariable> getVariables() {
+        return this.variables;
+    }
+
+    public Integer getCurrentGenEvals() {
+        return this.currentGenEvals;
+    }
+
+    public Integer getCurrentGenConnections() {
+        return this.currentGenConnections;
+    }
+
+    public static void main(String[] args) {
+        double res = DependencyNetwork.getExpectedMutualInformation(
+                13,
+                new HashMap<String, Integer>(){{
+                    put("true", 12);
+                    put("false", 1);
+            }}, new HashMap<String, Integer>(){{
+                    put("true", 10);
+                    put("false", 3);
+            }}
+        );
+        System.out.println(res);
+    }
+
+}
+
