@@ -1,19 +1,24 @@
 package ednel.network;
 
+import ednel.eda.individual.Individual;
 import ednel.network.variables.AbstractVariable;
 import ednel.network.variables.ContinuousVariable;
-import ednel.eda.individual.Individual;
-import static ednel.utils.MyMathUtils.lfactorial;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import weka.core.Instances;
+
+import java.io.File;
+import java.io.FileReader;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
+
+import static ednel.utils.MyMathUtils.lfactorial;
 import static java.lang.Math.exp;
 import static java.lang.Math.log;
-
-import java.io.*;
-import java.nio.file.Files;
-import java.util.*;
 
 public class DependencyNetwork {
     private final float learningRate;
@@ -523,6 +528,7 @@ public class DependencyNetwork {
         double e_mi = DependencyNetwork.getExpectedMutualInformation(N, ais, bjs);
         double a_entropy = DependencyNetwork.getEntropy(ais, N);
         double b_entropy = DependencyNetwork.getEntropy(bjs, N);
+
         return (mi - e_mi) / (Math.max(a_entropy, b_entropy) - e_mi);
     }
 
@@ -607,6 +613,10 @@ public class DependencyNetwork {
 
     public Integer getCurrentGenConnections() {
         return this.currentGenConnections;
+    }
+
+    public ArrayList<String> getSamplingOrder() {
+        return this.samplingOrder;
     }
 }
 

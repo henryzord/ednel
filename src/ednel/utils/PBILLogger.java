@@ -302,22 +302,28 @@ public class PBILLogger {
         PBILLogger.createFolder(dataset_thisrun_path);
         individualsCharacteristicsToFile(individuals, fitnesses);
         individualsClassifiersToFile(individuals);
-        loggerDataToFile();
+        loggerDataToFile(dn.getSamplingOrder());
         dependencyNetworkStructureToFile(dn);
-        dependencyNetworkProbabilitiesToFile(dn);
     }
 
-    private void loggerDataToFile() throws Exception {
+    private void loggerDataToFile(ArrayList<String> samplingOrder) throws Exception {
         if(this.log) {
             BufferedWriter bw = new BufferedWriter(new FileWriter(dataset_thisrun_path + File.separator + "loggerData.csv"));
 
+            StringBuilder so_builder = new StringBuilder();
+            for(int i = 0; i < samplingOrder.size(); i++) {
+                so_builder.append(samplingOrder.get(i) + ((i < (samplingOrder.size() - 1))? "," : ""));
+            }
+            String so_str = "\"" + so_builder.toString() + "\"";
+
+
             // writes header
-            bw.write("gen,nevals,min,median,max,lap time(seconds),discarded individuals (including burn-in),dependency network connections\n");
+            bw.write("gen,nevals,min,median,max,lap time(seconds),discarded individuals (including burn-in),dependency network connections,sampling order\n");
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
                         Locale.US,
-                        "%d,%d,%.8f,%.8f,%.8f,%04d,%04d,%04d\n",
+                        "%d,%d,%.8f,%.8f,%.8f,%04d,%04d,%04d,%s\n",
                         i,
                         this.nevals.get(i),
                         this.minFitness.get(i),
@@ -325,15 +331,12 @@ public class PBILLogger {
                         this.maxFitness.get(i),
                         this.lapTimes.get(i),
                         this.discardedIndividuals.get(i),
-                        this.dnConnections.get(i)
+                        this.dnConnections.get(i),
+                        so_str
                 ));
             }
             bw.close();
         }
-    }
-
-    private void dependencyNetworkProbabilitiesToFile(DependencyNetwork dn) throws IOException {
-        // TODO implement!!!!
     }
 
     private void dependencyNetworkStructureToFile(DependencyNetwork dn) throws IOException {
