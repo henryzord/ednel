@@ -608,20 +608,5 @@ public class DependencyNetwork {
     public Integer getCurrentGenConnections() {
         return this.currentGenConnections;
     }
-
-    public static void main(String[] args) {
-        double res = DependencyNetwork.getExpectedMutualInformation(
-                13,
-                new HashMap<String, Integer>(){{
-                    put("true", 12);
-                    put("false", 1);
-            }}, new HashMap<String, Integer>(){{
-                    put("true", 10);
-                    put("false", 3);
-            }}
-        );
-        System.out.println(res);
-    }
-
 }
 
