@@ -1,5 +1,6 @@
 package ednel.eda.individual;
 
+import org.apache.commons.math3.analysis.function.Exp;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
@@ -51,6 +52,31 @@ public class FitnessCalculator {
         return unweighted / n_classes;
     }
 
+    public Double evaluateEnsemble(int seed, Individual ind) throws Exception {
+
+        Random random = new Random(seed);
+        Evaluation trainEval = new Evaluation(train_data);
+
+        return this.evaluateEnsemble(seed, ind, random, trainEval);
+    }
+
+    public Double evaluateEnsemble(int seed, Individual ind, Random random, Evaluation trainEval) throws Exception {
+        double trainEvaluation = 0.0;
+
+        for (int i = 0; i < n_folds; i++) {
+            Instances local_train = train_data.trainCV(n_folds, i, random);
+            Instances local_val = train_data.testCV(n_folds, i);
+
+            ind.buildClassifier(local_train);
+            trainEval.evaluateModel(ind, local_val);
+            trainEvaluation += getUnweightedAreaUnderROC(trainEval);
+
+        }
+        trainEvaluation /= n_folds;
+
+        return trainEvaluation;
+    }
+
     public Double[] evaluateEnsembles(int seed, Individual[] population) throws Exception {
         int n_individuals = population.length;
 
@@ -61,7 +87,6 @@ public class FitnessCalculator {
         }
 
         Random random = new Random(seed);
-
         Evaluation trainEval = new Evaluation(train_data);
 
         // do the folds

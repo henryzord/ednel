@@ -52,7 +52,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
     }
 
-    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics, Instances train_data) throws Exception {
+    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics) throws Exception {
         this();
 
         this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
@@ -103,7 +103,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 //        }
 
         this.setOptions(options);
-        this.buildClassifier(train_data);
+//        this.buildClassifier(train_data);
     }
 
     public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
@@ -279,7 +279,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         if(this.aggregator == null) {
             throw new Exception("Ensemble must have an aggregation policy!");
         }
-
         this.aggregator.setCompetences(this.orderedClassifiers, data);
     }
 

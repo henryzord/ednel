@@ -1,5 +1,6 @@
 package ednel.network;
 
+import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.variables.AbstractVariable;
 import ednel.network.variables.ContinuousVariable;
@@ -237,8 +238,9 @@ public class DependencyNetwork {
         return optionTable;
     }
 
-    public Individual[] gibbsSample(HashMap<String, String> lastStart, int sampleSize, Instances train_data) throws Exception {
+    public HashMap<String, Object[]> gibbsSample(HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed) throws Exception {
         Individual[] individuals = new Individual[sampleSize];
+        Double[] fitnesses = new Double[sampleSize];
 
         this.lastStart = lastStart;
         this.currentGenEvals = 0;
@@ -258,10 +260,13 @@ public class DependencyNetwork {
             outerCounter += 1;
 
             try {
-                Individual individual = new Individual(optionTable, this.lastStart, train_data);
                 if(outerCounter >= this.thinning_factor) {
-                    outerCounter = 0;
+                    Individual individual = new Individual(optionTable, this.lastStart);
+                    fitnesses[individualCounter] = fc.evaluateEnsemble(seed, individual);
                     individuals[individualCounter] = individual;
+
+                    outerCounter = 0;
+
                     individualCounter += 1;
                     this.currentGenEvals += 1;
                 } else {
@@ -272,7 +277,11 @@ public class DependencyNetwork {
             }
         }
         this.lastStart = null;
-        return individuals;
+
+        return new HashMap<String, Object[]>(){{
+            put("population", individuals);
+            put("fitnesses", fitnesses);
+        }};
     }
 
     /**

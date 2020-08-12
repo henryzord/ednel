@@ -13,6 +13,7 @@ import weka.core.Instances;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 
 public class EDNEL extends AbstractClassifier {
 
@@ -102,11 +103,12 @@ public class EDNEL extends AbstractClassifier {
                 break;
             }
 
-            Individual[] population = dn.gibbsSample(
-                    this.currentGenBest.getCharacteristics(), this.n_individuals, data
+            HashMap<String, Object[]> sampled = dn.gibbsSample(
+                    this.currentGenBest.getCharacteristics(), this.n_individuals, fc, this.seed
             );
+            Individual[] population = (Individual[])sampled.get("population");
+            Double[] fitnesses = (Double[])sampled.get("fitnesses");
 
-            Double[] fitnesses = fc.evaluateEnsembles(seed, population);
             Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
 
             this.currentGenBest = population[sortedIndices[0]];
@@ -131,6 +133,9 @@ public class EDNEL extends AbstractClassifier {
                 this.pbilLogger.print();
             }
         }
+        this.overallBest.buildClassifier(data);
+        this.currentGenBest.buildClassifier(data);
+
         this.fitted = true;
     }
 
