@@ -7,7 +7,7 @@ import ednel.network.variables.ContinuousVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import weka.core.Instances;
+import smile.validation.AdjustedMutualInformation;
 
 import java.io.File;
 import java.io.FileReader;
@@ -538,7 +538,7 @@ public class DependencyNetwork {
         double a_entropy = DependencyNetwork.getEntropy(ais, N);
         double b_entropy = DependencyNetwork.getEntropy(bjs, N);
 
-        return (mi - e_mi) / (Math.max(a_entropy, b_entropy) - e_mi);
+        return Math.min(1, Math.max(0, mi - e_mi / (Math.max(a_entropy, b_entropy) - e_mi)));
     }
 
     /**

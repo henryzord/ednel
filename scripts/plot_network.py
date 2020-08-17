@@ -17,18 +17,20 @@ import pandas as pd
 import plotly.graph_objects as go
 # dash callback
 from dash.dependencies import Input, Output
-from matplotlib.cm import Pastel1
+from matplotlib.cm import Pastel1, viridis
 from matplotlib.colors import to_hex
+from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
 from networkx.drawing.nx_agraph import graphviz_layout
 
 
-def read_probabilistic_graphs(json_path: str, det_G):
+def read_probabilistic_graphs(probabilistic_path: str, det_G):
     """
     Given a path to a json file, reads a JSON that encodes a Dependency Network structure (with probabilities)
     throughout an evolutionary process of EDNEL.
     """
 
-    _dict = json.load(open(json_path))
+    _dict = json.load(open(probabilistic_path))
 
     structure_dict = dict()
     probabilities_dict = dict()
@@ -225,7 +227,7 @@ def init_app(structure_map, probabilities_table, generation_slider, variable_dro
     return app
 
 
-def read_deterministic_graph(deterministic_path=None):
+def read_deterministic_graph(deterministic_path: str = None):
     if deterministic_path is None:
         return nx.DiGraph()
 
@@ -239,44 +241,154 @@ def read_deterministic_graph(deterministic_path=None):
     return G
 
 
+def print_version(G: nx.DiGraph):
+
+    def __get_node_label__(_label, _line_limit=11):
+        _candidate = _label.split('_')[-1]  # type: str
+        if len(_candidate) <= _line_limit:
+            return _candidate
+
+        # else
+        _words = []
+        _last_index = 0
+        _before_last_case = 'lower' if _candidate[0].islower() else 'upper'
+        _last_case = 'lower' if _candidate[1].islower() else 'upper'
+        for i in range(2, len(_candidate)):
+            _current_case = 'lower' if _candidate[i].islower() else 'upper'
+
+            if _current_case != _last_case:
+                # all uppercase word
+                if (_before_last_case == 'upper') and (_last_case == 'upper'):
+                    _words += [_candidate[_last_index:i]]
+                    _last_index = i
+                elif _last_case == 'lower' and _current_case == 'upper':
+                    _words += [_candidate[_last_index:i]]
+                    _last_index = i
+
+            _before_last_case = _last_case
+            _last_case = _current_case
+
+        _words += [_candidate[_last_index:len(_candidate)]]
+
+        _answer = ''
+        _line_counter = 0
+        for i, _word in enumerate(_words):
+            if (_line_counter + len(_word) >= _line_limit) and i > 0:
+                _answer += '\n' + _word
+                _line_counter = len(_word)
+            else:
+                _answer += _word
+                _line_counter += len(_word)
+
+        return _answer
+
+    out_degrees = dict(G.out_degree)
+    min_degree = min(out_degrees.values())
+    roots = [k for k, v in out_degrees.items() if v == min_degree]
+
+    degrees = dict()
+    max_degree = -np.inf
+    for node in G.nodes:
+        for root in roots:
+            try:
+                degree = len(nx.shortest_path(G, source=node, target=root)) - 1
+                max_degree = max(degree, max_degree)
+                try:
+                    degrees[node] = min(degrees[node], degree)
+                except KeyError:
+                    degrees[node] = degree
+            except nx.exception.NetworkXNoPath:
+                pass
+
+    all_colors = list(map(to_hex, viridis(np.linspace(0, 1, num=10))))
+
+    colors = all_colors[5::2]
+
+    node_colors = list()
+    node_labels = dict()
+    for node in G.nodes:
+        node_colors += [colors[degrees[node]]]
+        node_labels[node] = __get_node_label__(node) # type: str
+
+    fig, ax = plt.subplots(figsize=(16, 10))
+
+    pos = graphviz_layout(G, root='0', prog='neato')
+
+    # node_list = G.nodes(data=True)
+    edge_list = G.edges(data=True)
+
+    # node_labels = {node_name: node_attr['label'] for (node_name, node_attr) in node_list}
+    # node_colors = [node_attr['color'] for (node_name, node_attr) in node_list]
+    # node_edgecolors = [node_attr['edgecolor'] for (node_name, node_attr) in node_list]
+
+    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=3000, node_color=node_colors, edgecolors='black', alpha=1)
+    nx.draw_networkx_edges(G, pos, ax=ax, edgelist=edge_list, style='solid', alpha=1)
+    nx.draw_networkx_labels(G, pos, node_labels, ax=ax, font_size=8)
+
+    # box = ax.get_position()
+
+    # legend_elements = [
+    #     Line2D([0], [0], marker='o', color='white', label='Value', markerfacecolor='#AAAAAA', markersize=15),
+    #     Line2D([0], [0], marker='o', color='black', label='PBIL', markerfacecolor=colors[0], markersize=15)] + \
+    #                   [
+    #                       Line2D([0], [0], marker='o', color='black', label='Variable (level %#2.d)' % (i + 1),
+    #                              markersize=15,
+    #                              markerfacecolor=color) for i, color in enumerate(colors[1:])
+    #                   ]
+    #
+    # ax.legend(handles=legend_elements, loc='lower right', fancybox=True, shadow=True, ncol=1)
+
+    plt.axis('off')
+    plt.show()
+    # if savepath is not None:
+    #     plt.savefig(savepath, format='pdf')
+    #     plt.close()
+
+
 def main(args):
     det_G = read_deterministic_graph(args.deterministic_path)
-    prob_structs, probs = read_probabilistic_graphs(args.json_path, det_G=det_G)
 
-    gens = sorted(list(probs.keys()))
-    first_gen = gens[0]
-    variables = sorted(list(probs[first_gen].keys()))
-    any_var = variables[0]
-    var_color_dict = get_colors(all_variables=variables)
+    if args.probabilistic_path is None and args.print is not None:
+        print_version(det_G)
+    elif args.probabilistic_path is not None and args.print is None:
+        prob_structs, probs = read_probabilistic_graphs(args.probabilistic_path, det_G=det_G)
 
-    structure_map = add_gen_structure_map(prob_structs=prob_structs, gen=first_gen, var_color_dict=var_color_dict)
-    probabilities_table = add_probabilities_table(probs=probs, gen=first_gen, variable=any_var)
-    generation_slider = add_generation_slider(gens=gens)
-    variable_dropdown = add_variable_dropdown(variables=variables)
-    app = init_app(structure_map=structure_map, probabilities_table=probabilities_table, generation_slider=generation_slider, variable_dropdown=variable_dropdown)
+        gens = sorted(list(probs.keys()))
+        first_gen = gens[0]
+        variables = sorted(list(probs[first_gen].keys()))
+        any_var = variables[0]
+        var_color_dict = get_colors(all_variables=variables)
 
-    @app.callback(
-        Output('structure-map', 'figure'),
-        [Input('generation-slider', 'value')]
-    )
-    def structure_map_callback(gen):
-        _str_gen = '%03d' % gen
+        structure_map = add_gen_structure_map(prob_structs=prob_structs, gen=first_gen, var_color_dict=var_color_dict)
+        probabilities_table = add_probabilities_table(probs=probs, gen=first_gen, variable=any_var)
+        generation_slider = add_generation_slider(gens=gens)
+        variable_dropdown = add_variable_dropdown(variables=variables)
+        app = init_app(structure_map=structure_map, probabilities_table=probabilities_table, generation_slider=generation_slider, variable_dropdown=variable_dropdown)
 
-        struct_map_fig = update_gen_structure_map(prob_structs=prob_structs, gen=_str_gen, var_color_dict=var_color_dict)
-        return struct_map_fig
+        @app.callback(
+            Output('structure-map', 'figure'),
+            [Input('generation-slider', 'value')]
+        )
+        def structure_map_callback(gen):
+            _str_gen = '%03d' % gen
 
-    @app.callback(
-        Output('probabilities-table-container', 'children'),
-        [Input('generation-slider', 'value'),
-         Input('variable-dropdown', 'value')]
-    )
-    def probabilities_table_callback(gen, variable):
-        _str_gen = '%03d' % gen
+            struct_map_fig = update_gen_structure_map(prob_structs=prob_structs, gen=_str_gen, var_color_dict=var_color_dict)
+            return struct_map_fig
 
-        probabilities_table_fig = update_probabilities_table(probs=probs, gen=_str_gen, variable=variable)
-        return probabilities_table_fig
+        @app.callback(
+            Output('probabilities-table-container', 'children'),
+            [Input('generation-slider', 'value'),
+             Input('variable-dropdown', 'value')]
+        )
+        def probabilities_table_callback(gen, variable):
+            _str_gen = '%03d' % gen
 
-    app.run_server(debug=False)
+            probabilities_table_fig = update_probabilities_table(probs=probs, gen=_str_gen, variable=variable)
+            return probabilities_table_fig
+
+        app.run_server(debug=False)
+    else:
+        raise ValueError('either --probabilistic-path or --print must be set')
 
 
 if __name__ == '__main__':
@@ -285,13 +397,18 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--json-path', action='store', required=True,
-        help='Path to .json file with all (probabilistic) dependencies between variables, one for each generation.'
+        '--probabilistic-path', action='store', required=False, default=None,
+        help='Path to .json file with all probabilistic dependencies between variables, one for each generation.'
     )
 
     parser.add_argument(
         '--deterministic-path', action='store', required=False, default=None,
-        help='Path to .json file with all (deterministic) dependencies between variables.'
+        help='Path to .json file with all deterministic dependencies between variables.'
+    )
+
+    parser.add_argument(
+        '--print', action='store_true', required=False, default=False,
+        help='If provided, will generate a .pdf file with the structure of first generation graphical model.'
     )
 
     args = parser.parse_args()
