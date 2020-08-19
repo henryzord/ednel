@@ -7,17 +7,37 @@ import plotly.graph_objects as go
 from plotly.offline import plot
 from copy import deepcopy
 
+from sklearn.neighbors import KNeighborsRegressor
+
 """
 Script for generating a visualization of individuals from a csv table.
 """
 
 
-def read_and_discretize(csv_path):
+def run_pca(df: pd.DataFrame):
+    """
+    Runs PCA on dataFrame of individual characteristics.
+    DataFrame must be already transformed (e.g. categorical attributes to one-hot encoding).
+
+    :param df: DataFrame with meta-characteristics of individuals in all evolutionary process.
+    """
+    index = deepcopy(df.apply(lambda x: x.name.split('_')[:2][-1], axis=1))
+    fitness = deepcopy(df['fitness'].values)
+
+    pca = PCA(n_components=2, copy=False)
+    npa = pca.fit_transform(df)
+
+    new_df = pd.DataFrame(npa, columns=['x', 'y'], index=index)
+    new_df.insert(len(new_df.columns), column='fitness', value=fitness)
+    return new_df
+
+
+def read_population_dataframe(csv_path: str):
     """
     Reads a csv file into a DataFrame.
 
-    This csv file must be the result of a (partial) run of the eda.EDNEL algorithm.
-    Will swap NaN values with -1, and convert categorical columns to one-hot.
+    This csv file must be the result of a (partial) run of EDNEL.
+    Will swap NaN values with -1, and convert categorical columns to one-hot encoding.
 
     :param csv_path: Full path to the csv file.
     :type csv_path: str
@@ -35,22 +55,72 @@ def read_and_discretize(csv_path):
 
     # replaces nan values with -1
     df = df.fillna(value=-1)
-    return df
+    return run_pca(df)
 
 
-def run_pca(df):
-    index = deepcopy(df.apply(lambda x: x.name.split('_')[:2][-1], axis=1))
-    fitness = deepcopy(df['fitness'].values)
+def update_population_contour(df: pd.DataFrame, gen: str, n_neighbors: int = 1, mesh_size: float = 0.5):
+    margin = 0.1
 
-    pca = PCA(n_components=2, copy=False)
-    npa = pca.fit_transform(df)
+    fig = go.Figure(
+        layout=go.Layout(
+            title='Individuals throughout generations',
+            xaxis=go.layout.XAxis(
+                range=(min(df['x']) - margin, max(df['x']) + margin),
+                showticklabels=False,
+                title='First PCA dimension'
+            ),
+            yaxis=go.layout.YAxis(
+                range=(min(df['y']) - margin, max(df['y']) + margin),
+                showticklabels=False,
+                title='Second PCA dimension'
+            )
+        )
+    )  # type: go.Figure
 
-    new_df = pd.DataFrame(npa, columns=['x', 'y'], index=index)
-    new_df.insert(len(new_df.columns), column='fitness', value=fitness)
-    return new_df
+    # removes last and overall individuals from DataFrame, to be added later
+    # otherwise scale of colors will be compromised
+    df = df.drop(['last', 'overall'])
+
+    # Load and split data
+    xrange = np.arange(df.x.min() - margin, df.x.max() + margin, mesh_size)
+    yrange = np.arange(df.y.min() - margin, df.y.max() + margin, mesh_size)
+    xx, yy = np.meshgrid(xrange, yrange)
+
+    # Create classifier, run predictions on grid
+    clf = KNeighborsRegressor(n_neighbors=n_neighbors, weights='uniform')
+    clf.fit(df[['x', 'y']], df.fitness)
+    Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
+
+    # Plot the figure
+    fig.add_trace(
+        go.Contour(
+            x=xrange,
+            y=yrange,
+            z=Z,
+            colorscale='RdBu'
+        )
+    )
+
+    sub = df.loc[(df.index == gen)]
+
+    fig.add_trace(
+        go.Scatter(
+            x=sub.x,
+            y=sub.y,
+            mode='markers',
+            visible=True,
+            marker=dict(
+                color='white',
+                size=4,
+            )
+        )
+    )
+
+    return fig
 
 
-def local_plot(df, csv_path):
+def update_population_scatter(df: pd.DataFrame, csv_path: str):
     fig = go.Figure(
         layout=go.Layout(
             title='Individuals throughout generations',
@@ -66,6 +136,10 @@ def local_plot(df, csv_path):
             )
         )
     )
+
+    # removes last and overall individuals from DataFrame, to be added later
+    # otherwise scale of colors will be compromised
+    df = df.drop(['last', 'overall'])
 
     active = 0
 
@@ -104,7 +178,9 @@ def local_plot(df, csv_path):
                     colorscale='Viridis',
                     colorbar=dict(
                         title='Fitness'
-                    )
+                    ),
+                    cmin=df.fitness.min(),
+                    cmax=df.fitness.max()
                 ),
                 hovertext=hovertext,
             )
@@ -138,9 +214,8 @@ def local_plot(df, csv_path):
 
 
 def main(args):
-    df = read_and_discretize(args.csv_path)
-    new_df = run_pca(df)
-    local_plot(new_df, args.csv_path)
+    df = read_population_dataframe(args.csv_path)
+    update_population_scatter(df, args.csv_path)
 
 
 if __name__ == '__main__':
@@ -153,6 +228,4 @@ if __name__ == '__main__':
         help='Path to .csv with characteristics of individuals in a run of the algorithm.'
     )
 
-    args = parser.parse_args()
-
-    main(args)
+    main(parser.parse_args())

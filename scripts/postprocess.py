@@ -1,5 +1,5 @@
 """
-After running an experiment, use this experiment to generate .csv files (one for each dataset, placed at <metadata_folder>/overall
+After running an experiment, use this script to generate .csv files (one for each dataset, placed at <metadata_folder>/overall
 for that dataset) with results for each of the metrics considered in EDAEvaluation.metrics
 
 export java_home before using it:
