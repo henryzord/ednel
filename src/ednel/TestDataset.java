@@ -194,16 +194,6 @@ public class TestDataset {
                 .build());
 
         options.addOption(Option.builder()
-            .longOpt("nearest_neighbor")
-            .type(Integer.class)
-            .required(true)
-            .hasArg()
-            .numberOfArgs(1)
-            .desc("Number of nearest neighbors to consider when calculating mutual information between continuous " +
-                    "and discrete variables pairs.")
-            .build());
-
-        options.addOption(Option.builder()
                 .longOpt("max_parents")
                 .type(Integer.class)
                 .required(true)
@@ -272,7 +262,6 @@ public class TestDataset {
                             Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
                             Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                             Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
-                            Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
                             Integer.parseInt(commandLine.getOptionValue("max_parents")),
                             commandLine.getOptionValue("resources_path"),
                             null,

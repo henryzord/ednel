@@ -318,7 +318,7 @@ public class PBILLogger {
 
 
             // writes header
-            bw.write("gen,nevals,min,median,max,lap time(seconds),discarded individuals (including burn-in),dependency network connections,sampling order\n");
+            bw.write("gen,nevals,min,median,max,lap time (seconds),discarded individuals (including burn-in),dependency network connections,sampling order\n");
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(

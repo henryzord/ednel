@@ -1,22 +1,22 @@
 
 # utilities
-import argparse
 import copy
 import json
 import os
 import re
+import argparse
+import numpy as np
+import pandas as pd
+from pandas.api.types import is_numeric_dtype
 
-# graphic libraries
 import dash
 import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
-# graph libraries
-import networkx as nx
-import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
-# dash callback
+
+import networkx as nx
+
 from dash.dependencies import Input, Output
 from matplotlib.cm import Pastel1, viridis
 from matplotlib.colors import to_hex
@@ -113,12 +113,29 @@ def print_version(G: nx.DiGraph):
     plt.show()
 
 
-def get_colors(all_variables: list):
+def get_plot_colors(df: pd.DataFrame):
+    """
+    Builds a dictionary for colors for different projections.
+    """
+    numeric_columns = []
+    for column in df.columns:
+        if is_numeric_dtype(df[column]):
+            numeric_columns += [column]
+
+    plot_colors = dict(zip(
+        numeric_columns,
+        map(lambda x: to_hex(Pastel1(x)), np.linspace(0, 1, num=len(numeric_columns)))
+    ))
+
+    return plot_colors
+
+
+def get_node_colors(all_variables: list):
     """
     Builds a dictionary assigning a color to each variable.
     """
     families = list(zip(*map(lambda x: x.split('_'), all_variables)))[0]
-    families_set = set(families)
+    families_set = sorted(list(set(families)))
     families_colors = dict(zip(
         families_set,
         map(lambda x: to_hex(Pastel1(x)), np.linspace(0, 1, num=len(families_set)))
@@ -319,7 +336,7 @@ def add_population_contour(population_df: pd.DataFrame, gen):
     return graph
 
 
-def init_app(structure_map, population_map, probabilities_table, generation_slider, variable_dropdown, neighbors_dropdown, mesh_dropdown):
+def init_app(structure_map, population_map, probabilities_table, fitness_plot, plot_dropdown, generation_slider, variable_dropdown, neighbors_dropdown, mesh_dropdown):
     app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
 
     app.layout = html.Div([
@@ -334,7 +351,11 @@ def init_app(structure_map, population_map, probabilities_table, generation_slid
         ], className="six columns"),
         html.Div([
             variable_dropdown,
-            probabilities_table
+            html.Div([probabilities_table], style={"maxHeight": "415px", 'height': '415px', "overflow": "scroll"}),
+            html.P("Population Metrics throughout Generations"),
+            html.P("Metrics"),
+            plot_dropdown,
+            fitness_plot
         ], className="six columns"),
     ], id='dash-container')
 
@@ -363,6 +384,62 @@ def add_mesh_dropdown():
     return mesh_dropdown
 
 
+def update_fitness_plot(logger_data, plots):
+    fig = go.Figure(
+        layout=go.Layout(
+            # title='Population metrics throughout generations',
+            xaxis=go.layout.XAxis(
+                visible=True
+            ),
+            yaxis=go.layout.YAxis(
+                visible=True
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+    )
+
+    plot_colors = get_plot_colors(logger_data)
+
+    for plot in plots:
+        if plot in logger_data.columns and is_numeric_dtype(logger_data[plot]):
+
+            fig.add_trace(
+                go.Scatter(
+                    x=np.arange(len(logger_data[plot])),
+                    y=logger_data[plot],
+                    mode='lines',
+                    marker=dict(
+                        color=plot_colors[plot],
+                        size=20,
+                    ),
+                    text=[plot] * len(logger_data[plot]),
+                    name=plot,
+                    hovertemplate='Generation: %{x}<br>%{text}: %{y}',
+                )
+            )
+
+    return fig
+
+
+def add_fitness_plot(logger_data):
+    fig = update_fitness_plot(logger_data, plots=['median'])
+    plot = dcc.Graph(id='fitness-plot', figure=fig)
+    return plot
+
+
+def add_plot_dropdown(logger_data):
+    plots = [plot for plot in logger_data.columns if is_numeric_dtype(logger_data[plot])]
+
+    dropdown = dcc.Dropdown(
+        options=[{'label': plot, 'value': plot} for plot in plots],
+        value=['median'],
+        multi=True,
+        id='plot-dropdown',
+    )
+    return dropdown
+
+
 def main(args):
     det_G = read_deterministic_graph(args.deterministic_path)
 
@@ -374,15 +451,18 @@ def main(args):
             det_G=det_G
         )
         population_df = read_population_dataframe(os.path.join(args.experiment_path, 'characteristics.csv'))
+        logger_data = pd.read_csv(open(os.path.join(args.experiment_path, 'loggerData.csv'), 'r'), sep=',', quotechar='\"')
 
         gens = sorted(list(probs.keys()))
         first_gen = gens[0]
         variables = sorted(list(probs[first_gen].keys()))
         any_var = variables[0]
-        var_color_dict = get_colors(all_variables=variables)
+        var_color_dict = get_node_colors(all_variables=variables)
 
         structure_map = add_gen_structure_map(prob_structs=prob_structs, gen=first_gen, var_color_dict=var_color_dict)
         population_map = add_population_contour(population_df=population_df, gen=first_gen)
+        fitness_plot = add_fitness_plot(logger_data=logger_data)
+        plot_dropdown = add_plot_dropdown(logger_data=logger_data)
         probabilities_table = add_probabilities_table(probs=probs, gen=first_gen, variable=any_var)
         generation_slider = add_generation_slider(gens=gens)
         variable_dropdown = add_variable_dropdown(variables=variables)
@@ -393,6 +473,8 @@ def main(args):
             structure_map=structure_map,
             population_map=population_map,
             probabilities_table=probabilities_table,
+            fitness_plot=fitness_plot,
+            plot_dropdown=plot_dropdown,
             generation_slider=generation_slider,
             variable_dropdown=variable_dropdown,
             neighbors_dropdown=neighbors_dropdown,
@@ -434,6 +516,14 @@ def main(args):
             probabilities_table_fig = update_probabilities_table(probs=probs, gen=_str_gen, variable=variable)
             return probabilities_table_fig
 
+        @app.callback(
+            Output('fitness-plot', 'figure'),
+            [Input('plot-dropdown', 'value')]
+        )
+        def population_fitness_callback(plots):
+            fitness_plot_fig = update_fitness_plot(logger_data=logger_data, plots=plots)
+            return fitness_plot_fig
+
         app.run_server(debug=False)
     else:
         raise ValueError('either --experiment-path or --print must be set')
@@ -459,6 +549,4 @@ if __name__ == '__main__':
         help='If provided, will generate a .pdf file with the structure of first generation graphical model.'
     )
 
-    args = parser.parse_args()
-
-    main(args)
+    main(parser.parse_args())

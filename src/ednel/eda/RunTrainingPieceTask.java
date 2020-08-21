@@ -59,7 +59,6 @@ public class RunTrainingPieceTask implements Runnable {
                 Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                 Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
-                Integer.parseInt(commandLine.getOptionValue("nearest_neighbor")),
                 Integer.parseInt(commandLine.getOptionValue("max_parents")),
                 commandLine.getOptionValue("resources_path"),
                 pbilLogger,

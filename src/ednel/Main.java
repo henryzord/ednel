@@ -197,16 +197,6 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
-            .longOpt("nearest_neighbor")
-            .type(Integer.class)
-            .required(true)
-            .hasArg()
-            .numberOfArgs(1)
-            .desc("Number of nearest neighbors to consider when calculating mutual information between continuous " +
-                    "and discrete variables pairs.")
-            .build());
-
-        options.addOption(Option.builder()
                 .longOpt("max_parents")
                 .type(Integer.class)
                 .required(true)

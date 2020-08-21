@@ -46,8 +46,8 @@ public class ContinuousVariable extends AbstractVariable {
     }
 
     @Override
-    public void updateStructure(AbstractVariable[] mutableParents, HashMap<String, ArrayList<String>> fittest) throws Exception {
-        super.updateStructure(mutableParents, fittest);
+    public void updateStructure(AbstractVariable[] prob_parents, HashMap<String, ArrayList<String>> fittest) throws Exception {
+        super.updateStructure(prob_parents, fittest);
         throw new Exception("implement!");
     }
 

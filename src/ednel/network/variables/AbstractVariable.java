@@ -4,6 +4,7 @@ import ednel.eda.individual.Individual;
 import ednel.utils.CombinationNotPresentException;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.exception.MathArithmeticException;
+import org.apache.commons.math3.exception.NotANumberException;
 import org.json.simple.JSONObject;
 import org.apache.commons.math3.random.MersenneTwister;
 
@@ -38,7 +39,7 @@ public abstract class AbstractVariable {
      *
      */
     protected HashSet<Shadowvalue> uniqueShadowvalues;
-    protected HashMap<Shadowvalue, Double> unconditionalProbabilities;
+//    protected HashMap<Shadowvalue, Double> unconditionalProbabilities;
 
     /**
      * Should not contain any null values.
@@ -144,7 +145,7 @@ public abstract class AbstractVariable {
                 }
             }
 
-        this.setUnconditionalProbabilities();
+//        this.setUnconditionalProbabilities();
 
         this.probabilities = probabilities;
 
@@ -153,6 +154,7 @@ public abstract class AbstractVariable {
 
         String algorithmName = this.getAlgorithmName();
 
+        // does not add itself to cannot link
         if(!this.name.equals(algorithmName)) {
             this.fixedCannotLink.add(algorithmName);
         }
@@ -256,31 +258,31 @@ public abstract class AbstractVariable {
      * Only deterministic parents apply.
      * @return A value from the unconditional distribution.
      */
-    public String unconditionalSampling(HashMap<String, String> lastStart) {
-        try {
-            int[] indices = new int[this.uniqueShadowvalues.size()];
-            double[] localProbs = new double[this.uniqueShadowvalues.size()];
-            Object[] keySetArray = this.uniqueShadowvalues.toArray();
-            for(int i = 0; i < keySetArray.length; i++) {
-                indices[i] = i;
-                localProbs[i] = this.unconditionalProbabilities.get((Shadowvalue)keySetArray[i]);
-            }
-
-            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
-            Shadowvalue val = (Shadowvalue)keySetArray[localDist.sample()];
-            if(!val.toString().equals("null")) {
-                return val.getValue();
-            }
-        } catch(MathArithmeticException mae) {
-            System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
-            System.out.println("probabilistic parents: ");
-            for(String parent : this.prob_parents) {
-                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
-            }
-            throw mae;
-        }
-        return null;
-    }
+//    public String unconditionalSampling(HashMap<String, String> lastStart) {
+//        try {
+//            int[] indices = new int[this.uniqueShadowvalues.size()];
+//            double[] localProbs = new double[this.uniqueShadowvalues.size()];
+//            Object[] keySetArray = this.uniqueShadowvalues.toArray();
+//            for(int i = 0; i < keySetArray.length; i++) {
+//                indices[i] = i;
+//                localProbs[i] = this.unconditionalProbabilities.get((Shadowvalue)keySetArray[i]);
+//            }
+//
+//            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
+//            Shadowvalue val = (Shadowvalue)keySetArray[localDist.sample()];
+//            if(!val.toString().equals("null")) {
+//                return val.getValue();
+//            }
+//        } catch(MathArithmeticException mae) {
+//            System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
+//            System.out.println("probabilistic parents: ");
+//            for(String parent : this.prob_parents) {
+//                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+//            }
+//            throw mae;
+//        }
+//        return null;
+//    }
 
     /**
      * Samples a new value for this variable, based on conditions.
@@ -318,9 +320,16 @@ public abstract class AbstractVariable {
                     System.out.println("\t" + parent + " value: " + lastStart.get(parent));
                 }
                 throw mae;
+            } catch(NotANumberException nne) {
+                System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
+                System.out.println("probabilistic parents: ");
+                for(String parent : this.prob_parents) {
+                    System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+                }
+                throw nne;
             }
         } catch(CombinationNotPresentException cnp) {  // probabilistic parent combination of values not present
-            return unconditionalSampling(lastStart);
+            return null;  // returns null value
         }
         return null;
     }
@@ -472,11 +481,11 @@ public abstract class AbstractVariable {
     /**
      * Just clears the parent_names, values, probabilities and table properties.
      * Updates the parent set of this variable, based on the fittest individuals from a generation.
-     * @param mutableParents New parents of this variable
+     * @param prob_parents New parents of this variable
      * @param fittest Fittest individuals from the lattest generation
      * @throws Exception Exception thrower for children classes
      */
-    public void updateStructure(AbstractVariable[] mutableParents, HashMap<String, ArrayList<String>> fittest) throws Exception {
+    public void updateStructure(AbstractVariable[] prob_parents, HashMap<String, ArrayList<String>> fittest) throws Exception {
         this.lastgen_prob_parents = (HashSet<String>)this.prob_parents.clone();
         for(String mutable_parent : this.prob_parents) {
             this.isParentContinuous.remove(mutable_parent);
@@ -485,7 +494,7 @@ public abstract class AbstractVariable {
         this.prob_parents.clear();
 
         // if variable is not among fixed parents
-        for(AbstractVariable par : mutableParents) {
+        for(AbstractVariable par : prob_parents) {
             this.prob_parents.add(par.getName());
             this.isParentContinuous.put(par.getName(), par instanceof ContinuousVariable);
         }
@@ -503,7 +512,7 @@ public abstract class AbstractVariable {
             this.values.clear();
 
             // continuous variable code
-            HashMap<String, HashSet<Shadowvalue>> valuesCombinations = Combinator.getUniqueValuesFromVariables(mutableParents);
+            HashMap<String, HashSet<Shadowvalue>> valuesCombinations = Combinator.getUniqueValuesFromVariables(prob_parents);
             // adds unique values of this variable
             valuesCombinations.put(this.getName(), this.getUniqueShadowvalues());
 
@@ -695,14 +704,13 @@ public abstract class AbstractVariable {
 
         int n_fittest = fittestValues.get(this.getName()).size();
 
-        // TODO laplace correction might be needed next. come here and set value to 1 if probability distributions sum up to zero
-        ArrayList<Double> relevantFittestCounts = new ArrayList<>(Collections.nCopies(this.values.size(), 1.0));  // set 1 for laplace correction; 0 otherwise
-        double relevantFittestSize = this.values.size();  // TODO set to this.values.size() for laplace correction; 0 otherwise
+        ArrayList<Double> relevantFittestCounts = new ArrayList<>(Collections.nCopies(this.values.size(), 0.0));  // set 1 for laplace correction; 0 otherwise
+        double relevantFittestSize = 0;  // set to this.values.size() for laplace correction; 0 otherwise
 
         ArrayList<Double> oldProbabilities = sameParentsFromLastGeneration()? (ArrayList<Double>)this.probabilities.clone() : null;
 
         this.probabilities = new ArrayList<>(Collections.nCopies(this.values.size(), 0.0));
-        this.setUnconditionalProbabilities(fittestValues);
+//        this.setUnconditionalProbabilities(fittestValues);
 
         HashMap<String, Integer> ddd = new HashMap<>();
 
@@ -805,8 +813,6 @@ public abstract class AbstractVariable {
         // normalizes everything - if needed
         this.normalizeProbabilities(parentValIndices);
 
-        // TODO not setting probabilities to zero if they are nan!
-
 //        for(int i = 0; i < this.probabilities.size(); i++) {
 //            if(Double.isNaN(this.probabilities.get(i))) {
 //                throw new Exception("unexpected behavior!");
@@ -815,34 +821,34 @@ public abstract class AbstractVariable {
 //        }
     }
 
-    private void setUnconditionalProbabilities(HashMap<String, ArrayList<String>> fittestValues) {
-        this.unconditionalProbabilities = new HashMap<>();
-
-        ArrayList<String> assumedValues = fittestValues.get(this.getName());
-        long sum = 0;
-        for(Shadowvalue unique : this.uniqueShadowvalues) {
-            int count = 0;
-            String uniqueStr = unique.toString();
-            for(int i = 0; i < assumedValues.size(); i++) {
-                if(String.valueOf(assumedValues.get(i)).equals(uniqueStr)) {
-                    count += 1;
-                }
-            }
-            sum += count;
-            this.unconditionalProbabilities.put(unique, (double)count);
-        }
-
-        // normalizes
-        for(Shadowvalue unique : this.uniqueShadowvalues) {
-            this.unconditionalProbabilities.put(unique, this.unconditionalProbabilities.get(unique) / sum);
-        }
-    }
-    private void setUnconditionalProbabilities() {
-        this.unconditionalProbabilities = new HashMap<>();
-        for(Shadowvalue unique : this.uniqueShadowvalues) {
-            this.unconditionalProbabilities.put(unique, 1./this.uniqueShadowvalues.size());
-        }
-    }
+//    private void setUnconditionalProbabilities(HashMap<String, ArrayList<String>> fittestValues) {
+//        this.unconditionalProbabilities = new HashMap<>();
+//
+//        ArrayList<String> assumedValues = fittestValues.get(this.getName());
+//        long sum = 0;
+//        for(Shadowvalue unique : this.uniqueShadowvalues) {
+//            int count = 0;
+//            String uniqueStr = unique.toString();
+//            for(int i = 0; i < assumedValues.size(); i++) {
+//                if(String.valueOf(assumedValues.get(i)).equals(uniqueStr)) {
+//                    count += 1;
+//                }
+//            }
+//            sum += count;
+//            this.unconditionalProbabilities.put(unique, (double)count);
+//        }
+//
+//        // normalizes
+//        for(Shadowvalue unique : this.uniqueShadowvalues) {
+//            this.unconditionalProbabilities.put(unique, this.unconditionalProbabilities.get(unique) / sum);
+//        }
+//    }
+//    private void setUnconditionalProbabilities() {
+//        this.unconditionalProbabilities = new HashMap<>();
+//        for(Shadowvalue unique : this.uniqueShadowvalues) {
+//            this.unconditionalProbabilities.put(unique, 1./this.uniqueShadowvalues.size());
+//        }
+//    }
 
     /**
      * Checks whether probabilistic parents have changed from last generation to current.
@@ -989,7 +995,7 @@ public abstract class AbstractVariable {
     /**
      * Returns all variables that must be sampled before this variable, either fixed or mutable.
      */
-    public HashSet<String> getFixedBlocking() {
+    public HashSet<String> getDeterministicParents() {
         return new HashSet<>(this.fixedBlocking.keySet());
     }
 

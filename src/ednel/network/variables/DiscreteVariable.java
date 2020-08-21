@@ -20,15 +20,15 @@ public class DiscreteVariable extends AbstractVariable {
 
     /**
      * Updates the structure of the table of indices.
-     * @param mutableParents Parents to be added to mutable parents of this variable.
+     * @param prob_parents Parents to be added to mutable parents of this variable.
      * @param fittest Set of fittest individuals of current generation.
      * @throws Exception
      */
     @Override
-    public void updateStructure(AbstractVariable[] mutableParents, HashMap<String, ArrayList<String>> fittest) throws Exception {
-        mutableParents = AbstractVariable.getOnlyDiscrete(mutableParents);
+    public void updateStructure(AbstractVariable[] prob_parents, HashMap<String, ArrayList<String>> fittest) throws Exception {
+        prob_parents = AbstractVariable.getOnlyDiscrete(prob_parents);
 
-        super.updateStructure(mutableParents, fittest);
+        super.updateStructure(prob_parents, fittest);
     }
 
     public void setValues(HashMap<String, ArrayList<String>> fittest) throws Exception {

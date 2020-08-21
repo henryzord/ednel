@@ -7,15 +7,13 @@ import ednel.network.variables.ContinuousVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import smile.validation.AdjustedMutualInformation;
+import smile.neighbor.lsh.Hash;
+import sun.reflect.annotation.ExceptionProxy;
 
 import java.io.File;
 import java.io.FileReader;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import static ednel.utils.MyMathUtils.lfactorial;
 import static java.lang.Math.exp;
@@ -30,12 +28,6 @@ public class DependencyNetwork {
     private int burn_in;
     private int thinning_factor;
 
-    /**
-     * The number of nearest neighbors to consider when
-     * calculating the mutual information between discrete and
-     * continuous variables.
-     */
-    private int nearest_neighbor;
     /**
      * Maximum number of parents that any variable may have at a given moment.
      */
@@ -54,14 +46,13 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String resources_path, int burn_in, int thinning_factor,
-            float learningRate, int n_generations, int nearest_neighbor, int max_parents
+            float learningRate, int n_generations, int max_parents
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
-        this.nearest_neighbor = nearest_neighbor;
         this.max_parents = max_parents;  // global max parents
 
         this.learningRate = learningRate;
@@ -79,6 +70,98 @@ public class DependencyNetwork {
     }
 
     /**
+     *
+     * Gets deterministic children of all variables.
+     *
+     * @param variables A HashMap where the key is the variable name and the value a corresponding AbstractVariable
+     *                  object
+     * @return A HashMap where the key is the parent variable and the value a HashSet with deterministic children
+     * of that variable.
+     */
+    private static HashMap<String, HashSet<String>> getEveryonesDeterministicChildren(HashMap<String, AbstractVariable> variables) {
+        HashMap<String, HashSet<String>> children = new HashMap<>(variables.size());
+
+        HashSet<String> toAdd = new HashSet<>(variables.keySet());
+
+        for(String var : variables.keySet()) {
+            HashSet<String> parents = new HashSet<>(variables.get(var).getDeterministicParents());
+            for(String parent : parents) {
+                HashSet<String> initial = children.getOrDefault(parent, new HashSet<String>());
+                initial.add(var);
+                children.put(parent, initial);
+                toAdd.remove(parent);
+            }
+        }
+        for(String var : toAdd) {
+            children.put(var, new HashSet<>());
+        }
+
+        return children;
+    }
+
+    /**
+     *
+     * Gets deterministic parents of all variables.
+     *
+     * @param variables A HashMap where the key is the variable name and the value a corresponding AbstractVariable
+     *                  object
+     * @return A HashMap where the key is the child variable and the value a HashSet with deterministic parents
+     * of that variable.
+     */
+    private static HashMap<String, HashSet<String>> getEveryonesDeterministicParents(HashMap<String, AbstractVariable> variables) {
+        HashMap<String, HashSet<String>> parents = new HashMap<>(variables.size());
+
+        for(String var : variables.keySet()) {
+            HashSet<String> allParents = new HashSet<>(variables.get(var).getDeterministicParents());
+            parents.put(var, allParents);
+        }
+        return parents;
+    }
+
+    /**
+     *
+     * Gets all parents (both deterministic and probabilistic) of all variables.
+     *
+     * @param variables A HashMap where the key is the variable name and the value a corresponding AbstractVariable
+     *                  object
+     * @return A HashMap where the key is the child variable and the value a HashSet with all parents (both
+     * deterministic and probabilistic) of that variable.
+     */
+    private static HashMap<String, HashSet<String>> getEveryonesAllParents(HashMap<String, AbstractVariable> variables) {
+        HashMap<String, HashSet<String>> parents = DependencyNetwork.getEveryonesDeterministicParents(variables);
+
+        for(String var : variables.keySet()) {
+            HashSet<String> local = parents.get(var);
+            local.addAll(variables.get(var).getProbabilisticParents());
+            parents.put(var, local);
+        }
+        return parents;
+    }
+
+    /**
+     *
+     * Gets all children (both deterministic and probabilistic) of all variables.
+     *
+     * @param variables A HashMap where the key is the variable name and the value a corresponding AbstractVariable
+     *                  object
+     * @return A HashMap where the key is the parent variable and the value a HashSet with all children (both
+     * deterministic and probabilistic) of that variable.
+     */
+    private static HashMap<String, HashSet<String>> getEveryonesAllChildren(HashMap<String, AbstractVariable> variables) {
+        HashMap<String, HashSet<String>> children = DependencyNetwork.getEveryonesDeterministicChildren(variables);
+
+        for(String var : variables.keySet()) {
+            HashSet<String> parents = variables.get(var).getProbabilisticParents();
+            for(String parent : parents) {
+                HashSet<String> local = children.getOrDefault(parent, new HashSet<String>());
+                local.add(var);
+                children.put(parent, local);
+            }
+        }
+        return children;
+    }
+
+    /**
      * Infers sampling order from variables, based on the most requested variables in the dependency network.
      *
      * @param variables dictionary of names and AbstractVariable objects
@@ -88,37 +171,24 @@ public class DependencyNetwork {
         ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
         HashSet<String> added_set = new HashSet<>();
 
-        HashMap<String, HashSet<String>> parentsOf = new HashMap<>();
+        // key = children variable, values = parents of that variable
+        HashMap<String, HashSet<String>> parentsOf = DependencyNetwork.getEveryonesAllParents(variables);
+        HashMap<String, HashSet<String>> childrenOf = DependencyNetwork.getEveryonesAllChildren(variables);
 
-        // computes votes for all variables
-        HashMap<String, Integer> votes = new HashMap<>();
-        for(String var : variables.keySet()) {
-            HashSet<String> set = new HashSet<>();
-            set.addAll(variables.get(var).getFixedBlocking());
-            set.addAll(variables.get(var).getProbabilisticParents());
-            set.removeAll(added_set);  // removes variables already included
-            parentsOf.put(var, set);
-
-            for(String overVar : set) {
-                if(!votes.containsKey(overVar)) {
-                    votes.put(overVar, 1);
-                } else {
-                    votes.put(overVar, votes.get(overVar) + 1);
-                }
-            }
-        }
+        ArrayList<String> shuffableVariables = new ArrayList<>(variables.keySet());
 
         // tries to add variables with the least amount of parents
         while(added_set.size() < variables.size()) {  // while there are still variables to add
+            Collections.shuffle(shuffableVariables);
+
+            ArrayList<String> added_now = new ArrayList<>();
+
             String best_candidate = null;
             int best_missing_parents = Integer.MAX_VALUE;
             int best_voting = 0;
 
             boolean addedAny = false;
-            for(String var : variables.keySet()) {
-                if(added_set.contains(var)) {
-                    continue;
-                }
+            for(String var : shuffableVariables) {
                 Set<String> intersection = new HashSet<>(parentsOf.get(var)); // use the copy constructor
                 intersection.retainAll(added_set);
 
@@ -129,17 +199,21 @@ public class DependencyNetwork {
                     addedAny = true;
                     samplingOrder.add(var);
                     added_set.add(var);
-                } else if((missing_parents < best_missing_parents) && (votes.getOrDefault(var, 0) >= best_voting)) {
+                    added_now.add(var);
+                } else if((missing_parents < best_missing_parents) && (parentsOf.get(var).size() >= best_voting)) {  // TODO prefer deterministic children!
                     best_missing_parents = missing_parents;
                     best_candidate = var;
-                    best_voting = votes.getOrDefault(var, 0);
+                    best_voting = parentsOf.get(var).size();
                 }
             }
             // will have to make sacrifices
             if(!addedAny) {
                 samplingOrder.add(best_candidate);
                 added_set.add(best_candidate);
+                added_now.add(best_candidate);
             }
+
+            shuffableVariables.removeAll(added_now);
         }
         return samplingOrder;
     }
@@ -551,12 +625,17 @@ public class DependencyNetwork {
     private void updateStructure(HashMap<String, ArrayList<String>> fittest) throws Exception {
         this.currentGenConnections = 0;
 
+        HashMap<String, HashSet<String>> children = DependencyNetwork.getEveryonesDeterministicChildren(this.variables);
+
+        Collections.shuffle(this.samplingOrder);
+
         for(String variableName : this.samplingOrder) {
             // candidates to be parents of a variable
             HashSet<String> candSet = new HashSet<>(this.samplingOrder.size());
             candSet.addAll(this.variables.keySet());  // adds all variables
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
             candSet.removeAll(this.variables.get(variableName).getCannotLink());  // removes cannot link variables
+            candSet.removeAll(children.get(variableName));  // removes variables that are children of current variable
 
             // probabilistic parent set starts empty
             HashSet<String> parentSet = new HashSet<>();
@@ -594,15 +673,22 @@ public class DependencyNetwork {
                     candSet.remove(bestCandidate);
                 }
             }
+            // adds this variable to children set of parents
+            for(String par : parentSet) {
+                HashSet<String> localSet = children.get(par);
+                localSet.add(variableName);
+                children.put(par, localSet);
+            }
+
             AbstractVariable thisVariable = this.variables.get(variableName);
-            AbstractVariable[] mutableParents = new AbstractVariable[parentSet.size()];
+            AbstractVariable[] probParents = new AbstractVariable[parentSet.size()];
 
             Object[] parentList = parentSet.toArray();
             for(int i = 0; i < parentSet.size(); i++) {
-                mutableParents[i] = this.variables.get((String)parentList[i]);
+                probParents[i] = this.variables.get((String)parentList[i]);
             }
 
-            thisVariable.updateStructure(mutableParents, fittest);
+            thisVariable.updateStructure(probParents, fittest);
 
             this.currentGenConnections += thisVariable.getParentCount();
         }
