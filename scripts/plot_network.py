@@ -145,18 +145,18 @@ def get_node_colors(all_variables: list):
     return var_color_dict
 
 
-def read_deterministic_graph(deterministic_path: str = None):
-    if deterministic_path is None:
-        return nx.DiGraph()
-
-    raw = json.load(open(deterministic_path, 'r'))
-    G = nx.DiGraph()
-    for variable, parents in raw.items():
-        G.add_node(variable)
-        for parent in list(parents.keys()):
-            G.add_edge(variable, parent, type='deterministic')
-
-    return G
+# def read_deterministic_graph(deterministic_path: str = None):
+#     if deterministic_path is None:
+#         return nx.DiGraph()
+#
+#     raw = json.load(open(deterministic_path, 'r'))
+#     G = nx.DiGraph()
+#     for variable, parents in raw.items():
+#         G.add_node(variable)
+#         for parent in list(parents.keys()):
+#             G.add_edge(variable, parent, type='deterministic')
+#
+#     return G
 
 
 def read_probabilistic_graphs(probabilistic_path: str):
@@ -174,6 +174,10 @@ def read_probabilistic_graphs(probabilistic_path: str):
     co_splitter = lambda x: re.split(',(?![^(]*\))', x)
 
     for gen in _dict.keys():
+        G = nx.DiGraph()
+        for node in _dict[gen].keys():
+            G.add_node(node)
+
         this_gen_probabilities = dict()
         for variable in _dict[gen].keys():
             lines = list(_dict[gen][variable].keys())
@@ -188,7 +192,7 @@ def read_probabilistic_graphs(probabilistic_path: str):
                 parentnames = _vars
 
             for parent in list(set(parentnames) - {variable}):
-                G.add_edge(variable, parent, type='probabilistic')
+                G.add_edge(variable, parent)
 
             this_gen_probabilities[variable] = pd.DataFrame(table, columns=list(parentnames) + ['probability'])
 
@@ -256,8 +260,6 @@ def update_gen_structure_map(prob_structs, gen, var_color_dict):
     for some_tuple in edge_list:
         edge_properties = some_tuple[2]
 
-        is_probabilistic = edge_properties['type'] == 'probabilistic'
-
         a = some_tuple[0]
         b = some_tuple[1]
 
@@ -279,7 +281,7 @@ def update_gen_structure_map(prob_structs, gen, var_color_dict):
             arrowwidth=2,
             standoff=11,  # move away head of arrow n pixels
             startstandoff=9,  # move away base of arrow n pixels
-            arrowcolor='grey' if is_probabilistic else 'black'
+            arrowcolor='black'
         )
 
     fig.add_trace(
