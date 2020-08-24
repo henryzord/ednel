@@ -1,3 +1,7 @@
-J48_doNotMakeSplitPointActualValue,probability
-true,0.4
-false,0.6
+J48,J48_doNotMakeSplitPointActualValue,probability
+true,true,0.4
+true,false,0.6
+true,null,0.0
+false,true,0.0
+false,false,0.0
+false,null,1.0

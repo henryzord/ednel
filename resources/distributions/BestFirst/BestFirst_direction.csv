@@ -1,4 +1,13 @@
-BestFirst_direction,probability
-0,0.285
-1,0.43
-2,0.285
+DecisionTable_search,BestFirst_direction,probability
+weka.attributeSelection.BestFirst,0,0.285
+weka.attributeSelection.BestFirst,1,0.43
+weka.attributeSelection.BestFirst,2,0.285
+weka.attributeSelection.BestFirst,null,0.0
+weka.attributeSelection.GreedyStepwise,0,0.0
+weka.attributeSelection.GreedyStepwise,1,0.0
+weka.attributeSelection.GreedyStepwise,2,0.0
+weka.attributeSelection.GreedyStepwise,null,1.0
+null,0,0.0
+null,1,0.0
+null,2,0.0
+null,null,1.0

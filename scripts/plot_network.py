@@ -159,7 +159,7 @@ def read_deterministic_graph(deterministic_path: str = None):
     return G
 
 
-def read_probabilistic_graphs(probabilistic_path: str, det_G):
+def read_probabilistic_graphs(probabilistic_path: str):
     """
     Given a path to a json file, reads a JSON that encodes a Dependency Network structure (with probabilities)
     throughout an evolutionary process of EDNEL.
@@ -174,7 +174,6 @@ def read_probabilistic_graphs(probabilistic_path: str, det_G):
     co_splitter = lambda x: re.split(',(?![^(]*\))', x)
 
     for gen in _dict.keys():
-        G = copy.deepcopy(det_G)
         this_gen_probabilities = dict()
         for variable in _dict[gen].keys():
             lines = list(_dict[gen][variable].keys())
@@ -441,15 +440,13 @@ def add_plot_dropdown(logger_data):
 
 
 def main(args):
-    det_G = read_deterministic_graph(args.deterministic_path)
+    prob_structs, probs = read_probabilistic_graphs(
+        os.path.join(args.experiment_path, 'dependency_network_structure.json')
+    )
 
-    if args.experiment_path is None and args.print is True:
-        print_version(det_G)
-    elif args.experiment_path is not None and args.print is False:
-        prob_structs, probs = read_probabilistic_graphs(
-            os.path.join(args.experiment_path, 'dependency_network_structure.json'),
-            det_G=det_G
-        )
+    if args.print is True:
+        print_version(prob_structs)
+    elif args.print is False:
         population_df = read_population_dataframe(os.path.join(args.experiment_path, 'characteristics.csv'))
         logger_data = pd.read_csv(open(os.path.join(args.experiment_path, 'loggerData.csv'), 'r'), sep=',', quotechar='\"')
 
@@ -537,11 +534,6 @@ if __name__ == '__main__':
     parser.add_argument(
         '--experiment-path', action='store', required=False, default=None,
         help='Path to folder with experiment metadata.'
-    )
-
-    parser.add_argument(
-        '--deterministic-path', action='store', required=False, default=None,
-        help='Path to .json file with all deterministic dependencies between variables.'
     )
 
     parser.add_argument(

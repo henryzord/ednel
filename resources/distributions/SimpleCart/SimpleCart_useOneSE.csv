@@ -1,3 +1,10 @@
-SimpleCart_useOneSE,probability
-false,0.6
-true,0.4
+SimpleCart_usePrune,SimpleCart_useOneSE,probability
+true,true,0.4
+true,false,0.6
+true,null,0.0
+false,true,0.0
+false,false,0.0
+false,null,1.0
+null,true,0.0
+null,false,0.0
+null,null,1.0

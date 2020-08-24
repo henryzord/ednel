@@ -1,16 +1,21 @@
 package ednel.network.variables;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
 public class Combinator {
 
-    public static HashMap<String, HashSet<Shadowvalue>> getUniqueValuesFromVariables(AbstractVariable[] parents) {
-        HashMap<String, HashSet<Shadowvalue>> uniqueValues = new HashMap<>(parents.length + 1);
+    public static HashMap<String, ArrayList<String>> getUniqueValuesFromVariables(AbstractVariable[] all_parents, AbstractVariable child) {
+        HashMap<String, ArrayList<String>> uniqueValues = new HashMap<>(all_parents.length + 1);
 
-        for (AbstractVariable parent : parents) {
-            uniqueValues.put(parent.getName(), parent.getUniqueShadowvalues());
+        for (AbstractVariable parent : all_parents) {
+            uniqueValues.put(parent.getName(), parent.getUniqueValues());
         }
+        if(child != null) {
+            uniqueValues.put(child.getName(), child.getUniqueValues());
+        }
+
         return uniqueValues;
     }
 

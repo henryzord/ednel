@@ -3,12 +3,9 @@ package ednel.network;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.variables.AbstractVariable;
-import ednel.network.variables.ContinuousVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import smile.neighbor.lsh.Hash;
-import sun.reflect.annotation.ExceptionProxy;
 
 import java.io.File;
 import java.io.FileReader;
@@ -22,27 +19,28 @@ import static java.lang.Math.log;
 public class DependencyNetwork {
     private final float learningRate;
     private final int n_generations;
-    private HashMap<String, AbstractVariable> variables;
-    private MersenneTwister mt;
+
     private JSONObject options;
+    private HashMap<String, AbstractVariable> variables;
+
+
+    private MersenneTwister mt;
     private int burn_in;
     private int thinning_factor;
-
-    /**
-     * Maximum number of parents that any variable may have at a given moment.
-     */
+    /** Maximum number of parents that any variable may have at a given moment. */
     private int max_parents;
-
     private ArrayList<String> samplingOrder = null;
 
-    private ArrayList<HashMap<String, AbstractVariable>> pastVariables;
-
+    /** Last solution space point visited by Gibbs Sampling */
     private HashMap<String, String> lastStart;
 
+    // counters
+    /** Discarded individuals of this generation */
     private int currentGenDiscardedIndividuals;
     private int currentGenEvals;
     private int currentGenConnections;
-//    private HashMap<String, Integer> connectionsCount;
+
+    private HashMap<String, ArrayList<String>> lastGenFittestValues;
 
     public DependencyNetwork(
             MersenneTwister mt, String resources_path, int burn_in, int thinning_factor,
@@ -61,6 +59,8 @@ public class DependencyNetwork {
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
         this.currentGenConnections = 0;
+
+        this.lastGenFittestValues = null;
 
         this.lastStart = null;
 
@@ -200,7 +200,7 @@ public class DependencyNetwork {
                     samplingOrder.add(var);
                     added_set.add(var);
                     added_now.add(var);
-                } else if((missing_parents < best_missing_parents) && (parentsOf.get(var).size() >= best_voting)) {  // TODO prefer deterministic children!
+                } else if((missing_parents < best_missing_parents) && (parentsOf.get(var).size() >= best_voting)) {
                     best_missing_parents = missing_parents;
                     best_candidate = var;
                     best_voting = parentsOf.get(var).size();
@@ -229,8 +229,6 @@ public class DependencyNetwork {
 
         JSONParser jsonParser = new JSONParser();
         options = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "options.json"));
-        JSONObject initialBlocking = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "blocking.json"));
-        Set<String> variables_names = (Set<String>)initialBlocking.keySet();
 
         Object[] algorithmsPaths = Files.list(
                 new File(resources_path + File.separator + "distributions").toPath()
@@ -240,9 +238,9 @@ public class DependencyNetwork {
             Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
 
             for(Object variablePath : variablePaths) {
-                AbstractVariable newVariable = AbstractVariable.fromPath(variablePath.toString(), initialBlocking, this.max_parents, this.mt);
-                this.variables.put(newVariable.getName(), newVariable);
-                this.currentGenConnections += this.variables.get(newVariable.getName()).getParentCount();
+                AbstractVariable variable = AbstractVariable.fromPath(variablePath.toString(), this.mt);
+                this.variables.put(variable.getName(), variable);
+                this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
             }
         }
     }
@@ -267,6 +265,8 @@ public class DependencyNetwork {
                 if(optionObj == null) {
                     String algorithmOptions = optionTable.getOrDefault(algorithmName, "");
 
+                    // if algorithm options is expecting a sampled value
+                    // from this variable, replace it in the options string
                     if(algorithmOptions.contains(variableName)) {
                         optionTable.put(algorithmName, algorithmOptions.replace(variableName, sampledValue));
                     }
@@ -333,7 +333,7 @@ public class DependencyNetwork {
             HashMap<String, String> optionTable = this.sampleIndividual();
             outerCounter += 1;
 
-            try {
+            try {  // TODO reactivate!
                 if(outerCounter >= this.thinning_factor) {
                     Individual individual = new Individual(optionTable, this.lastStart);
                     fitnesses[individualCounter] = fc.evaluateEnsemble(seed, individual);
@@ -346,9 +346,9 @@ public class DependencyNetwork {
                 } else {
                     this.currentGenDiscardedIndividuals += 1;
                 }
-            } catch (Exception e) {  // invalid individual generated
-                this.currentGenDiscardedIndividuals += 1;
-            }
+            } catch (Exception e) {  // invalid individual generated  // TODO reactivate!
+                this.currentGenDiscardedIndividuals += 1;  // TODO reactivate!
+            }  // TODO reactivate!
         }
         this.lastStart = null;
 
@@ -359,32 +359,35 @@ public class DependencyNetwork {
     }
 
     /**
-     * Generates all possible combinations of values between a surrogate variable and its parents.
+     * TODO unverified! Generates all possible combinations of values between a surrogate variable and its parents.
      *
-     * @param variableName
-     * @return
+     * @param variableName Name of child variable
+     * @return An ArrayList of HashMaps, where each HashMap is a dictionary where keys are variable names and values
+     * the values assumed by variables in that combination. The size of the ArrayList gives how many combinations
+     * are possible.
      */
     private ArrayList<HashMap<String, String>> generateCombinations(String variableName) {
-        HashSet<String> parents = this.variables.get(variableName).getProbabilisticParentsNames();
+        HashSet<String> parents = (HashSet<String>)this.variables.get(variableName).getDeterministicParents().clone();
+        parents.addAll(this.variables.get(variableName).getProbabilisticParents());
 
         ArrayList<HashMap<String, String>> combinations = new ArrayList<>(parents.size() + 1);
-        Object[] thisUniqueValues = this.variables.get(variableName).getUniqueShadowvalues().toArray();
-        for(Object value : thisUniqueValues) {
+        ArrayList<String> thisUniqueValues = this.variables.get(variableName).getUniqueValues();
+        for(String value : thisUniqueValues) {
             HashMap<String, String> data = new HashMap<>(parents.size() + 1);
-            data.put(variableName, value.toString());
+            data.put(variableName, value);
             combinations.add(data);
         }
 
         for(String parent : parents) {
-            Object[] values = this.variables.get(parent).getUniqueShadowvalues().toArray();
-            int outer = values.length * combinations.size();
+            ArrayList<String> values = this.variables.get(parent).getUniqueValues();
+            int outer = values.size() * combinations.size();
 
             ArrayList<HashMap<String, String>> new_combinations = new ArrayList<>(outer);
 
-            for(int j = 0; j < values.length; j++) {
+            for(int j = 0; j < values.size(); j++) {
                 for(int i = 0; i < combinations.size(); i++) {
                     HashMap<String, String> local = (HashMap<String, String>)combinations.get(i).clone();
-                    local.put(parent, values[j].toString());
+                    local.put(parent, values.get(j));
                     new_combinations.add(local);
                 }
             }
@@ -412,14 +415,23 @@ public class DependencyNetwork {
             }
         }
 
+        // in the first update, there will be no previous fittest population;
+        // so the learning rate will be 100%, but only this time!
+        if(this.lastGenFittestValues == null) {
+            this.lastGenFittestValues = (HashMap<String, ArrayList<String>>)fittestValues.clone();
+        }
+
         this.updateStructure(fittestValues);
         this.updateProbabilities(fittestValues, fittestIndividuals);
+
+        this.lastGenFittestValues = fittestValues;
+
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.variables);
     }
 
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
         for(String variableName : this.samplingOrder) {
-            this.variables.get(variableName).updateProbabilities(fittestValues, fittest, this.learningRate, this.n_generations);
+            this.variables.get(variableName).updateProbabilities(this.lastGenFittestValues, fittestValues, this.learningRate);
         }
     }
 
@@ -487,10 +499,6 @@ public class DependencyNetwork {
      */
     private static HashMap<String, HashMap<String, Integer>> getContigencyMatrix(
             AbstractVariable a, AbstractVariable b, HashMap<String, ArrayList<String>> fittest) throws Exception {
-
-        if(a instanceof ContinuousVariable || b instanceof ContinuousVariable) {
-            throw new Exception("Both variables must be discrete!");
-        }
 
         HashMap<String, HashMap<String, Integer>> table = new HashMap<>();
 
@@ -625,70 +633,76 @@ public class DependencyNetwork {
     private void updateStructure(HashMap<String, ArrayList<String>> fittest) throws Exception {
         this.currentGenConnections = 0;
 
-        HashMap<String, HashSet<String>> children = DependencyNetwork.getEveryonesDeterministicChildren(this.variables);
+//        HashMap<String, HashSet<String>> children = DependencyNetwork.getEveryonesDeterministicChildren(this.variables);
 
-        Collections.shuffle(this.samplingOrder);
+        Collections.shuffle(this.samplingOrder);  // adds randomness to the process
 
         for(String variableName : this.samplingOrder) {
             // candidates to be parents of a variable
             HashSet<String> candSet = new HashSet<>(this.samplingOrder.size());
             candSet.addAll(this.variables.keySet());  // adds all variables
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
-            candSet.removeAll(this.variables.get(variableName).getCannotLink());  // removes cannot link variables
-            candSet.removeAll(children.get(variableName));  // removes variables that are children of current variable
+            candSet.removeAll(this.variables.get(variableName).getDeterministicParents());  // removes deterministic parents
+
+            // TODO allowing mutual parenting!
+//            candSet.removeAll(children.get(variableName));  // removes variables that are children of current variable
 
             // probabilistic parent set starts empty
-            HashSet<String> parentSet = new HashSet<>();
+            HashSet<String> probParentSet = new HashSet<>();
 
-            while((candSet.size() > 0) && (parentSet.size() < this.max_parents)) {
+            while((candSet.size() > 0) && (probParentSet.size() < this.max_parents)) {
                 double bestHeuristic = -1;
                 String bestCandidate = null;
 
                 HashSet<String> toRemove = new HashSet<>();
 
                 for(String candidate : candSet) {
-                    if(this.variables.get(candidate).getCannotLink().contains(variableName)) {
-                        toRemove.add(candidate);
-                    } else {
-                        double heuristic = this.heuristic(
-                                this.variables.get(variableName),
-                                parentSet,
-                                this.variables.get(candidate),
-                                fittest
-                        );
-                        if(heuristic > 0) {
-                            if(heuristic > bestHeuristic) {
-                                bestHeuristic = heuristic;
-                                bestCandidate = candidate;
-                            }
-                        } else {
-                            toRemove.add(candidate);
+                    double heuristic = this.heuristic(
+                            this.variables.get(variableName),
+                            probParentSet,
+                            this.variables.get(candidate),
+                            fittest
+                    );
+                    if(heuristic > 0) {
+                        if(heuristic > bestHeuristic) {
+                            bestHeuristic = heuristic;
+                            bestCandidate = candidate;
                         }
+                    } else {
+                        toRemove.add(candidate);
                     }
                 }
                 candSet.removeAll(toRemove);
 
                 if(bestHeuristic > 0) {
-                    parentSet.add(bestCandidate);
+                    probParentSet.add(bestCandidate);
                     candSet.remove(bestCandidate);
                 }
             }
+            // TODO allowing mutual parenting!
             // adds this variable to children set of parents
-            for(String par : parentSet) {
-                HashSet<String> localSet = children.get(par);
-                localSet.add(variableName);
-                children.put(par, localSet);
-            }
+//            for(String par : probParentSet) {
+//                HashSet<String> localSet = children.get(par);
+//                localSet.add(variableName);
+//                children.put(par, localSet);
+//            }
 
             AbstractVariable thisVariable = this.variables.get(variableName);
-            AbstractVariable[] probParents = new AbstractVariable[parentSet.size()];
 
-            Object[] parentList = parentSet.toArray();
-            for(int i = 0; i < parentSet.size(); i++) {
-                probParents[i] = this.variables.get((String)parentList[i]);
+            HashSet<String> thisVariableDetParents = this.variables.get(variableName).getDeterministicParents();
+
+            AbstractVariable[] all_parents = new AbstractVariable[probParentSet.size() + thisVariableDetParents.size()];
+
+            Object[] parentList = probParentSet.toArray();
+            int parent_counter;
+            for(parent_counter = 0; parent_counter < probParentSet.size(); parent_counter++) {
+                all_parents[parent_counter] = this.variables.get((String)parentList[parent_counter]);
             }
-
-            thisVariable.updateStructure(probParents, fittest);
+            for(String detParentName : thisVariableDetParents) {
+                all_parents[parent_counter] = this.variables.get(detParentName);
+                parent_counter += 1;
+            }
+            thisVariable.updateStructure(all_parents);
 
             this.currentGenConnections += thisVariable.getParentCount();
         }
