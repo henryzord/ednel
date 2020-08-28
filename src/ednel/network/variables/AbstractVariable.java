@@ -419,7 +419,9 @@ public class AbstractVariable {
         this.prob_parents.clear();
 
         for(AbstractVariable par : all_parents) {
-            this.prob_parents.add(par.getName());
+            if(!this.det_parents.contains(par.getName())) {
+                this.prob_parents.add(par.getName());
+            }
         }
         this.all_parents.addAll(this.prob_parents);
 
@@ -556,7 +558,6 @@ public class AbstractVariable {
             for(int i = 0; i < this.probabilities.size(); i++) {
                 this.probabilities.set(i, this.probabilities.get(i) / sum);
             }
-            int z = 0;
 
         } else if(newParents.size() == 0) {  // if it had parents, but does not have now
             // does not use learning rate because previous probabilities are not available
