@@ -40,8 +40,6 @@ public class DependencyNetwork {
     private int currentGenEvals;
     private int currentGenConnections;
 
-    private HashMap<String, ArrayList<String>> lastGenFittestValues;
-
     public DependencyNetwork(
             MersenneTwister mt, String resources_path, int burn_in, int thinning_factor,
             float learningRate, int n_generations, int max_parents
@@ -59,8 +57,6 @@ public class DependencyNetwork {
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
         this.currentGenConnections = 0;
-
-        this.lastGenFittestValues = null;
 
         this.lastStart = null;
 
@@ -415,23 +411,15 @@ public class DependencyNetwork {
             }
         }
 
-        // in the first update, there will be no previous fittest population;
-        // so the learning rate will be 100%, but only this time!
-        if(this.lastGenFittestValues == null) {
-            this.lastGenFittestValues = (HashMap<String, ArrayList<String>>)fittestValues.clone();
-        }
-
         this.updateStructure(fittestValues);
         this.updateProbabilities(fittestValues, fittestIndividuals);
-
-        this.lastGenFittestValues = fittestValues;
 
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.variables);
     }
 
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
         for(String variableName : this.samplingOrder) {
-            this.variables.get(variableName).updateProbabilities(this.lastGenFittestValues, fittestValues, this.learningRate);
+            this.variables.get(variableName).updateProbabilities(fittestValues, this.learningRate);
         }
     }
 

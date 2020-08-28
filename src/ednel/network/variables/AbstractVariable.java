@@ -1,6 +1,5 @@
 package ednel.network.variables;
 
-import ednel.eda.individual.Individual;
 import ednel.utils.CombinationNotPresentException;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.exception.MathArithmeticException;
@@ -11,7 +10,6 @@ import smile.neighbor.lsh.Hash;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.nio.IntBuffer;
 import java.util.*;
 
 public class AbstractVariable {
@@ -42,9 +40,12 @@ public class AbstractVariable {
     /** number of entries in probability table */
     protected int n_combinations;
 
+    /** Bivariate conditional probabilities */
+    protected HashMap<String, HashMap<HashMap<String, String>, Double>> oldBivariateStatistics;
+
     public AbstractVariable(
             String name, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
-            ArrayList<String> values, ArrayList<Double> probabilities, MersenneTwister mt) {
+            ArrayList<String> values, ArrayList<Double> probabilities, MersenneTwister mt) throws Exception {
 
         this.name = name;
 
@@ -64,15 +65,140 @@ public class AbstractVariable {
             this.uniqueValues.add((String)value);
         }
 
+        if(this.det_parents.size() > 1) {
+            throw new Exception("Dependency Network must start with at most one deterministic parent!");
+        }
+
+        this.oldBivariateStatistics = new HashMap<>();
+
+        if(this.det_parents.size() > 0) {
+            for(String detParent : this.det_parents) {
+                this.oldBivariateStatistics = addBivariateStatisticsFromTable(this.oldBivariateStatistics, detParent);
+            }
+        } else {
+            this.oldBivariateStatistics = addBivariateStatisticsFromTable(this.oldBivariateStatistics, null);
+        }
+
         this.indices = new ArrayList<>(this.probabilities.size());
         for(String value : values) {
             this.indices.add(this.uniqueValues.indexOf(value));
         }
 
-//        this.initVariablesCombinations();
-
         this.n_combinations = this.indices.size();
         this.mt = mt;
+    }
+
+    private HashMap<String, HashMap<HashMap<String, String>, Double>> addBivariateStatisticsFromTable(
+            HashMap<String, HashMap<HashMap<String, String>, Double>> bivariate, String parent) throws Exception {
+        HashMap<HashMap<String, String>, Double> built = new HashMap<>();
+
+        if(parent != null) {
+            for(String parentVal : this.table.get(parent).keySet()) {
+                for(String childVal : this.table.get(this.getName()).keySet()) {
+
+                    HashSet<Integer> parentIndices = new HashSet<>(this.table.get(parent).get(parentVal));
+                    HashSet<Integer> childIndices = new HashSet<>(this.table.get(this.getName()).get(childVal));
+                    parentIndices.retainAll(childIndices);
+
+                    if(parentIndices.size() != 1) {
+                        throw new Exception("unexpected behavior!");
+                    }
+
+                    HashMap<String, String> valuePairs = new HashMap<>();
+                    valuePairs.put(parent, parentVal);
+                    valuePairs.put(this.getName(), childVal);
+
+                    built.put(valuePairs, this.probabilities.get((int)parentIndices.toArray()[0]));
+                }
+            }
+            bivariate.put(parent, built);
+        } else {
+            for(String childVal : this.table.get(this.getName()).keySet()) {
+                HashSet<Integer> childIndices = new HashSet<>(this.table.get(this.getName()).get(childVal));
+
+                if(childIndices.size() != 1) {
+                    throw new Exception("unexpected behavior!");
+                }
+
+                HashMap<String, String> valuePairs = new HashMap<>();
+                valuePairs.put(this.getName(), childVal);
+
+                built.put(valuePairs, this.probabilities.get((int)childIndices.toArray()[0]));
+            }
+            bivariate.put(this.getName(), built);
+        }
+        return bivariate;
+    }
+
+    private HashMap<String, HashMap<HashMap<String, String>, Double>> getBivariateStatisticsFromPopulation(
+            HashMap<String, ArrayList<String>> fittestValues) {
+
+        HashMap<String, HashMap<HashMap<String, String>, Double>> newBivariateStatistics = new HashMap<>();
+
+        for(String parent : this.all_parents) {
+            newBivariateStatistics.put(parent, new HashMap<>());
+        }
+        if(this.all_parents.size() == 0) {
+            newBivariateStatistics.put(this.getName(), new HashMap<>());
+        }
+
+        int n_fittest = fittestValues.get((String)fittestValues.keySet().toArray()[0]).size();
+        for(int i = 0; i < n_fittest; i++) {
+            String childValue = fittestValues.get(this.getName()).get(i);
+
+            HashMap<String, String> valuePairs = new HashMap<>();
+            valuePairs.put(this.getName(), childValue);
+
+            if(this.all_parents.size() > 0) {
+                for(String parent : this.all_parents) {
+                    String parentValue = fittestValues.get(parent).get(i);
+
+                    HashMap<HashMap<String, String>, Double> thisParentDict = newBivariateStatistics.get(parent);
+                    valuePairs.put(parent, parentValue);
+
+                    thisParentDict.put(valuePairs, thisParentDict.getOrDefault(valuePairs, 0.0) + 1);
+
+                    newBivariateStatistics.put(parent, thisParentDict);
+                }
+            } else {
+                HashMap<HashMap<String, String>, Double> thisDict = newBivariateStatistics.get(this.getName());
+                thisDict.put(valuePairs, thisDict.getOrDefault(valuePairs, 0.0) + 1);
+
+                newBivariateStatistics.put(this.getName(), thisDict);
+            }
+        }
+
+        if(this.all_parents.size() > 0) {
+            for(String parent : this.all_parents) {
+                HashMap<HashMap<String, String>, Double> local = newBivariateStatistics.get(parent);
+
+                HashMap<String, Double> byParent = new HashMap<>();
+                for(HashMap<String, String> pairs : local.keySet()) {
+                    byParent.put(
+                            pairs.get(parent),
+                            byParent.getOrDefault(pairs.get(parent), 0.0) + local.get(pairs)
+                    );
+                }
+
+                for(HashMap<String, String> pairs : local.keySet()) {
+                    local.put(pairs, local.get(pairs) / byParent.get(pairs.get(parent)));
+                }
+
+                newBivariateStatistics.put(parent, local);
+            }
+        } else {
+            HashMap<HashMap<String, String>, Double> local = newBivariateStatistics.get(this.getName());
+            double sum = 0.0;
+            for(Double val : local.values()) {
+                sum += val;
+            }
+            for(HashMap<String, String> key : local.keySet()) {
+                local.put(key, local.get(key) / sum);
+            }
+            newBivariateStatistics.put(this.getName(), local);
+        }
+
+        return newBivariateStatistics;
     }
 
     /**
@@ -152,13 +278,13 @@ public class AbstractVariable {
                 }
                 throw mae;
             } catch(NotANumberException nne) {
-                return null;
-//                System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
-//                System.out.println("probabilistic parents: ");
-//                for(String parent : this.prob_parents) {
-//                    System.out.println("\t" + parent + " value: " + lastStart.get(parent));
-//                }
-//                throw nne;
+//                return null;
+                System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
+                System.out.println("probabilistic parents: ");
+                for(String parent : this.prob_parents) {
+                    System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+                }
+                throw nne;
             }
         } catch(CombinationNotPresentException cnp) {  // probabilistic parent combination of values not present
             return null;  // returns null value
@@ -385,150 +511,151 @@ public class AbstractVariable {
     /**
      * Update probabilities of this Variable based on the fittest population of a generation.
      *
-     * @param lastGenFittestValues Fittest individuals from the current population
-     * @param currGenFittestValues Fittest individuals from the current population
+     * @param fittestValues Fittest individuals from the current population
      * @throws Exception If any exception occurs
      */
-    public void updateProbabilities(HashMap<String, ArrayList<String>> lastGenFittestValues, HashMap<String, ArrayList<String>> currGenFittestValues, float learningRate) throws Exception {
-        int n_fittest = currGenFittestValues.get(this.getName()).size();
-
-        if(lastGenFittestValues.get(this.getName()).size() != n_fittest) {
-            throw new Exception("fittest population size changed!");
-        }
-
-        ArrayList<Double> oldProbs = new ArrayList<>(this.n_combinations);
-        ArrayList<Double> curProbs = new ArrayList<>(this.n_combinations);
+    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, float learningRate) throws Exception {
         this.probabilities = new ArrayList<>(this.n_combinations);
         for(int i = 0; i < this.n_combinations; i++) {
-            oldProbs.add(0.0);
-            curProbs.add(0.0);
-            this.probabilities.add(-1.0);
+            this.probabilities.add(1.0);
         }
 
+        HashMap<String, HashMap<HashMap<String, String>, Double>> newBivariateStatistics = this.getBivariateStatisticsFromPopulation(fittestValues);
 
-        // for each individual in the fittest population:
-        // locates the index that represents its combination of values
-        // adds 1 to the counter of occurrences
+        HashSet<String> oldParents = new HashSet<>(this.oldBivariateStatistics.keySet());
+        oldParents.remove(this.getName());
+        HashSet<String> newParents = new HashSet<>(newBivariateStatistics.keySet());
+        newParents.remove(this.getName());
 
-//        ArrayList<HashMap<HashMap<String, String>, Integer>> curCounts = new ArrayList<>();
-//        ArrayList<HashMap<HashMap<String, String>, Integer>> oldCounts = new ArrayList<>();
+        // if it didn't have any parents and does not have any parents now
+        if(oldParents.size() == 0 && newParents.size() == 0) {
+            // uses learning rate on univariate statistics
+            HashMap<HashMap<String, String>, Double> oldLocal = this.oldBivariateStatistics.get(this.getName());
+            HashMap<HashMap<String, String>, Double> newLocal = newBivariateStatistics.get(this.getName());
 
-        ArrayList<String> bivariate = new ArrayList<>(this.all_parents);
-        if(bivariate.size() == 0) {
-            bivariate.add(this.getName());  // univariate statistics
-        }
+            double sum = 0.0;
 
-//        for(String var : bivariate) {
-//            oldCounts.add(new HashMap<>());
-//            curCounts.add(new HashMap<>());
-//        }
+            for(String childValue : this.uniqueValues) {
+                HashMap<String, String> pair = new HashMap<>();
+                pair.put(this.getName(), childValue);
 
-//        HashMap<String, String> curFittest = new HashMap<>();
-//        HashMap<String, String> oldFittest = new HashMap<>();
-
-        HashSet<Integer> allIndices = new HashSet<>();
-        for(int i = 0; i < this.n_combinations; i++) {
-            allIndices.add(i);
-        }
-
-        // now collect metrics
-        for(int i = 0; i < n_fittest; i++) {
-//            curFittest.put(this.getName(), currGenFittestValues.get(this.getName()).get(i));
-//            oldFittest.put(this.getName(), lastGenFittestValues.get(this.getName()).get(i));
-
-            HashSet<Integer> newSet = (HashSet<Integer>)allIndices.clone();
-            HashSet<Integer> oldSet = (HashSet<Integer>)allIndices.clone();
-
-            newSet.retainAll(this.table.get(name).get(String.valueOf(currGenFittestValues.get(name).get(i))));
-            oldSet.retainAll(this.table.get(name).get(String.valueOf(lastGenFittestValues.get(name).get(i))));
-
-            for(String var : bivariate) {
-                newSet.retainAll(this.table.get(var).get(String.valueOf(currGenFittestValues.get(var).get(i))));
-                oldSet.retainAll(this.table.get(var).get(String.valueOf(lastGenFittestValues.get(var).get(i))));
-
-                for(Integer index : newSet) {
-                    curProbs.set(index, curProbs.get(index) + 1);
-                }
-                for(Integer index : oldSet) {
-                    oldProbs.set(index, oldProbs.get(index) + 1);
-                }
-
-                newSet.addAll(this.table.get(var).get(String.valueOf(currGenFittestValues.get(var).get(i))));
-                oldSet.addAll(this.table.get(var).get(String.valueOf(lastGenFittestValues.get(var).get(i))));
-
-//                curFittest.put(bivariate.get(j), currGenFittestValues.get(bivariate.get(j)).get(i));
-//                oldFittest.put(bivariate.get(j), lastGenFittestValues.get(bivariate.get(j)).get(i));
-
-//                oldCounts.get(j).put(oldFittest, oldCounts.get(j).getOrDefault(oldFittest, 0) + 1);
-//                curCounts.get(j).put(curFittest, curCounts.get(j).getOrDefault(curFittest, 0) + 1);
-            }
-        }
-
-        HashMap<HashMap<String, String>, HashSet<Integer>> parentValIndices = this.groupBy(this.all_parents);
-
-        for(HashMap<String, String> combination : parentValIndices.keySet()) {
-            HashSet<Integer> indices = parentValIndices.get(combination);
-            double oldSum = 0.0;
-            double newSum = 0.0;
-            for(int index : indices) {
-                oldSum += oldProbs.get(index);
-                newSum += curProbs.get(index);
-            }
-            double all_sum = 0.0;
-
-            for(int index : indices) {
-                double new_value = (1 - learningRate) * (oldProbs.get(index)/oldSum) + learningRate * (curProbs.get(index)/newSum);
-                all_sum += new_value;
-                this.probabilities.set(index, new_value);
-            }
-            if(all_sum > 0) {
-                for(int index : indices) {
-                    this.probabilities.set(index, this.probabilities.get(index) / all_sum);
-                }
-            } else {
-                HashSet<Integer> nullIndices = new HashSet<>(this.table.get(this.getName()).getOrDefault("null", new ArrayList<>()));
-                nullIndices.retainAll(indices);
-                if(nullIndices.size() > 1) {
+                ArrayList<Integer> indices = this.table.get(this.getName()).get(childValue);
+                if(indices.size() != 1) {
                     throw new Exception("unexpected behavior!");
                 }
-                for(int index : indices) {
-                    this.probabilities.set(index, 0.0);
+                double provProb = (1 - learningRate) * oldLocal.getOrDefault(pair, 0.0) + learningRate * newLocal.getOrDefault(pair, 0.0);
+                sum += provProb;
+
+                this.probabilities.set(
+                        indices.get(0),
+                        provProb
+                );
+            }
+
+            // normalizes probabilities
+            for(int i = 0; i < this.probabilities.size(); i++) {
+                this.probabilities.set(i, this.probabilities.get(i) / sum);
+            }
+            int z = 0;
+
+        } else if(newParents.size() == 0) {  // if it had parents, but does not have now
+            // does not use learning rate because previous probabilities are not available
+            HashMap<HashMap<String, String>, Double> newLocal = newBivariateStatistics.get(this.getName());
+
+            double sum = 0.0;
+
+            for(String childValue : this.uniqueValues) {
+                HashMap<String, String> pair = new HashMap<>();
+                pair.put(this.getName(), childValue);
+
+                ArrayList<Integer> indices = this.table.get(this.getName()).get(childValue);
+                if(indices.size() != 1) {
+                    throw new Exception("unexpected behavior!");
                 }
-                for(int index : nullIndices) {
-                    this.probabilities.set(index, 1.0);
+                double provProb = newLocal.getOrDefault(pair, 0.0);
+                sum += provProb;
+
+                this.probabilities.set(
+                        indices.get(0),
+                        provProb
+                );
+            }
+
+            // normalizes probabilities
+            for(int i = 0; i < this.probabilities.size(); i++) {
+                this.probabilities.set(i, this.probabilities.get(i) / sum);
+            }
+        } else {
+            // updates bivariate statistics
+            HashMap<String, HashMap<HashMap<String, String>, Double>> updatedBivariateStatistics = new HashMap<>();
+            for(String parent : newBivariateStatistics.keySet()) {
+                if(this.oldBivariateStatistics.containsKey(parent)) {
+                    HashMap<HashMap<String, String>, Double> local = new HashMap<>();
+
+                    HashMap<String, Double> sumByParentVal = new HashMap<>();
+
+                    for(HashMap<String, String> pair : this.oldBivariateStatistics.get(parent).keySet()) {
+                        double oldProb = this.oldBivariateStatistics.get(parent).get(pair);
+                        double newProb = newBivariateStatistics.get(parent).getOrDefault(pair, 0.0);
+
+                        double newValue = (1 - learningRate) * oldProb + learningRate * newProb;
+
+                        sumByParentVal.put(pair.get(parent), sumByParentVal.getOrDefault(pair.get(parent), 0.0) + newValue);
+
+                        local.put(pair, newValue);
+                    }
+
+                    // normalizes
+                    for(HashMap<String, String> pair : this.oldBivariateStatistics.get(parent).keySet()) {
+                        local.put(pair, local.get(pair) / sumByParentVal.get(pair.get(parent)));
+                    }
+                    updatedBivariateStatistics.put(parent, local);
+
+                } else {
+                    updatedBivariateStatistics.put(parent, newBivariateStatistics.get(parent));
+                }
+            }
+            newBivariateStatistics = updatedBivariateStatistics;
+
+            // updates combination probabilities
+            HashMap<HashMap<String, String>, HashSet<Integer>> parentCombinations = this.groupBy(this.all_parents);
+            for(HashMap<String, String> combination : parentCombinations.keySet()) {
+
+                HashMap<String, Integer> childValueIndex = new HashMap<>();
+
+                for(String childVal : this.uniqueValues) {
+                    HashSet<Integer> indices = (HashSet<Integer>)parentCombinations.get(combination).clone();
+                    indices.retainAll(this.table.get(this.getName()).get(childVal));
+                    if(indices.size() != 1) {
+                        throw new Exception("unexpected behavior!");
+                    }
+                    int index = (int)indices.toArray()[0];
+                    childValueIndex.put(childVal, index);
+
+                    for(String parent : combination.keySet()) {
+                        HashMap<String, String> pair = new HashMap<>();
+                        pair.put(this.getName(), childVal);
+                        pair.put(parent, combination.get(parent));
+
+                        double bivariateProb = newBivariateStatistics.get(parent).getOrDefault(pair, 0.0);
+
+                        this.probabilities.set(
+                                childValueIndex.get(childVal),
+                                this.probabilities.get(childValueIndex.get(childVal)) * bivariateProb
+                        );
+                    }
+                }
+                double sum = 0.0;
+                for(int index : childValueIndex.values()) {
+                    sum += this.probabilities.get(index);
+                }
+                for(int index : childValueIndex.values()) {
+                    this.probabilities.set(index, this.probabilities.get(index) / sum);
                 }
             }
         }
+        this.oldBivariateStatistics = newBivariateStatistics;
     }
-
-//    private void setUnconditionalProbabilities(HashMap<String, ArrayList<String>> fittestValues) {
-//        this.unconditionalProbabilities = new HashMap<>();
-//
-//        ArrayList<String> assumedValues = fittestValues.get(this.getName());
-//        long sum = 0;
-//        for(Shadowvalue unique : this.uniqueShadowvalues) {
-//            int count = 0;
-//            String uniqueStr = unique.toString();
-//            for(int i = 0; i < assumedValues.size(); i++) {
-//                if(String.valueOf(assumedValues.get(i)).equals(uniqueStr)) {
-//                    count += 1;
-//                }
-//            }
-//            sum += count;
-//            this.unconditionalProbabilities.put(unique, (double)count);
-//        }
-//
-//        // normalizes
-//        for(Shadowvalue unique : this.uniqueShadowvalues) {
-//            this.unconditionalProbabilities.put(unique, this.unconditionalProbabilities.get(unique) / sum);
-//        }
-//    }
-//    private void setUnconditionalProbabilities() {
-//        this.unconditionalProbabilities = new HashMap<>();
-//        for(Shadowvalue unique : this.uniqueShadowvalues) {
-//            this.unconditionalProbabilities.put(unique, 1./this.uniqueShadowvalues.size());
-//        }
-//    }
 
     /**
      * Groups indices in probability table by variables.
