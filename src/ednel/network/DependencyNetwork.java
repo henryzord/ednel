@@ -18,11 +18,12 @@ import static java.lang.Math.log;
 
 public class DependencyNetwork {
     private final float learningRate;
-    private final int n_generations;
 
     private JSONObject options;
     private HashMap<String, AbstractVariable> variables;
 
+    /** A dictionary where each key is a variable name and each entry the ArrayList of all its children */
+    private HashMap<String, ArrayList<String>> graph;
 
     private MersenneTwister mt;
     private int burn_in;
@@ -42,7 +43,7 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String resources_path, int burn_in, int thinning_factor,
-            float learningRate, int n_generations, int max_parents
+            float learningRate, int max_parents
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
@@ -52,7 +53,6 @@ public class DependencyNetwork {
         this.max_parents = max_parents;  // global max parents
 
         this.learningRate = learningRate;
-        this.n_generations = n_generations;
 
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
@@ -61,8 +61,31 @@ public class DependencyNetwork {
         this.lastStart = null;
 
         this.readVariablesFromFiles(resources_path);
-        this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.variables);
+        this.generateDeterministicGraph();
+        this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.graph);
+    }
 
+    /**
+     * Creates a graph of this network, but only with deterministic relationships.
+     */
+    private void generateDeterministicGraph() {
+        this.graph = new HashMap<>();
+
+        for(AbstractVariable variable : this.variables.values()) {
+            if(!graph.containsKey(variable.getName())) {
+                graph.put(variable.getName(), new ArrayList<>());
+            }
+            for(String parentName : variable.getDeterministicParents()) {
+                ArrayList<String> alc;
+                if(!graph.containsKey(parentName)) {
+                    alc = new ArrayList<>();
+                } else {
+                    alc = graph.get(parentName);
+                }
+                alc.add(variable.getName());
+                graph.put(parentName, alc);
+            }
+        }
     }
 
     /**
@@ -160,21 +183,40 @@ public class DependencyNetwork {
     /**
      * Infers sampling order from variables, based on the most requested variables in the dependency network.
      *
-     * @param variables dictionary of names and AbstractVariable objects
-     * @return sampling order
+     * @param graph HashMap where keys are variable names and entries the list of its children
+     * @return an ArrayList with the inferred sampling order
      */
-    private static ArrayList<String> inferSamplingOrder(HashMap<String, AbstractVariable> variables) {
-        ArrayList<String> samplingOrder = new ArrayList<>(variables.size());
+    private static ArrayList<String> inferSamplingOrder(HashMap<String, ArrayList<String>> graph) {
+        ArrayList<String> samplingOrder = new ArrayList<>(graph.size());
         HashSet<String> added_set = new HashSet<>();
 
-        // key = children variable, values = parents of that variable
-        HashMap<String, HashSet<String>> parentsOf = DependencyNetwork.getEveryonesAllParents(variables);
-        HashMap<String, HashSet<String>> childrenOf = DependencyNetwork.getEveryonesAllChildren(variables);
+        // parentsOf has the parents of a given variable
+        HashMap<String, HashSet<String>> parentsOf = new HashMap<>();
+        for(String var : graph.keySet()) {
+            ArrayList<String> children = graph.get(var);
 
-        ArrayList<String> shuffableVariables = new ArrayList<>(variables.keySet());
+            if(!parentsOf.containsKey(var)) {
+                parentsOf.put(var, new HashSet<>());
+            }
+
+            for(String child : children) {
+                HashSet<String> toAdd;
+                if(parentsOf.containsKey(child)) {
+                    toAdd = parentsOf.get(child);
+                } else {
+                    toAdd = new HashSet<>();
+                }
+                toAdd.add(var);
+                parentsOf.put(child, toAdd);
+            }
+        }
+
+        int n_variables = graph.size();
+
+        ArrayList<String> shuffableVariables = new ArrayList<>(graph.keySet());
 
         // tries to add variables with the least amount of parents
-        while(added_set.size() < variables.size()) {  // while there are still variables to add
+        while(added_set.size() < n_variables) {  // while there are still variables to add
             Collections.shuffle(shuffableVariables);
 
             ArrayList<String> added_now = new ArrayList<>();
@@ -185,10 +227,10 @@ public class DependencyNetwork {
 
             boolean addedAny = false;
             for(String var : shuffableVariables) {
-                Set<String> intersection = new HashSet<>(parentsOf.get(var)); // use the copy constructor
-                intersection.retainAll(added_set);
+                Set<String> alreadyAddedParents = new HashSet<>(parentsOf.get(var)); // use the copy constructor
+                alreadyAddedParents.retainAll(added_set);
 
-                int missing_parents = parentsOf.get(var).size() - intersection.size();
+                int missing_parents = parentsOf.get(var).size() - alreadyAddedParents.size();
 
                 // if there are no missing parents, add right away
                 if(missing_parents == 0) {
@@ -235,6 +277,7 @@ public class DependencyNetwork {
 
             for(Object variablePath : variablePaths) {
                 AbstractVariable variable = AbstractVariable.fromPath(variablePath.toString(), this.mt);
+
                 this.variables.put(variable.getName(), variable);
                 this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
             }
@@ -342,9 +385,9 @@ public class DependencyNetwork {
                 } else {
                     this.currentGenDiscardedIndividuals += 1;
                 }
-            } catch (Exception e) {  // invalid individual generated  // TODO reactivate!
-                this.currentGenDiscardedIndividuals += 1;  // TODO reactivate!
-            }  // TODO reactivate!
+            } catch (Exception e) {  // invalid individual generated
+                this.currentGenDiscardedIndividuals += 1;
+            }
         }
         this.lastStart = null;
 
@@ -414,7 +457,7 @@ public class DependencyNetwork {
         this.updateStructure(fittestValues);
         this.updateProbabilities(fittestValues, fittestIndividuals);
 
-        this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.variables);
+        this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.graph);
     }
 
     public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
@@ -621,19 +664,20 @@ public class DependencyNetwork {
     private void updateStructure(HashMap<String, ArrayList<String>> fittest) throws Exception {
         this.currentGenConnections = 0;
 
-//        HashMap<String, HashSet<String>> children = DependencyNetwork.getEveryonesDeterministicChildren(this.variables);
+        this.generateDeterministicGraph();
 
         Collections.shuffle(this.samplingOrder);  // adds randomness to the process
 
         for(String variableName : this.samplingOrder) {
-            // candidates to be parents of a variable
-            HashSet<String> candSet = new HashSet<>(this.samplingOrder.size());
-            candSet.addAll(this.variables.keySet());  // adds all variables
+            HashSet<String> candSet = new HashSet<>(this.variables.keySet());  // candidates to be parents of a variable
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
             candSet.removeAll(this.variables.get(variableName).getDeterministicParents());  // removes deterministic parents
-
-            // TODO allowing mutual parenting!
-//            candSet.removeAll(children.get(variableName));  // removes variables that are children of current variable
+            // removes deterministic children of this variable
+            for(String child : graph.get(variableName)) {
+                if(this.variables.get(child).getDeterministicParents().contains(variableName)) {
+                    candSet.remove(child);
+                }
+            }
 
             // probabilistic parent set starts empty
             HashSet<String> probParentSet = new HashSet<>();
@@ -645,19 +689,23 @@ public class DependencyNetwork {
                 HashSet<String> toRemove = new HashSet<>();
 
                 for(String candidate : candSet) {
-                    double heuristic = this.heuristic(
-                            this.variables.get(variableName),
-                            probParentSet,
-                            this.variables.get(candidate),
-                            fittest
-                    );
-                    if(heuristic > 0) {
-                        if(heuristic > bestHeuristic) {
-                            bestHeuristic = heuristic;
-                            bestCandidate = candidate;
-                        }
-                    } else {
+                    if(DependencyNetwork.doesItInsertCycle(candidate, variableName, this.graph)) {
                         toRemove.add(candidate);
+                    } else {
+                        double heuristic = this.heuristic(
+                                this.variables.get(variableName),
+                                probParentSet,
+                                this.variables.get(candidate),
+                                fittest
+                        );
+                        if(heuristic > 0) {
+                            if(heuristic > bestHeuristic) {
+                                bestHeuristic = heuristic;
+                                bestCandidate = candidate;
+                            }
+                        } else {
+                            toRemove.add(candidate);
+                        }
                     }
                 }
                 candSet.removeAll(toRemove);
@@ -665,15 +713,12 @@ public class DependencyNetwork {
                 if(bestHeuristic > 0) {
                     probParentSet.add(bestCandidate);
                     candSet.remove(bestCandidate);
+
+                    ArrayList<String> updatedChildren = this.graph.get(bestCandidate);
+                    updatedChildren.add(variableName);
+                    this.graph.put(bestCandidate, updatedChildren);
                 }
             }
-            // TODO allowing mutual parenting!
-            // adds this variable to children set of parents
-//            for(String par : probParentSet) {
-//                HashSet<String> localSet = children.get(par);
-//                localSet.add(variableName);
-//                children.put(par, localSet);
-//            }
 
             AbstractVariable thisVariable = this.variables.get(variableName);
 
@@ -694,6 +739,40 @@ public class DependencyNetwork {
 
             this.currentGenConnections += thisVariable.getParentCount();
         }
+    }
+
+    /**
+     * Checks if connecting parent to child introduces a cycle in the graph.
+     * @param parent Parent variable
+     * @param child Child variable
+     * @return true if introduces cycle, false otherwise
+     */
+    private static boolean doesItInsertCycle(String parent, String child, HashMap<String, ArrayList<String>> graph) {
+        HashSet<String> visited = new HashSet<>();
+        visited.add(parent);
+        visited.add(child);
+
+        Stack<String> stack = new Stack<>();
+        stack.addAll(graph.get(parent));
+        stack.addAll(graph.get(child));
+
+        while(stack.size() > 0) {
+            String current = stack.pop();
+            if(visited.contains(current)) {
+                return true;
+            }
+            visited.add(current);
+
+            ArrayList<String> next = graph.get(current);
+            for(String item : next) {
+                if(visited.contains(item)) {
+                    return true;
+                } else {
+                    stack.addAll(graph.get(item));
+                }
+            }
+        }
+        return false;
     }
 
     public int getCurrentGenDiscardedIndividuals() {

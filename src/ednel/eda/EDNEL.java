@@ -80,7 +80,7 @@ public class EDNEL extends AbstractClassifier {
         this.dn = new DependencyNetwork(
             mt, resources_path,
             this.burn_in, this.thinning_factor,
-            this.learning_rate, this.n_generations, this.max_parents
+            this.learning_rate, this.max_parents
         );
     }
 
