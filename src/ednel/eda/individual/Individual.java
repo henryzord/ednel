@@ -10,6 +10,7 @@ import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.*;
 
+import java.security.InvalidParameterException;
 import java.util.*;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
@@ -78,7 +79,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
 
         String[] options = new String [optionTable.size() * 2];
-        HashSet<String> algNames = new HashSet<>(optionTable.keySet());
+        HashSet<String> algNames = new HashSet<>();
+        algNames.addAll(optionTable.keySet());
 //        algNames.remove("BestFirst");
 //        algNames.remove("GreedyStepwise");
 //        algNames.remove("DecisionTable");
@@ -167,6 +169,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public void setOptions(String[] options) throws Exception {
+        String[] debug = options.clone();
+
         String[] j48Parameters = Utils.getOption("J48", options).split(" ");
         String[] simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
         String[] partParameters = Utils.getOption("PART", options).split(" ");
@@ -183,14 +187,14 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         if(cls != null) {
             this.aggregator = (Aggregator)cls.getConstructor().newInstance();
         } else {
-            throw new Exception("Aggregator " + aggregatorParameters[0] + " not currently supported!");
+            throw new InvalidParameterException("Aggregator " + aggregatorParameters[0] + " not currently supported!");
         }
 
         if(j48Parameters.length > 1) {
             try {
                 j48.setOptions(j48Parameters);
             } catch(Exception e) {
-                throw new Exception("Exception found in Classifier J48: " + e.getMessage());
+                throw new InvalidParameterException("Exception found in Classifier J48: " + e.getMessage());
             }
         } else {
             j48 = null;
@@ -199,7 +203,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 simpleCart.setOptions(simpleCartParameters);
             } catch(Exception e) {
-                throw new Exception("Exception found in Classifier SimpleCart: " + e.getMessage());
+                throw new InvalidParameterException("Exception found in Classifier SimpleCart: " + e.getMessage());
             }
         } else {
             simpleCart = null;
@@ -208,7 +212,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 part.setOptions(partParameters);
             } catch(Exception e) {
-                throw new Exception("Exception found in Classifier PART: " + e.getMessage());
+                throw new InvalidParameterException("Exception found in Classifier PART: " + e.getMessage());
             }
         } else {
             part = null;
@@ -217,7 +221,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 jrip.setOptions(jripParameters);
             } catch(Exception e) {
-                throw new Exception("Exception found in Classifier JRip: " + e.getMessage());
+                throw new InvalidParameterException("Exception found in Classifier JRip: " + e.getMessage());
             }
         } else {
             jrip = null;
@@ -231,7 +235,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             } else if(dtSearchName.equals("GreedyStepwise")) { ;
                 selectedSubParams = greedyStepwise;
             } else {
-                throw new Exception("Search procedure for DecisionTable not found!");
+                throw new InvalidParameterException("Search procedure for DecisionTable not found!");
             }
             String[] newDtParams = new String [decisionTableParameters.length + 2];
             int counter = 0;
@@ -249,7 +253,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 decisionTable.setOptions(newDtParams);
             } catch(Exception e) {
-                throw new Exception("Exception found in Classifier DecisionTable: " + e.getMessage());
+                throw new InvalidParameterException("Exception found in Classifier DecisionTable: " + e.getMessage());
             }
         } else {
             decisionTable = null;

@@ -64,10 +64,13 @@
     "dtype": "np.str_"
   },
   "DecisionTable_search": {
-    "optionName": "-S",
+    "optionName": {
+      "weka.attributeSelection.GreedyStepwise": "-S weka.attributeSelection.GreedyStepwise",
+      "weka.attributeSelection.BestFirst": "-S weka.attributeSelection.BestFirst"
+    },
     "presenceMeans": true,
     "ptype": "discrete",
-    "dtype": "np.str_"
+    "dtype": "dict"
   },
   "DecisionTable_useIBk": {
     "optionName": "-I",

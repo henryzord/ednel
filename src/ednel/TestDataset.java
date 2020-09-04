@@ -253,7 +253,7 @@ public class TestDataset {
 //                Instances test_data = curDatasetFolds.get(1).get("test");
 
                     EDNEL ednel = new EDNEL(
-                            Float.parseFloat(commandLine.getOptionValue("learning_rate")),
+                            Double.parseDouble(commandLine.getOptionValue("learning_rate")),
                             Float.parseFloat(commandLine.getOptionValue("selection_share")),
                             Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                             Integer.parseInt(commandLine.getOptionValue("n_generations")),

@@ -50,7 +50,7 @@ public class RunTrainingPieceTask implements Runnable {
         );
 
         this.ednel = new EDNEL(
-                Float.parseFloat(commandLine.getOptionValue("learning_rate")),
+                Double.parseDouble(commandLine.getOptionValue("learning_rate")),
                 Float.parseFloat(commandLine.getOptionValue("selection_share")),
                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                 Integer.parseInt(commandLine.getOptionValue("n_generations")),

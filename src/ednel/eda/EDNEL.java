@@ -22,7 +22,7 @@ public class EDNEL extends AbstractClassifier {
     protected final int early_stop_generations;
     protected final float early_stop_tolerance;
     protected final int thinning_factor;
-    protected final float learning_rate;
+    protected final double learning_rate;
     protected final float selection_share;
     protected final int n_individuals;
     protected final int n_generations;
@@ -45,7 +45,7 @@ public class EDNEL extends AbstractClassifier {
 
     protected EarlyStop earlyStop;
 
-    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
+    public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
                  int max_parents, String resources_path, PBILLogger pbilLogger, Integer seed
     ) throws Exception {
@@ -124,7 +124,7 @@ public class EDNEL extends AbstractClassifier {
                 );
             }
 
-            this.dn.update(population, sortedIndices, this.selection_share);
+            this.dn.update(population, sortedIndices, this.selection_share, c);
 
             if(this.pbilLogger != null) {
                 this.pbilLogger.print();

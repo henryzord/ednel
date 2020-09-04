@@ -10,6 +10,7 @@ import org.json.simple.parser.JSONParser;
 import java.io.File;
 import java.io.FileReader;
 import java.nio.file.Files;
+import java.security.InvalidParameterException;
 import java.util.*;
 
 import static ednel.utils.MyMathUtils.lfactorial;
@@ -17,7 +18,7 @@ import static java.lang.Math.exp;
 import static java.lang.Math.log;
 
 public class DependencyNetwork {
-    private final float learningRate;
+    private final double learningRate;
 
     private JSONObject options;
     private HashMap<String, AbstractVariable> variables;
@@ -40,10 +41,12 @@ public class DependencyNetwork {
     private int currentGenDiscardedIndividuals;
     private int currentGenEvals;
     private int currentGenConnections;
+    private HashMap<String, ArrayList<String>> lastFittestValues;
+
 
     public DependencyNetwork(
             MersenneTwister mt, String resources_path, int burn_in, int thinning_factor,
-            float learningRate, int max_parents
+            double learningRate, int max_parents
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
@@ -59,19 +62,20 @@ public class DependencyNetwork {
         this.currentGenConnections = 0;
 
         this.lastStart = null;
+        this.lastFittestValues = null;
 
         this.readVariablesFromFiles(resources_path);
-        this.generateDeterministicGraph();
+        this.graph = DependencyNetwork.generateDeterministicGraph(this.variables);
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.graph);
     }
 
     /**
-     * Creates a graph of this network, but only with deterministic relationships.
+     * Updates graph attribute of this object, but only with deterministic relationships
      */
-    private void generateDeterministicGraph() {
-        this.graph = new HashMap<>();
+    private static HashMap<String, ArrayList<String>> generateDeterministicGraph(HashMap<String, AbstractVariable> variables) {
+        HashMap<String, ArrayList<String>> graph = new HashMap<>();
 
-        for(AbstractVariable variable : this.variables.values()) {
+        for(AbstractVariable variable : variables.values()) {
             if(!graph.containsKey(variable.getName())) {
                 graph.put(variable.getName(), new ArrayList<>());
             }
@@ -86,6 +90,7 @@ public class DependencyNetwork {
                 graph.put(parentName, alc);
             }
         }
+        return graph;
     }
 
     /**
@@ -100,10 +105,12 @@ public class DependencyNetwork {
     private static HashMap<String, HashSet<String>> getEveryonesDeterministicChildren(HashMap<String, AbstractVariable> variables) {
         HashMap<String, HashSet<String>> children = new HashMap<>(variables.size());
 
-        HashSet<String> toAdd = new HashSet<>(variables.keySet());
+        HashSet<String> toAdd = new HashSet<>();
+        toAdd.addAll(variables.keySet());
 
         for(String var : variables.keySet()) {
-            HashSet<String> parents = new HashSet<>(variables.get(var).getDeterministicParents());
+            HashSet<String> parents = new HashSet<>();
+            parents.addAll(variables.get(var).getDeterministicParents());
             for(String parent : parents) {
                 HashSet<String> initial = children.getOrDefault(parent, new HashSet<String>());
                 initial.add(var);
@@ -131,7 +138,8 @@ public class DependencyNetwork {
         HashMap<String, HashSet<String>> parents = new HashMap<>(variables.size());
 
         for(String var : variables.keySet()) {
-            HashSet<String> allParents = new HashSet<>(variables.get(var).getDeterministicParents());
+            HashSet<String> allParents = new HashSet<>();
+            allParents.addAll(variables.get(var).getDeterministicParents());
             parents.put(var, allParents);
         }
         return parents;
@@ -227,7 +235,8 @@ public class DependencyNetwork {
 
             boolean addedAny = false;
             for(String var : shuffableVariables) {
-                Set<String> alreadyAddedParents = new HashSet<>(parentsOf.get(var)); // use the copy constructor
+                Set<String> alreadyAddedParents = new HashSet<>();
+                alreadyAddedParents.addAll(parentsOf.get(var));
                 alreadyAddedParents.retainAll(added_set);
 
                 int missing_parents = parentsOf.get(var).size() - alreadyAddedParents.size();
@@ -372,7 +381,7 @@ public class DependencyNetwork {
             HashMap<String, String> optionTable = this.sampleIndividual();
             outerCounter += 1;
 
-            try {  // TODO reactivate!
+            try {
                 if(outerCounter >= this.thinning_factor) {
                     Individual individual = new Individual(optionTable, this.lastStart);
                     fitnesses[individualCounter] = fc.evaluateEnsemble(seed, individual);
@@ -385,7 +394,7 @@ public class DependencyNetwork {
                 } else {
                     this.currentGenDiscardedIndividuals += 1;
                 }
-            } catch (Exception e) {  // invalid individual generated
+            } catch (InvalidParameterException e) {  // invalid individual generated
                 this.currentGenDiscardedIndividuals += 1;
             }
         }
@@ -435,7 +444,7 @@ public class DependencyNetwork {
         return combinations;
     }
 
-    public void update(Individual[] population, Integer[] sortedIndices, float selectionShare) throws Exception {
+    public void update(Individual[] population, Integer[] sortedIndices, float selectionShare, int generation) throws Exception {
         int to_select = Math.round(selectionShare * sortedIndices.length);
 
         // collects data from fittest individuals
@@ -444,25 +453,34 @@ public class DependencyNetwork {
             fittestIndividuals[i] = population[sortedIndices[i]];
         }
 
-        HashMap<String, ArrayList<String>> fittestValues = new HashMap<>();
+        HashMap<String, ArrayList<String>> currFittestValues = new HashMap<>();
         for(String var : this.samplingOrder) {
-            fittestValues.put(var, new ArrayList<>(fittestIndividuals.length));
+            currFittestValues.put(var, new ArrayList<>(fittestIndividuals.length));
         }
         for(Individual fit : fittestIndividuals) {
             for(String var : this.samplingOrder) {
-                fittestValues.get(var).add(fit.getCharacteristics().get(var));
+                currFittestValues.get(var).add(fit.getCharacteristics().get(var));
             }
         }
 
-        this.updateStructure(fittestValues);
-        this.updateProbabilities(fittestValues, fittestIndividuals);
+        // only updates structure if there is a previous fittest population
+        if(generation > 0) {
+            this.updateStructure(currFittestValues);
+        }
+        this.lastFittestValues = currFittestValues;
+
+        this.updateProbabilities(currFittestValues, this.lastFittestValues);
 
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.graph);
     }
 
-    public void updateProbabilities(HashMap<String, ArrayList<String>> fittestValues, Individual[] fittest) throws Exception {
+    public void updateProbabilities(
+            HashMap<String, ArrayList<String>> currFittestValues,
+            HashMap<String, ArrayList<String>> lastFittestValues
+    ) throws Exception {
+
         for(String variableName : this.samplingOrder) {
-            this.variables.get(variableName).updateProbabilities(fittestValues, this.learningRate);
+            this.variables.get(variableName).updateProbabilities(currFittestValues, lastFittestValues, this.learningRate);
         }
     }
 
@@ -658,18 +676,19 @@ public class DependencyNetwork {
      * Updates structure of dependency network/probabilistic graphical model.
      * Uses an heuristic to detect which variables are more suitable to be parents of a given child variable.
      *
-     * @param fittest HashMap of variable values for fittest individuals.
+     * @param currentGenFittest HashMap of variable values for fittest individuals.
      * @throws Exception
      */
-    private void updateStructure(HashMap<String, ArrayList<String>> fittest) throws Exception {
+    private void updateStructure(HashMap<String, ArrayList<String>> currentGenFittest) throws Exception {
         this.currentGenConnections = 0;
 
-        this.generateDeterministicGraph();
+        this.graph = DependencyNetwork.generateDeterministicGraph(this.variables);
 
         Collections.shuffle(this.samplingOrder);  // adds randomness to the process
 
         for(String variableName : this.samplingOrder) {
-            HashSet<String> candSet = new HashSet<>(this.variables.keySet());  // candidates to be parents of a variable
+            HashSet<String> candSet = new HashSet<>();
+            candSet.addAll(this.variables.keySet());  // candidates to be parents of a variable
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
             candSet.removeAll(this.variables.get(variableName).getDeterministicParents());  // removes deterministic parents
             // removes deterministic children of this variable
@@ -696,7 +715,7 @@ public class DependencyNetwork {
                                 this.variables.get(variableName),
                                 probParentSet,
                                 this.variables.get(candidate),
-                                fittest
+                                currentGenFittest
                         );
                         if(heuristic > 0) {
                             if(heuristic > bestHeuristic) {
