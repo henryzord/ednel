@@ -228,10 +228,19 @@ public class Main {
         options.addOption(Option.builder()
                 .longOpt("log")
                 .type(Boolean.class)
-                .required(true)
-                .hasArg()
-                .numberOfArgs(1)
+                .required(false)
+                .hasArg(false)
                 .desc("Whether to log metadata to files.")
+                .build());
+
+        options.addOption("t", false, "Whether to allow cycles in dependency network.");
+
+        options.addOption(Option.builder()
+                .longOpt("no_cycles")
+                .type(Boolean.class)
+                .required(false)
+                .hasArg(false)
+                .desc("Whether to allow cycles in dependency network.")
                 .build());
 
         CommandLineParser parser = new DefaultParser();
@@ -243,7 +252,7 @@ public class Main {
             int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
 
             // writes metadata
-            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH-mm-ss");
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
             LocalDateTime now = LocalDateTime.now();
             String str_time = dtf.format(now);
             PBILLogger.metadata_path_start(str_time, commandLine);

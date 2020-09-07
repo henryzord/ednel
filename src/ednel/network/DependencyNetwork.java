@@ -43,9 +43,10 @@ public class DependencyNetwork {
     private int currentGenConnections;
     private HashMap<String, ArrayList<String>> lastFittestValues;
 
+    private boolean no_cycles;
 
     public DependencyNetwork(
-            MersenneTwister mt, String resources_path, int burn_in, int thinning_factor,
+            MersenneTwister mt, String resources_path, int burn_in, int thinning_factor, boolean no_cycles,
             double learningRate, int max_parents
     ) throws Exception {
         this.mt = mt;
@@ -53,6 +54,9 @@ public class DependencyNetwork {
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
+
+        this.no_cycles = no_cycles;
+
         this.max_parents = max_parents;  // global max parents
 
         this.learningRate = learningRate;
@@ -708,7 +712,7 @@ public class DependencyNetwork {
                 HashSet<String> toRemove = new HashSet<>();
 
                 for(String candidate : candSet) {
-                    if(DependencyNetwork.doesItInsertCycle(candidate, variableName, this.graph)) {
+                    if(this.no_cycles && DependencyNetwork.doesItInsertCycle(candidate, variableName, this.graph)) {
                         toRemove.add(candidate);
                     } else {
                         double heuristic = this.heuristic(

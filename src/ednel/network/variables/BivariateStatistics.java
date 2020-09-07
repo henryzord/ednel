@@ -75,8 +75,12 @@ public class BivariateStatistics {
                 ArrayList<Integer> childIndices = table.get(this.variable_name).get(childVal);
 
                 double localSum = 0;
-                for(int index : childIndices) {
-                    localSum += probabilities.get(index);
+
+                // does not take into account probability to be null; irrelevant
+                if(!childVal.equals("null")) {
+                    for(int index : childIndices) {
+                        localSum += probabilities.get(index);
+                    }
                 }
                 overSum += localSum;
 

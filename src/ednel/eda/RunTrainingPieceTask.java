@@ -45,7 +45,7 @@ public class RunTrainingPieceTask implements Runnable {
                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
                 n_sample, n_fold,
-                Boolean.parseBoolean(commandLine.getOptionValue("log"))
+                commandLine.hasOption("log")
 
         );
 
@@ -57,6 +57,7 @@ public class RunTrainingPieceTask implements Runnable {
                 Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
                 Integer.parseInt(commandLine.getOptionValue("burn_in")),
                 Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
+                commandLine.hasOption("no_cycles"),
                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                 Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
                 Integer.parseInt(commandLine.getOptionValue("max_parents")),

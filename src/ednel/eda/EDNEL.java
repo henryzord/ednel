@@ -43,10 +43,12 @@ public class EDNEL extends AbstractClassifier {
     protected Double currentGenFitness;
     protected Double overallFitness;
 
+    protected boolean no_cycles;
+
     protected EarlyStop earlyStop;
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
-                 int timeout, int burn_in, int thinning_factor, int early_stop_generations, float early_stop_tolerance,
+                 int timeout, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations, float early_stop_tolerance,
                  int max_parents, String resources_path, PBILLogger pbilLogger, Integer seed
     ) throws Exception {
 
@@ -60,6 +62,8 @@ public class EDNEL extends AbstractClassifier {
         this.early_stop_generations = early_stop_generations;
         this.early_stop_tolerance = early_stop_tolerance;
         this.max_parents = max_parents;
+
+        this.no_cycles = no_cycles;
 
         this.pbilLogger = pbilLogger;
 
@@ -78,9 +82,7 @@ public class EDNEL extends AbstractClassifier {
         }
 
         this.dn = new DependencyNetwork(
-            mt, resources_path,
-            this.burn_in, this.thinning_factor,
-            this.learning_rate, this.max_parents
+            mt, resources_path, this.burn_in, this.thinning_factor, this.no_cycles, this.learning_rate, this.max_parents
         );
     }
 

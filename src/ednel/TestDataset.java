@@ -260,6 +260,7 @@ public class TestDataset {
                             Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
                             Integer.parseInt(commandLine.getOptionValue("burn_in")),
                             Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
+                            false,
                             Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                             Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
                             Integer.parseInt(commandLine.getOptionValue("max_parents")),
