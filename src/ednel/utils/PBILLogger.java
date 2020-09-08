@@ -145,6 +145,17 @@ public class PBILLogger {
         this.curGen = 0;
     }
 
+    public static double getMedianFitness(Double[] fitnesses, Integer[] sortedIndices) {
+        double medianFitness;
+        if((fitnesses.length % 2) == 0) {
+            int ind0 = (fitnesses.length / 2) - 1, ind1 = (fitnesses.length / 2);
+            medianFitness = (fitnesses[sortedIndices[ind0]] + fitnesses[sortedIndices[ind1]]) / 2;
+        } else {
+            medianFitness = fitnesses[sortedIndices[fitnesses.length / 2]];
+        }
+        return medianFitness;
+    }
+
     public void log(Double[] fitnesses, Integer[] sortedIndices,
                     Individual[] population, Individual overall, Individual last,
                     DependencyNetwork dn, LocalDateTime t1, LocalDateTime t2
@@ -175,12 +186,7 @@ public class PBILLogger {
         this.minFitness.add(fitnesses[sortedIndices[fitnesses.length - 1]]);
         this.maxFitness.add(fitnesses[sortedIndices[0]]);
 
-        if((fitnesses.length % 2) == 0) {
-            int ind0 = (fitnesses.length / 2) - 1, ind1 = (fitnesses.length / 2);
-            this.medianFitness.add((fitnesses[sortedIndices[ind0]] + fitnesses[sortedIndices[ind1]]) / 2);
-        } else {
-            this.medianFitness.add(fitnesses[sortedIndices[fitnesses.length / 2]]);
-        }
+        this.medianFitness.add(PBILLogger.getMedianFitness(fitnesses, sortedIndices));
     }
 
     private void logDependencyNetworkStructureAndProbabilities(DependencyNetwork dn) {
