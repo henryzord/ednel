@@ -2,10 +2,7 @@ package ednel.network.variables;
 
 import ednel.utils.Combination;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 
 public class BivariateStatistics {
 
@@ -119,8 +116,12 @@ public class BivariateStatistics {
             HashMap<Combination, Double> local = this.initializeCombinationsOfValues(parentName, parentValues, table, det_parents.contains(parentName));
             newBivariateStatistics.put(parentName, local);
         }
-        newBivariateStatistics = this.collectFittestIndividualCounts(fittestValues, all_parents, newBivariateStatistics, true);
-        newBivariateStatistics = this.normalizeProbabilities(all_parents, newBivariateStatistics, true);
+        HashSet<String> prob_parents = new HashSet<>();
+        prob_parents.addAll(all_parents);
+        prob_parents.removeAll(det_parents);
+
+        newBivariateStatistics = this.collectFittestIndividualCounts(fittestValues, all_parents, prob_parents, newBivariateStatistics, true);
+        newBivariateStatistics = this.normalizeProbabilities(all_parents, prob_parents, newBivariateStatistics, true);
 
         return newBivariateStatistics;
     }
@@ -137,7 +138,7 @@ public class BivariateStatistics {
      * structure with 1 in each combination of values.
      */
     public HashMap<Combination, Double> initializeCombinationsOfValues(
-            String parentName, HashSet<String> parentValues, HashMap<String, HashMap<String, ArrayList<Integer>>> table, Boolean deterministicParent) {
+            String parentName, HashSet<String> parentValues, HashMap<String, HashMap<String, ArrayList<Integer>>> table, Boolean isAdeterministicParent) {
         HashMap<Combination, Double> local = new HashMap<>();
 
         HashSet<String> childValues = new HashSet<>();
@@ -145,7 +146,7 @@ public class BivariateStatistics {
 
         if(parentName != null) {
             // TODO testing this!!!
-            double addValue = deterministicParent? 0 : 1;
+            double addValue = isAdeterministicParent? 0 : 1;
 
             for(String parentVal : parentValues) {
                 for(String childVal : childValues) {
@@ -178,12 +179,17 @@ public class BivariateStatistics {
      * @return bivariateStatistics updated based on the fittest population. Contains counts of individuals, not probabilities.
      */
     public HashMap<String, HashMap<Combination, Double>> collectFittestIndividualCounts(
-            HashMap<String, ArrayList<String>> fittestValues, HashSet<String> parentVariables,
+            HashMap<String, ArrayList<String>> fittestValues, HashSet<String> parentVariables, HashSet<String> prob_parents,
             HashMap<String, HashMap<Combination, Double>> bivariateStatistics, boolean computeUnivariate) {
         // adds counter to each fittest individual, for each bivariate distribution
         int n_fittest = fittestValues.get((String)fittestValues.keySet().toArray()[0]).size();
         for(int i = 0; i < n_fittest; i++) {
             String childValue = fittestValues.get(this.variable_name).get(i);
+
+            // TODO testing new code!
+            if(String.valueOf(childValue).equals("null")) {
+                continue;
+            }
 
             // collects bivariate statistics
             for(String parent : parentVariables) {
@@ -227,7 +233,7 @@ public class BivariateStatistics {
      *         by parent values.
      */
     public HashMap<String, HashMap<Combination, Double>> normalizeProbabilities(
-            HashSet<String> all_parents, HashMap<String, HashMap<Combination, Double>> bivariateStatistics,
+            HashSet<String> all_parents, HashSet<String> prob_parents, HashMap<String, HashMap<Combination, Double>> bivariateStatistics,
             boolean computeUnivariate) {
         // normalizes probabilities
         // normalizes bivariate probabilities
@@ -274,7 +280,6 @@ public class BivariateStatistics {
     /**
      * Updates bivariate statistics with learning rate.
      *
-     * @param oldParents
      * @param newParents
      * @param learningRate
      * @param childUniqueValues
@@ -296,6 +301,10 @@ public class BivariateStatistics {
         HashMap<Combination, Double> oldLocal = this.oldBivariateStatistics.get(this.variable_name);
         HashMap<Combination, Double> newLocal = newBivariateStatistics.get(this.variable_name);
 
+        HashSet<String> prob_parents = new HashSet<>();
+        prob_parents.addAll(newParents);
+        prob_parents.removeAll(det_parents);
+
         // updates univariate statistics
         newBivariateStatistics.put(
                 this.variable_name,
@@ -316,14 +325,14 @@ public class BivariateStatistics {
                     HashSet<String> temp = new HashSet<>();
                     temp.addAll(table.get(parent).keySet());
                     this.oldBivariateStatistics.put(parent, this.initializeCombinationsOfValues(parent, temp, table, det_parents.contains(parent)));
-                    this.collectFittestIndividualCounts(lastFittestValues, soloParent, this.oldBivariateStatistics, false);
-                    this.normalizeProbabilities(soloParent, this.oldBivariateStatistics, false);
+                    this.collectFittestIndividualCounts(lastFittestValues, soloParent, prob_parents, this.oldBivariateStatistics, false);
+                    this.normalizeProbabilities(soloParent, prob_parents, this.oldBivariateStatistics, false);
                 }
                 HashMap<Combination, Double> local = new HashMap<>();
                 HashMap<String, Double> sumByParentVal = new HashMap<>();
 
                 if(this.oldBivariateStatistics.get(parent).keySet().size() != newBivariateStatistics.get(parent).keySet().size()) {
-                    throw new Exception("missing combinations!");
+                    throw new Exception("Different number of combinations between last and current generation!");
                 }
 
                 for(Combination pair : this.oldBivariateStatistics.get(parent).keySet()) {

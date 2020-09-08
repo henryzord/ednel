@@ -23,15 +23,20 @@ public class Combination {
 
     @Override
     public int hashCode() {
-        StringBuilder hash = new StringBuilder(String.format("%s=%s", sortedKeys.get(0), pairs.get(sortedKeys.get(0))));
-        for(int i = 1; i < sortedKeys.size(); i++) {
-            hash.append(String.format(",%s=%s", sortedKeys.get(i), pairs.get(sortedKeys.get(i))));
-        }
-        return hash.toString().hashCode();
+        return this.toString().hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
         return (obj instanceof Combination) && ((Combination)obj).hashCode() == this.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder str = new StringBuilder(String.format("%s=%s", sortedKeys.get(0), pairs.get(sortedKeys.get(0))));
+        for(int i = 1; i < sortedKeys.size(); i++) {
+            str.append(String.format(",%s=%s", sortedKeys.get(i), pairs.get(sortedKeys.get(i))));
+        }
+        return str.toString();
     }
 }
