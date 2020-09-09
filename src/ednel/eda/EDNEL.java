@@ -119,7 +119,7 @@ public class EDNEL extends AbstractClassifier {
             }
 
             double medianFitness = PBILLogger.getMedianFitness(fitnesses, sortedIndices);
-            
+
             this.earlyStop.update(c, medianFitness);
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {
