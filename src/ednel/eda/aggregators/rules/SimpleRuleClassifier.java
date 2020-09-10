@@ -52,6 +52,9 @@ public class SimpleRuleClassifier extends AbstractClassifier {
             votes[i] = 0;
         }
 
+        // TODO scan instance. if it has missing values, use most frequent value (mean, mode)
+
+        // TODO not performing well with uncertainty!
         double sum = 0;
         for(int i = 0; i < this.rules.length; i++) {
             if(this.rules[i].covers(instance)) {
@@ -67,6 +70,7 @@ public class SimpleRuleClassifier extends AbstractClassifier {
             }
         }
         if(sum <= 0) {
+//            double pred = clf.classifyInstance(instance);
             throw new Exception("no rule covers instance!");
         }
 

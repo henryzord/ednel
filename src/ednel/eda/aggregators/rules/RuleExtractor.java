@@ -10,24 +10,42 @@ import weka.classifiers.rules.ZeroR;
 import weka.classifiers.trees.J48;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
+import weka.experiment.Stats;
 
 import java.util.ArrayList;
 import java.util.Collections;
 
 public class RuleExtractor {
     public static ExtractedRule[] fromClassifierToRules(AbstractClassifier clf, Instances train_data) throws Exception {
+        double[] mostCommonValueIndices = new double [train_data.numAttributes()];
+
+        for(int i = 0; i < train_data.numAttributes(); i++) {
+            if(train_data.attribute(i).isNominal()) {
+                int[] nominalCounts = train_data.attributeStats(i).nominalCounts;
+                double index = -1, max = Double.NEGATIVE_INFINITY;
+                for(int j = 0; j < nominalCounts.length; j++) {
+                    if(nominalCounts[j] > max) {
+                        index = j;
+                        max = nominalCounts[j];
+                    }
+                }
+                mostCommonValueIndices[i] = index;
+            } else {
+                mostCommonValueIndices[i] = train_data.attributeStats(i).numericStats.mean;
+            }
+        }
         if(clf instanceof J48) {
-            return RuleExtractor.fromJ48ToRules((J48)clf, train_data);
+            return RuleExtractor.fromJ48ToRules((J48)clf, train_data, mostCommonValueIndices);
         } else if(clf instanceof DecisionTable) {
-            return RuleExtractor.fromDecisionTableToRules((DecisionTable)clf, train_data);
+            return RuleExtractor.fromDecisionTableToRules((DecisionTable)clf, train_data, mostCommonValueIndices);
         } else if(clf instanceof SimpleCart) {
-            return RuleExtractor.fromSimpleCartToRules((SimpleCart)clf, train_data);
+            return RuleExtractor.fromSimpleCartToRules((SimpleCart)clf, train_data, mostCommonValueIndices);
         } else if(clf instanceof JRip) {
-            return RuleExtractor.fromJRipToRules((JRip)clf, train_data);
+            return RuleExtractor.fromJRipToRules((JRip)clf, train_data, mostCommonValueIndices);
         } else if(clf instanceof PART) {
-            return RuleExtractor.fromPARTToRules((PART)clf, train_data);
+            return RuleExtractor.fromPARTToRules((PART)clf, train_data, mostCommonValueIndices);
         } else if(clf instanceof RandomForest) {
-            return RuleExtractor.fromRandomForestToRules((RandomForest)clf, train_data);
+            return RuleExtractor.fromRandomForestToRules((RandomForest)clf, train_data, mostCommonValueIndices);
         }
 
         throw new ClassNotFoundException(
@@ -35,7 +53,7 @@ public class RuleExtractor {
         );
     }
 
-    private static ExtractedRule[] fromPARTToRules(PART clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromPARTToRules(PART clf, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         String str = clf.toString();
 
         String[] lines = str.substring(
@@ -51,33 +69,33 @@ public class RuleExtractor {
 
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, mostCommonValueIndices);
         }
         return rules;
     }
 
-    private static ExtractedRule[] fromJRipToRules(JRip clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromJRipToRules(JRip clf, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         String str = clf.toString();
 
         String[] lines = str.substring(str.indexOf("===========") + "===========".length(), str.indexOf("Number of Rules")).trim().split("\n");
 
+        String splitStr = "=> " + train_data.attribute(train_data.classIndex()).name() + "=";
+
         ArrayList<String> rule_lines = new ArrayList<>(lines.length);
         for(int i = 0; i < lines.length; i++) {
-            String priors = lines[i].substring(0, lines[i].lastIndexOf("=>")).trim();
-//            if (priors.length() > 0) {
-            String posteriori = lines[i].substring(lines[i].lastIndexOf("=>") + "=>".length()).trim();
+            String priors = lines[i].substring(0, lines[i].lastIndexOf(splitStr)).trim();
+            String posteriori = lines[i].substring(lines[i].lastIndexOf(splitStr) + splitStr.length()).trim();
             priors = priors.replaceAll("\\(", "").replaceAll("\\)", "");
-            rule_lines.add(String.format("%s: %s", priors, posteriori.split("=")[1]));
-//            }
+            rule_lines.add(String.format("%s: %s", priors, posteriori));
         }
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, mostCommonValueIndices);
         }
         return rules;
     }
 
-    private static ExtractedRule[] fromSimpleCartToRules(String str, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromSimpleCartToRules(String str, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         if(str.contains("CART Decision Tree")) {
              str = str.substring(
                 str.indexOf("CART Decision Tree") + "CART Decision Tree".length(),
@@ -153,16 +171,16 @@ public class RuleExtractor {
 
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, mostCommonValueIndices);
         }
         return rules;
     }
-    private static ExtractedRule[] fromSimpleCartToRules(SimpleCart clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromSimpleCartToRules(SimpleCart clf, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         String str = clf.toString();
-        return fromSimpleCartToRules(str, train_data);
+        return fromSimpleCartToRules(str, train_data, mostCommonValueIndices);
     }
 
-    private static ExtractedRule[] fromJ48ToRules(String str, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromJ48ToRules(String str, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         String[] lines = (
                 str.substring(
                         str.indexOf("------------------") + "------------------".length(),
@@ -208,13 +226,13 @@ public class RuleExtractor {
 
         ExtractedRule[] rules = new ExtractedRule[rule_lines.size()];
         for(int i = 0; i < rule_lines.size(); i++) {
-            rules[i] = new ExtractedRule(rule_lines.get(i), train_data);
+            rules[i] = new ExtractedRule(rule_lines.get(i), train_data, mostCommonValueIndices);
         }
         return rules;
     }
-    private static ExtractedRule[] fromJ48ToRules(J48 clf, Instances train_data) throws Exception {
+    private static ExtractedRule[] fromJ48ToRules(J48 clf, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         String str = clf.toString();
-        return fromJ48ToRules(str, train_data);
+        return fromJ48ToRules(str, train_data, mostCommonValueIndices);
     }
 
     public static String formatNumericDecisionTableCell(String pre, String column_name) throws Exception {
@@ -261,7 +279,7 @@ public class RuleExtractor {
         return post_process;
     }
 
-    public static ExtractedRule[] fromDecisionTableToRules(DecisionTable decisionTable, Instances train_data) throws Exception {
+    public static ExtractedRule[] fromDecisionTableToRules(DecisionTable decisionTable, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         decisionTable.setDisplayRules(true);
         String str = decisionTable.toString();
 
@@ -279,12 +297,12 @@ public class RuleExtractor {
         // - 4 for toprule, midrule and bottom rule + header
         // + 1 for default rule, that is not included in table
         ExtractedRule[] extractedRules = new ExtractedRule[rules.length - 4 + (useIbk? 0 : 1)];
+        int counter = 0;
 
         StringBuffer prior = new StringBuffer("");
         if (headerColumns.size() > 1) {
             // why start at 3 and finish at -1? because rules[0] and rules[2] are only table delimiters
             // (i.e. ========), as well as rules[-1]. rules[1] contains the column headers of the table
-            int counter = 0;
             for (int i = 3; i < rules.length - 1; i++) {
                 String[] priors = rules[i].split(" +");
                 String posterior = priors[priors.length - 1];
@@ -303,28 +321,33 @@ public class RuleExtractor {
                 }
                 newline.append(": ").append(posterior);
 
-                extractedRules[counter] = new ExtractedRule(newline.toString(), train_data);
+                extractedRules[counter] = new ExtractedRule(newline.toString(), train_data, mostCommonValueIndices);
                 counter += 1;
             }
-
-            if(!useIbk) {
-                int[] dist = train_data.attributeStats(train_data.classIndex()).nominalCounts;
-                double max_index = -1, max = Double.NEGATIVE_INFINITY;
-                for(int i = 0; i < dist.length; i++) {
-                    if(dist[i] > max) {
-                        max = dist[i];
-                        max_index = i;
-                    }
+        }
+        if(!useIbk) {
+            int[] dist = train_data.attributeStats(train_data.classIndex()).nominalCounts;
+            double max_index = -1, max = Double.NEGATIVE_INFINITY;
+            for(int i = 0; i < dist.length; i++) {
+                if(dist[i] > max) {
+                    max = dist[i];
+                    max_index = i;
                 }
-                extractedRules[counter] = new ExtractedRule(String.format(": %s", train_data.attribute(train_data.classIndex()).value((int)max_index)), train_data);
             }
-        } else {  // has only default rule!
-            return new ExtractedRule[0];
+            ExtractedRule rule = new ExtractedRule(String.format(": %s", train_data.attribute(train_data.classIndex()).value((int)max_index)), train_data, mostCommonValueIndices);
+
+            if(counter > 0) {
+                extractedRules[counter] = rule;
+            } else {
+                extractedRules = new ExtractedRule[]{rule};
+            }
+        } else if(counter == 0) {
+            extractedRules = new ExtractedRule[0];
         }
         return extractedRules;
     }
 
-    public static ExtractedRule[] fromRandomForestToRules(RandomForest rf, Instances train_data) throws Exception {
+    public static ExtractedRule[] fromRandomForestToRules(RandomForest rf, Instances train_data, double[] mostCommonValueIndices) throws Exception {
         rf.setPrintClassifiers(true);
         String str = rf.toString();
 
@@ -354,7 +377,7 @@ public class RuleExtractor {
         ExtractedRule[][] unmerged_rules = new ExtractedRule[trees.size()][];
         int count_rules = 0;
         for(int i = 0; i < trees.size(); i++) {
-            unmerged_rules[i] = RuleExtractor.fromSimpleCartToRules(trees.get(i), train_data);
+            unmerged_rules[i] = RuleExtractor.fromSimpleCartToRules(trees.get(i), train_data, mostCommonValueIndices);
             count_rules += unmerged_rules[i].length;
         }
 

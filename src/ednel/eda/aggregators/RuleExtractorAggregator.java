@@ -244,7 +244,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
             for(String dataset_name : dataset_names) {
 
-                System.out.print(String.format("on dataset %s... ", dataset_name));
+                System.out.print(String.format("on dataset %s...\n", dataset_name));
 
                 HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = TestDataset.loadFoldsOfDatasets(
                         commandLine.getOptionValue("datasets_path"),
@@ -255,7 +255,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 Instances test_data = curDatasetFolds.get(1).get("test");
 
                 Random rnd = new Random(5);
-                AbstractClassifier[] clfs = new AbstractClassifier[]{new J48(), new SimpleCart(), new PART(), new JRip(), new DecisionTable(), new RandomForest()};
+                AbstractClassifier[] clfs = new AbstractClassifier[]{ new DecisionTable(), new JRip(), new SimpleCart(), new J48(), new PART()};
 
                 for(AbstractClassifier clf : clfs) {
                     System.out.println("at classifier " + clf.getClass());

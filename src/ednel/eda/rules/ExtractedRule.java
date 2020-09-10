@@ -17,35 +17,37 @@ public class ExtractedRule extends Rule {
     private double[] thresholds;
     private AbstractOperator[] operators;
 
-    /**
-     * Number of classes.
-     */
+    /** Number of classes. */
     private int numClasses;
 
-    /**
-     * Description of this rule.
-     */
+    /** Description of this rule. */
     private String string;
 
-    /**
-     * How many instances were originally covered by this rule, when it was extracted from its context.
-     */
+    /** How many instances were originally covered by this rule, when it was extracted from its context. */
     private Double originalCoverage;
-    /**
-     * From the (original) number of instances that this rule covered, the amount that were incorrectly classified
-     */
+    /** From the (original) number of instances that this rule covered, the amount that were incorrectly classified */
     private Double originalErrors;
 
-    public ExtractedRule(String line, Instances train_data) throws Exception {
-        if(line.contains("(")) {
-            String[] metadata_splited = line.substring(line.indexOf("(") + 1, line.indexOf(")")).split("/");
+    private static final String[] str_operators = new String[]{">=", "<=", ">", "<", "!=", "="};
+
+    /** Most common values found in whole training dataset, for inputing in
+     * instances in case that instance does not have that attribute value */
+    private double[] mostCommonValueIndices;
+
+    public ExtractedRule(String line, Instances train_data, double[] mostCommonValueIndices) throws Exception {
+        this.mostCommonValueIndices = mostCommonValueIndices;
+
+        int last_parenthesis_index = line.indexOf("(", line.lastIndexOf(":"));
+
+        if(last_parenthesis_index != -1) {
+            String[] metadata_splited = line.substring(last_parenthesis_index + 1, line.indexOf(")", last_parenthesis_index)).split("/");
             this.originalCoverage = Double.parseDouble(metadata_splited[0]);
             try {
                 this.originalErrors = Double.parseDouble(metadata_splited[1]);
             } catch(IndexOutOfBoundsException e) {  // rule has no errors
                 this.originalErrors = 0.0;
             }
-            line = line.substring(0, line.indexOf("(")).trim();
+            line = line.substring(0, last_parenthesis_index).trim();
         } else {
             this.originalCoverage = Double.NaN;
             this.originalErrors = Double.NaN;
@@ -56,26 +58,43 @@ public class ExtractedRule extends Rule {
 
     @Override
     public void grow(Instances data) throws Exception {
-        String[] parts = this.string.split(":");
-        this.classIndex = data.classAttribute().indexOfValue(parts[1].trim());
+//        String[] parts = this.string.split(":");
+        String antecedents = this.string.substring(0, this.string.lastIndexOf(":")).trim();
+        String consequent = this.string.substring(this.string.lastIndexOf(":") + 1, this.string.length()).trim();
+
+        this.classIndex = data.classAttribute().indexOfValue(consequent);
         this.numClasses = data.classAttribute().numValues();
 
         // if there are pre-conditions to this specific rule; otherwise, it is the default rule
-        if(parts[0].length() > 0) {
-            String[] conditions = parts[0].split(" and ");
+        if(antecedents.length() > 0) {
+            String[] conditions = antecedents.split(" and ");
 
             this.attrIndex = new int [conditions.length];
             this.thresholds = new double [conditions.length];
             this.operators = new AbstractOperator [conditions.length];
 
             for(int i = 0; i < conditions.length; i++) {
-                String[] parted = conditions[i].trim().split(" ");
+                String[] parted = new String[]{conditions[i].trim()};
+                String op = null;
+                for(int j = 0; (j < ExtractedRule.str_operators.length) && (parted.length < 2); j++) {
+                    op = ExtractedRule.str_operators[j];
+                    parted = conditions[i].split(op);
+                }
+                if(parted.length < 2) {
+                    throw new Exception("could not split rule fragment!");
+                }
+
                 int attr_index = data.attribute(parted[0].trim()).index();
                 boolean isNominal = data.attribute(attr_index).isNominal();
 
                 this.attrIndex[i] = attr_index;
-                this.operators[i] = AbstractOperator.valueOf(parted[1].trim());
-                this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[2].trim()) : Double.valueOf(parted[2].trim());
+                this.operators[i] = AbstractOperator.valueOf(op);
+                try {
+                    this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[1].trim()) : Double.valueOf(parted[1].trim());
+                } catch(NumberFormatException nfe) {
+                    // sometimes decision tables will place a '?' instead of a number for numeric attributes. this exception treats it
+                    this.thresholds[i] = Double.NaN;
+                }
             }
         } else {
             this.attrIndex = new int[0];
@@ -89,8 +108,21 @@ public class ExtractedRule extends Rule {
         boolean pass = true;
         int i = 0;
         while(pass && (i < this.attrIndex.length)) {
+            double inst_val;
+            if(datum.isMissing(this.attrIndex[i])) {
+                if(Double.isNaN(this.thresholds[i])) {
+                    pass = true;
+                    i += 1;  // passes
+                    continue;
+                } else {
+                    inst_val = this.mostCommonValueIndices[this.attrIndex[i]];
+                }
+            } else {
+                inst_val = datum.value(this.attrIndex[i]);
+            }
+
             AbstractOperator operator = this.operators[i];
-            pass = operator.operate(datum.value(this.attrIndex[i]), this.thresholds[i]);
+            pass = operator.operate(inst_val, this.thresholds[i]);
             i += 1;
         }
         return pass;
