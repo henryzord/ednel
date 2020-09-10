@@ -1,6 +1,6 @@
 package ednel.eda.individual;
 
-import org.apache.commons.math3.analysis.function.Exp;
+import sun.reflect.annotation.ExceptionProxy;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
@@ -8,9 +8,6 @@ import weka.core.Instances;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.util.Random;
 
 /**
@@ -53,10 +50,8 @@ public class FitnessCalculator {
     }
 
     public Double evaluateEnsemble(int seed, Individual ind) throws Exception {
-
         Random random = new Random(seed);
         Evaluation trainEval = new Evaluation(train_data);
-
         return this.evaluateEnsemble(seed, ind, random, trainEval);
     }
 
@@ -73,38 +68,37 @@ public class FitnessCalculator {
 
         }
         trainEvaluation /= n_folds;
-
         return trainEvaluation;
     }
 
-    public Double[] evaluateEnsembles(int seed, Individual[] population) throws Exception {
-        int n_individuals = population.length;
-
-        Double[] trainEvaluations = new Double [n_individuals];
-
-        for(int k = 0; k < n_individuals; k++) {
-            trainEvaluations[k] = 0.0;
-        }
-
-        Random random = new Random(seed);
-        Evaluation trainEval = new Evaluation(train_data);
-
-        // do the folds
-        for (int i = 0; i < n_folds; i++) {
-            Instances local_train = train_data.trainCV(n_folds, i, random);
-            Instances local_val = train_data.testCV(n_folds, i);
-
-            for(int j = 0; j < n_individuals; j++) {
-                population[j].buildClassifier(local_train);
-                trainEval.evaluateModel(population[j], local_val);
-                trainEvaluations[j] += getUnweightedAreaUnderROC(trainEval);
-            }
-        }
-        for(int k = 0; k < n_individuals; k++) {
-            trainEvaluations[k] /= n_folds;
-        }
-        return trainEvaluations;
-    }
+//    public Double[] evaluateEnsembles(int seed, Individual[] population) throws Exception {
+//        int n_individuals = population.length;
+//
+//        Double[] trainEvaluations = new Double [n_individuals];
+//
+//        for(int k = 0; k < n_individuals; k++) {
+//            trainEvaluations[k] = 0.0;
+//        }
+//
+//        Random random = new Random(seed);
+//        Evaluation trainEval = new Evaluation(train_data);
+//
+//        // do the folds
+//        for (int i = 0; i < n_folds; i++) {
+//            Instances local_train = train_data.trainCV(n_folds, i, random);
+//            Instances local_val = train_data.testCV(n_folds, i);
+//
+//            for(int j = 0; j < n_individuals; j++) {
+//                population[j].buildClassifier(local_train);
+//                trainEval.evaluateModel(population[j], local_val);
+//                trainEvaluations[j] += getUnweightedAreaUnderROC(trainEval);
+//            }
+//        }
+//        for(int k = 0; k < n_individuals; k++) {
+//            trainEvaluations[k] /= n_folds;
+//        }
+//        return trainEvaluations;
+//    }
 
     public static void main(String[] args) {
         try {

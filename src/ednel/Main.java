@@ -206,6 +206,15 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
+                .longOpt("delay_structure_learning")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("How many generations are needed to learn the structure of the network")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("n_jobs")
                 .type(Integer.class)
                 .required(true)
@@ -292,7 +301,6 @@ public class Main {
                         } else {
                             task.run();
                         }
-
                         Thread.sleep(1000);  // prevents creating all threads at once
                     }
                 }

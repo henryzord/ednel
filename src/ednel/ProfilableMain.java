@@ -1,16 +1,21 @@
 package ednel;
 
+import ednel.eda.CompileResultsTask;
 import ednel.eda.EDNEL;
+import ednel.eda.RunTrainingPieceTask;
+import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.File;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
-public class TestDataset {
+public class ProfilableMain {
     /**
      * This method loads the whole dataset 10 times, since it is split in 10 pairs of training-test subsets.
      * @param datasets_path Path where all datasets are stored.
@@ -33,8 +38,7 @@ public class TestDataset {
                             dataset_name + File.separator + dataset_name + "-10-" + j + "tst.arff"
             );
 
-            Instances train_data = train_set.getDataSet();
-            Instances test_data = test_set.getDataSet();
+            Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
             train_data.setClassIndex(train_data.numAttributes() - 1);
             test_data.setClassIndex(test_data.numAttributes() - 1);
 
@@ -225,10 +229,19 @@ public class TestDataset {
         options.addOption(Option.builder()
                 .longOpt("log")
                 .type(Boolean.class)
-                .required(true)
-                .hasArg()
-                .numberOfArgs(1)
+                .required(false)
+                .hasArg(false)
                 .desc("Whether to log metadata to files.")
+                .build());
+
+        options.addOption("t", false, "Whether to allow cycles in dependency network.");
+
+        options.addOption(Option.builder()
+                .longOpt("no_cycles")
+                .type(Boolean.class)
+                .required(false)
+                .hasArg(false)
+                .desc("Whether to allow cycles in dependency network.")
                 .build());
 
         CommandLineParser parser = new DefaultParser();
@@ -236,47 +249,53 @@ public class TestDataset {
         try {
             CommandLine commandLine = parser.parse(options, args);
 
+            // writes metadata
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+            LocalDateTime now = LocalDateTime.now();
+            String str_time = dtf.format(now);
+            PBILLogger.metadata_path_start(str_time, commandLine);
+
             String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
 
-            for(String dataset_name : dataset_names) {
-                try {
-                    System.out.print(String.format("on dataset %s... ", dataset_name));
-                    LocalDateTime t1, t2;
-                    t1 = LocalDateTime.now();
+            HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
+                    commandLine.getOptionValue("datasets_path"),
+                    dataset_names[0]
+            );
 
-                    HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
-                            commandLine.getOptionValue("datasets_path"),
-                            dataset_name
-                    );
+            Instances train_data = curDatasetFolds.get(1).get("train");
+            Instances test_data = curDatasetFolds.get(1).get("test");
 
-                    Instances train_data = curDatasetFolds.get(1).get("train");
-//                Instances test_data = curDatasetFolds.get(1).get("test");
+            PBILLogger pbilLogger = new PBILLogger(
+                    dataset_names[0],
+                    commandLine.getOptionValue("metadata_path") + File.separator +
+                            str_time + File.separator + dataset_names[0],
+                    Integer.parseInt(commandLine.getOptionValue("n_individuals")),
+                    Integer.parseInt(commandLine.getOptionValue("n_generations")),
+                    1, 1,
+                    commandLine.hasOption("log")
 
-                    EDNEL ednel = new EDNEL(
-                            Double.parseDouble(commandLine.getOptionValue("learning_rate")),
-                            Float.parseFloat(commandLine.getOptionValue("selection_share")),
-                            Integer.parseInt(commandLine.getOptionValue("n_individuals")),
-                            Integer.parseInt(commandLine.getOptionValue("n_generations")),
-                            Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
-                            Integer.parseInt(commandLine.getOptionValue("burn_in")),
-                            Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
-                            false,
-                            Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
-                            Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
-                            Integer.parseInt(commandLine.getOptionValue("max_parents")),
-                            Integer.parseInt(commandLine.getOptionValue("delay_structure_learning")),
-                            commandLine.getOptionValue("resources_path"),
-                            null,
-                            commandLine.getOptionValue("seed") == null?
-                                    null : Integer.parseInt(commandLine.getOptionValue("seed"))
-                    );
-                    ednel.buildClassifier(train_data);
-                    t2 = LocalDateTime.now();
-                    System.out.println(String.format("success! Lap time: %d seconds", (int)t1.until(t2, ChronoUnit.SECONDS)));
-                } catch(Exception e) {
-                    System.out.println("error!");
-                }
-            }
+            );
+
+            EDNEL ednel = new EDNEL(
+                    Double.parseDouble(commandLine.getOptionValue("learning_rate")),
+                    Float.parseFloat(commandLine.getOptionValue("selection_share")),
+                    Integer.parseInt(commandLine.getOptionValue("n_individuals")),
+                    Integer.parseInt(commandLine.getOptionValue("n_generations")),
+                    Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
+                    Integer.parseInt(commandLine.getOptionValue("burn_in")),
+                    Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
+                    commandLine.hasOption("no_cycles"),
+                    Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
+                    Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
+                    Integer.parseInt(commandLine.getOptionValue("max_parents")),
+                    Integer.parseInt(commandLine.getOptionValue("delay_structure_learning")),
+                    commandLine.getOptionValue("resources_path"),
+                    pbilLogger,
+                    commandLine.getOptionValue("seed") == null?
+                            null : Integer.parseInt(commandLine.getOptionValue("seed"))
+            );
+            ednel.buildClassifier(train_data);
+//            ednel.distributionsForInstances(test_data);
         } catch (Exception pe) {
             pe.printStackTrace();
         }

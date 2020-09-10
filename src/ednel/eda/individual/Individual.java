@@ -301,12 +301,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public double[] distributionForInstance(Instance instance) throws Exception {
-        return this.aggregator.aggregateProba(orderedClassifiers, instance);
+        return this.aggregator.aggregateProba(this.orderedClassifiers, instance);
     }
 
     @Override
     public double[][] distributionsForInstances(Instances batch) throws Exception {
-        return this.aggregator.aggregateProba(orderedClassifiers, batch);
+        return this.aggregator.aggregateProba(this.orderedClassifiers, batch);
     }
 
     @Override

@@ -61,6 +61,7 @@ public class RunTrainingPieceTask implements Runnable {
                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
                 Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
                 Integer.parseInt(commandLine.getOptionValue("max_parents")),
+                Integer.parseInt(commandLine.getOptionValue("delay_structure_learning")),
                 commandLine.getOptionValue("resources_path"),
                 pbilLogger,
                 commandLine.getOptionValue("seed") == null?

@@ -6,6 +6,7 @@ import ednel.network.variables.AbstractVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import smile.neighbor.lsh.Hash;
 
 import java.io.File;
 import java.io.FileReader;
@@ -31,6 +32,12 @@ public class DependencyNetwork {
     private int thinning_factor;
     /** Maximum number of parents that any variable may have at a given moment. */
     private int max_parents;
+
+    /** Number of generations needed to perform learning of structure of graphical model */
+    private final int delay_structure_learning;
+
+    private HashMap<String, ArrayList<String>> bufferStructureLearning;
+
     private ArrayList<String> samplingOrder = null;
 
     /** Last solution space point visited by Gibbs Sampling */
@@ -47,10 +54,14 @@ public class DependencyNetwork {
 
     public DependencyNetwork(
             MersenneTwister mt, String resources_path, int burn_in, int thinning_factor, boolean no_cycles,
-            double learningRate, int max_parents
+            double learningRate, int max_parents, int delay_structure_learning
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
+
+        this.delay_structure_learning = delay_structure_learning;
+
+        this.bufferStructureLearning = new HashMap<>();
 
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
@@ -467,9 +478,16 @@ public class DependencyNetwork {
             }
         }
 
+        for(String var : this.samplingOrder) {
+            ArrayList<String> values = this.bufferStructureLearning.getOrDefault(var, new ArrayList<>());
+            values.addAll(currFittestValues.get(var));
+            this.bufferStructureLearning.put(var, values);
+        }
+
         // only updates structure if there is a previous fittest population
-        if(generation > 0) {
-            this.updateStructure(currFittestValues);
+        if(generation > 0 && (generation % this.delay_structure_learning) == 0) {
+            this.updateStructure(this.bufferStructureLearning);
+            this.bufferStructureLearning = new HashMap<>();
         }
         this.lastFittestValues = currFittestValues;
 

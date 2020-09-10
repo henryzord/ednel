@@ -1,4 +1,4 @@
-package ednel.eda.aggregators;
+package ednel.eda.aggregators.rules;
 
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.rules.ExtractedRule;
@@ -6,6 +6,7 @@ import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
+import weka.classifiers.rules.ZeroR;
 import weka.classifiers.trees.J48;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
@@ -240,6 +241,7 @@ public class RuleExtractor {
             } else if(opening_char == '[') {
                 post_process += String.format("%s >= " + parts[0], column_name);
             } else {
+                // TODO exception here!
                 throw new Exception("pre must be opened either by a ( or a [ character!");
             }
             if(!parts[1].equals("inf")) {
@@ -252,6 +254,7 @@ public class RuleExtractor {
             } else if (closing_char == ']') {
                 post_process += String.format("%s <= " + parts[1], column_name);
             } else {
+                // TODO exception here!
                 throw new Exception("pre must be closed either by a ) or a ] character!");
             }
         }
@@ -262,6 +265,8 @@ public class RuleExtractor {
         decisionTable.setDisplayRules(true);
         String str = decisionTable.toString();
 
+        boolean useIbk = decisionTable.getUseIBk();
+
         String[] rules = str.split("Rules:")[1].trim().split("\n");
 
         ArrayList<String> headerColumns = new ArrayList<>();
@@ -271,7 +276,9 @@ public class RuleExtractor {
             }
         }
 
-        ExtractedRule[] extractedRules = new ExtractedRule[rules.length - 4];
+        // - 4 for toprule, midrule and bottom rule + header
+        // + 1 for default rule, that is not included in table
+        ExtractedRule[] extractedRules = new ExtractedRule[rules.length - 4 + (useIbk? 0 : 1)];
 
         StringBuffer prior = new StringBuffer("");
         if (headerColumns.size() > 1) {
@@ -299,6 +306,18 @@ public class RuleExtractor {
                 extractedRules[counter] = new ExtractedRule(newline.toString(), train_data);
                 counter += 1;
             }
+
+            if(!useIbk) {
+                int[] dist = train_data.attributeStats(train_data.classIndex()).nominalCounts;
+                double max_index = -1, max = Double.NEGATIVE_INFINITY;
+                for(int i = 0; i < dist.length; i++) {
+                    if(dist[i] > max) {
+                        max = dist[i];
+                        max_index = i;
+                    }
+                }
+                extractedRules[counter] = new ExtractedRule(String.format(": %s", train_data.attribute(train_data.classIndex()).value((int)max_index)), train_data);
+            }
         } else {  // has only default rule!
             return new ExtractedRule[0];
         }
@@ -307,9 +326,6 @@ public class RuleExtractor {
 
     public static ExtractedRule[] fromRandomForestToRules(RandomForest rf, Instances train_data) throws Exception {
         rf.setPrintClassifiers(true);
-
-        // TODO bear in mind that trees must be separated too.
-
         String str = rf.toString();
 
         String start = "RandomTree\n==========";

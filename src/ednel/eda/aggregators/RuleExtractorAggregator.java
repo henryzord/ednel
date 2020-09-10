@@ -1,17 +1,24 @@
 package ednel.eda.aggregators;
 
+import ednel.TestDataset;
+import ednel.classifiers.trees.SimpleCart;
+import ednel.eda.aggregators.rules.RuleExtractor;
+import ednel.eda.aggregators.rules.SimpleRuleClassifier;
 import ednel.eda.rules.ExtractedRule;
+import org.apache.commons.cli.*;
 import weka.classifiers.AbstractClassifier;
+import weka.classifiers.Evaluation;
+import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
+import weka.classifiers.rules.Rule;
+import weka.classifiers.trees.J48;
+import weka.classifiers.trees.RandomForest;
 import weka.core.Instance;
 import weka.core.Instances;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
@@ -195,34 +202,79 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
     }
 
     public static void main(String[] args) {
+        Options options = new Options();
+
+        options.addOption(Option.builder()
+                .required(true)
+                .longOpt("datasets_path")
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Must lead to a path that contains several subpaths, one for each dataset. " +
+                        "Each subpath, in turn, must have the arff files.")
+                .build()
+        );
+
+        options.addOption(Option.builder()
+                .longOpt("datasets_names")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Name of the datasets to run experiments. Must be a list separated by a comma\n" +
+                        "\tExample: iris,mushroom,adult")
+                .build()
+        );
+
+        options.addOption(Option.builder()
+                .longOpt("output_path")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Path to folder where a markdown file with generated classifier will be written to.")
+                .build());
+
+        CommandLineParser parser = new DefaultParser();
+
         try {
-            System.out.println(RuleExtractor.formatNumericDecisionTableCell("(87.5-98.5]", "any_column"));
-        } catch (Exception e) {
-            e.printStackTrace();
+            CommandLine commandLine = parser.parse(options, args);
+
+            String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
+
+            for(String dataset_name : dataset_names) {
+
+                System.out.print(String.format("on dataset %s... ", dataset_name));
+
+                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = TestDataset.loadFoldsOfDatasets(
+                        commandLine.getOptionValue("datasets_path"),
+                        dataset_name
+                );
+
+                Instances train_data = curDatasetFolds.get(1).get("train");
+                Instances test_data = curDatasetFolds.get(1).get("test");
+
+                Random rnd = new Random(5);
+                AbstractClassifier[] clfs = new AbstractClassifier[]{new J48(), new SimpleCart(), new PART(), new JRip(), new DecisionTable(), new RandomForest()};
+
+                for(AbstractClassifier clf : clfs) {
+                    System.out.println("at classifier " + clf.getClass());
+
+                    Evaluation ev = new Evaluation(train_data);
+                    clf.buildClassifier(train_data);
+                    ev.evaluateModel(clf, test_data);
+
+                    System.out.println("Normal behavior: \t\t" + ev.errorRate());
+
+                    SimpleRuleClassifier src = new SimpleRuleClassifier(clf);
+                    src.buildClassifier(train_data);
+//                    ev = new Evaluation(train_data);
+                    ev.evaluateModel(src, test_data);
+                    System.out.println("Extracted behavior: \t" + ev.errorRate());
+                }
+            }
+        } catch (Exception pe) {
+            pe.printStackTrace();
         }
-//            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Desktop\\play_tennis.arff");
-//
-//            AbstractClassifier[] clfs = new AbstractClassifier[]{new JRip(), new PART(), new J48(), new DecisionTable(), new SimpleCart()};
-//
-//            Instances train_data = train_set.getDataSet();
-//            train_data.setClassIndex(train_data.numAttributes() - 1);
-//
-//            RealRule[][] all_rules = new RealRule[clfs.length][];
-//
-//            for(int i = 0; i < clfs.length; i++) {
-//                clfs[i].buildClassifier(train_data);
-//                all_rules[i] = RuleExtractorAggregator.fromClassifierToRules(clfs[i], train_data);
-//            }
-//            for(int c = 0; c < clfs.length; c++) {
-//                for(int r = 0; r < all_rules[c].length; r++) {
-//                    if(all_rules[c][r].covers(train_data.get(0))) {
-//                        System.out.println(String.format("rule %d from classifier %d: %s", r, c, all_rules[c][r]));
-//                    }
-//                }
-//            }
-//
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
     }
 }
