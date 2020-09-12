@@ -8,11 +8,13 @@ import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
     /**
@@ -51,7 +53,7 @@ public class Main {
         return datasets;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         Options options = new Options();
 
         options.addOption(Option.builder()
@@ -254,64 +256,55 @@ public class Main {
 
         CommandLineParser parser = new DefaultParser();
 
-        try {
-            CommandLine commandLine = parser.parse(options, args);
+        CommandLine commandLine = parser.parse(options, args);
 
-            int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
-            int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
+        int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
+        int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
 
-            // writes metadata
-            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
-            LocalDateTime now = LocalDateTime.now();
-            String str_time = dtf.format(now);
-            PBILLogger.metadata_path_start(str_time, commandLine);
+        // writes metadata
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+        LocalDateTime now = LocalDateTime.now();
+        String str_time = dtf.format(now);
+        PBILLogger.metadata_path_start(str_time, commandLine);
 
-            String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
+        String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
 
-            // always 10 folds
-            CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);
+        // always 10 folds
+//            CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);
 
-            ThreadPoolExecutor executor = null;
-            if(n_jobs > 1) {
-                executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs + 1);
-                executor.execute(compiler);
-            }
+        ThreadPoolExecutor executor = null;
+        if(n_jobs > 1) {
+            executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs + 1);
+//                executor.execute(compiler);
+        }
 
-            for(String dataset_name : dataset_names) {
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
-                        commandLine.getOptionValue("datasets_path"),
-                        dataset_name
-                );
+        for(String dataset_name : dataset_names) {
+            HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
+                    commandLine.getOptionValue("datasets_path"),
+                    dataset_name
+            );
 
-                for(int n_sample = 1; n_sample < n_samples + 1; n_sample++) {
-                    for(int n_fold = 1; n_fold < 11; n_fold++) {  // 10 folds
-                        Instances train_data = curDatasetFolds.get(n_fold).get("train");
-                        Instances test_data = curDatasetFolds.get(n_fold).get("test");
+            for(int n_sample = 1; n_sample < n_samples + 1; n_sample++) {
+                for(int n_fold = 1; n_fold < 11; n_fold++) {  // 10 folds
+                    Instances train_data = curDatasetFolds.get(n_fold).get("train");
+                    Instances test_data = curDatasetFolds.get(n_fold).get("test");
 
-                        RunTrainingPieceTask task = new RunTrainingPieceTask(
-                                dataset_name, n_sample, n_fold, commandLine, str_time, train_data, test_data,
-                                compiler.getClass().getMethod(
-                                        "accessAUCData",
-                                        String.class, int.class, int.class, String.class, Double[].class
-                                ),
-                                compiler
-                        );
-                        if(n_jobs > 1) {
-                            executor.execute(task);
-                        } else {
-                            task.run();
-                        }
-                        Thread.sleep(1000);  // prevents creating all threads at once
+                    RunTrainingPieceTask task = new RunTrainingPieceTask(
+                            dataset_name, n_sample, n_fold, commandLine, str_time, train_data, test_data, null, null
+//                                compiler.getClass().getMethod(
+//                                        "accessAUCData",
+//                                        String.class, int.class, int.class, String.class, Double[].class
+//                                ),
+//                                compiler
+                    );
+                    if(n_jobs > 1) {
+                        executor.execute(task);
+                    } else {
+                        task.run();
                     }
+                    Thread.sleep(1000);  // prevents creating all threads at once
                 }
             }
-            if(n_jobs > 1) {
-                executor.shutdown();
-            } else {
-                compiler.run();
-            }
-        } catch (Exception pe) {
-            pe.printStackTrace();
         }
     }
 }

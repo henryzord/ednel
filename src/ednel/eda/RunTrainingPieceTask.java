@@ -78,21 +78,19 @@ public class RunTrainingPieceTask implements Runnable {
             toReport.put("overall", this.ednel.getOverallBest());
             toReport.put("last", this.ednel.getCurrentGenBest());
 
-            try {
-                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
-            } catch(Exception e) {
-                System.err.println("An error occurred. Could not write metadata to files:");
-                System.err.println(e.getCause());
+            this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
+
+
+            if((this.writeMethod != null) && (this.writeObj != null)) {
+                Double[] overall_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest())};
+                Double[] last_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest())};
+
+                this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "last", last_auc);
+                this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "overall", overall_auc);
             }
 
-            Double[] overall_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest())};
-            Double[] last_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest())};
-
-            this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "last", last_auc);
-            this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "overall", overall_auc);
-
         } catch(Exception e) {
-            System.err.println("An error occured, but could not be throwed:");
+            System.err.println("An error occurred, but could not be thrown:");
             System.err.println(e.getMessage());
             e.printStackTrace();
         }

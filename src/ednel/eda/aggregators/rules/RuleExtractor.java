@@ -236,9 +236,11 @@ public class RuleExtractor {
     }
 
     public static String formatNumericDecisionTableCell(String pre, String column_name) throws Exception {
-        // TODO method breaks when interval does not involve inf values! (e.g. '(87.5-98.5]')
-
         pre = pre.replaceAll("\'", "");
+
+        if(pre.toLowerCase().equals("all")) {
+            return String.format("%s = all", column_name);
+        }
 
         String[] parts = pre.substring(1, pre.length() - 1).split("-");
         if(parts.length > 2) {
@@ -259,7 +261,6 @@ public class RuleExtractor {
             } else if(opening_char == '[') {
                 post_process += String.format("%s >= " + parts[0], column_name);
             } else {
-                // TODO exception here!
                 throw new Exception("pre must be opened either by a ( or a [ character!");
             }
             if(!parts[1].equals("inf")) {
@@ -272,7 +273,6 @@ public class RuleExtractor {
             } else if (closing_char == ']') {
                 post_process += String.format("%s <= " + parts[1], column_name);
             } else {
-                // TODO exception here!
                 throw new Exception("pre must be closed either by a ) or a ] character!");
             }
         }
@@ -309,7 +309,8 @@ public class RuleExtractor {
                 StringBuffer newline = new StringBuffer("");
                 for(int j = 0; j < priors.length - 1; j++) {
                     String post = priors[j];
-                    if(priors[j].contains("\'")) {
+                    if(train_data.attribute(headerColumns.get(j)).isNumeric()) {
+//                    if(priors[j].contains("\'")) {
                         post = RuleExtractor.formatNumericDecisionTableCell(priors[j], headerColumns.get(j));
                     } else {
                         post = String.format("%s = %s", headerColumns.get(j), post);

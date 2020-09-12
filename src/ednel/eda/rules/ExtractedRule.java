@@ -2,6 +2,8 @@ package ednel.eda.rules;
 
 import com.sun.org.apache.xpath.internal.operations.Bool;
 import ednel.utils.operators.AbstractOperator;
+import ednel.utils.operators.EqualsAny;
+import org.apache.commons.math3.analysis.function.Exp;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.rules.Rule;
@@ -88,7 +90,12 @@ public class ExtractedRule extends Rule {
                 boolean isNominal = data.attribute(attr_index).isNominal();
 
                 this.attrIndex[i] = attr_index;
-                this.operators[i] = AbstractOperator.valueOf(op);
+
+                if(parted[1].trim().toLowerCase().equals("all")) {
+                    this.operators[i] = new EqualsAny();
+                } else {
+                    this.operators[i] = AbstractOperator.valueOf(op);
+                }
                 try {
                     this.thresholds[i] = isNominal? data.attribute(attr_index).indexOfValue(parted[1].trim()) : Double.valueOf(parted[1].trim());
                 } catch(NumberFormatException nfe) {
