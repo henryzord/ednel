@@ -14,7 +14,6 @@ public class RunTrainingPieceTask implements Runnable {
     private String dataset_name;
     private int n_sample;
     private int n_fold;
-    private String str_time;
     private Instances train_data;
     private Instances test_data;
     private EDNEL ednel;
@@ -24,7 +23,10 @@ public class RunTrainingPieceTask implements Runnable {
 
     private boolean log;
 
-    private boolean setException = false;
+    private boolean hasSetAnException = false;
+
+    private Exception except;
+    private boolean hasCompleted = false;
 
     public RunTrainingPieceTask(
             String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time,
@@ -35,8 +37,6 @@ public class RunTrainingPieceTask implements Runnable {
         this.n_fold = n_fold;
 
         this.log = commandLine.hasOption("log");
-
-        this.str_time = str_time;
 
         this.train_data = train_data;
         this.test_data = test_data;
@@ -99,11 +99,26 @@ public class RunTrainingPieceTask implements Runnable {
             System.err.println("An error occurred, but could not be thrown:");
             System.err.println(e.getMessage());
             e.printStackTrace();
-            this.setException = true;
+            this.hasSetAnException = true;
+            this.except = e;
+        } finally {
+            this.hasCompleted = true;
         }
     }
 
-    public boolean triggerException() {
-        return setException;
+    public boolean hasSetAnException() {
+        return hasSetAnException;
+    }
+
+    public Exception getSetException() {
+        return except;
+    }
+
+    public boolean hasCompleted() {
+        return hasCompleted;
+    }
+
+    public String getDatasetName() {
+        return this.dataset_name;
     }
 }

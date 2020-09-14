@@ -269,7 +269,7 @@ public class Main {
 
         ThreadPoolExecutor executor = null;
         if(n_jobs > 1) {
-            executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs + 1);
+            executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs);
 //                executor.execute(compiler);
         }
 
