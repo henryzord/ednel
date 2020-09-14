@@ -61,7 +61,7 @@ java -jar ednel.jar
 This will bring a list of parameters for the program. An successful call to the code is
 
 ```
-java -jar ednel.jar --datasets_path keel_datasets_10fcv --datasets_names vehicle,pima,wisconsin,flare,australian,german,bupa,contraceptive --metadata_path metadata --variables_path resources/distributions --options_path resources/options.json --sampling_order_path resources/sampling_order.json --n_generations 200 --n_individuals 200 --n_samples 1 --learning_rate 0.7 --selection_share 0.5 --burn_in 100 --thinning_factor 0 --early_stop_generations 200 --early_stop_tolerance 0.001 --log true --max_parents 2 --n_jobs 5
+java -jar ednel.jar --datasets_path keel_datasets_10fcv --datasets_names vehicle,pima,wisconsin,flare,australian,german,bupa,contraceptive --metadata_path metadata --resources_path resources --n_generations 200 --n_individuals 200 --n_samples 1 --learning_rate 0.7 --selection_share 0.5 --burn_in 100 --thinning_factor 0 --early_stop_generations 200 --early_stop_tolerance 0.001 --log --max_parents 1 --n_jobs 1 --delay_structure_learning 1
 ```
 
 ## Interpreting data
