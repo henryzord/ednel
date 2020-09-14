@@ -61,7 +61,7 @@ java -jar ednel.jar
 This will bring a list of parameters for the program. An successful call to the code is
 
 ```
-java -jar ednel.jar --datasets_path keel_datasets_10fcv --datasets_names vehicle,pima,wisconsin,flare,australian,german,bupa,contraceptive --metadata_path metadata --variables_path resources/distributions --options_path resources/options.json --sampling_order_path resources/sampling_order.json --n_generations 200 --n_individuals 200 --n_samples 1 --learning_rate 0.7 --selection_share 0.5 --burn_in 100 --thinning_factor 0 --early_stop_generations 200 --early_stop_tolerance 0.001 --log true --max_parents 2 --n_jobs 5
+java -jar ednel.jar --datasets_path keel_datasets_10fcv --datasets_names vehicle,pima,wisconsin,flare,australian,german,bupa,contraceptive --metadata_path metadata --n_generations 200 --n_individuals 200 --n_samples 1 --learning_rate 0.7 --selection_share 0.5 --burn_in 100 --thinning_factor 0 --early_stop_generations 200 --early_stop_tolerance 0.001 --log --max_parents 1 --delay_structure_learning 1 --n_jobs 5 
 ```
 
 ## Interpreting data
@@ -86,47 +86,31 @@ path
 
 ---
 
-If during the training process, flag `--log` was set to `true`, it will be possible to generate a report on the various
+If during the training process, flag `--log` was set, it will be possible to generate a report on the various
  predictive performance metrics available in Weka:
 
 ```bash
-python src/main/python/postprocess.py --csv-path <path_to_run>
+python scripts/postprocess.py --csv-path <path_to_run>
 ```
 
 Example:
 
 ```bash
-python src/main/python/postprocess.py --csv-path metadata/02-06-2020-09-00-18
+python scripts/postprocess.py --csv-path metadata/02-06-2020-09-00-18
 ```
 
-### Generating structure graph and probabilities tables
+### Generating dashboard of training metadata
 
-The same can be done for generating a visualization of the structure of evolutionary algorithm during the training
-process:
+The same can be done for generating a visualization of the structure of evolutionary algorithm during training, as well
+as the explored solution space, probability tables, and population metrics:
 
 ```bash
-python src/main/python/plot_network.py --json-path <path_to_run>/dependency_network_structure.json
+python scripts/plot_network.py --experiment-path <path_to_run>
 ```
 
 Example:
 
 ```bash
-python src/main/python/plot_network.py 
---json-path "C:\Users\henry\Projects\trash\28-06-2020-14-14-49\dummygerman\sample_01_fold_01\dependency_network_structure.json"
+python scripts/plot_network.py --experiment-path "C:\Users\henry\Projects\trash\28-06-2020-14-14-49\dummygerman\sample_01_fold_01"
 ```
 
-### Generating map of characteristics
-
-Another postprocess that can be done is to generate a map of the explored solution space, for a given run of EDNEL:
-
-```bash
-python src/main/python/characteristics_to_pca.py 
---csv-path "<path_to_run>\characteristics.csv"
-```
-
-Example:
-
-```bash
-python src/main/python/characteristics_to_pca.py 
---csv-path "D:\Users\henry\Projects\trash\28-06-2020-14-14-49\dummygerman\sample_01_fold_01\characteristics.csv"
-```

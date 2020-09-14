@@ -1,0 +1,7 @@
+DecisionTable,DecisionTable_search,probability
+true,weka.attributeSelection.GreedyStepwise,0.4
+true,weka.attributeSelection.BestFirst,0.6
+true,null,0.0
+false,weka.attributeSelection.GreedyStepwise,0.0
+false,weka.attributeSelection.BestFirst,0.0
+false,null,1.0

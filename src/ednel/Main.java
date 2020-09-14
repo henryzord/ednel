@@ -88,16 +88,6 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
-                .longOpt("resources_path")
-                .required(true)
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Path to folder that contains support files, such as .csv with probability distributions, blocking" +
-                        "variables, etc.")
-                .build());
-
-        options.addOption(Option.builder()
                 .longOpt("seed")
                 .required(false)
                 .type(Integer.class)

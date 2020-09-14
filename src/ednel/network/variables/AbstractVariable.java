@@ -11,6 +11,8 @@ import smile.neighbor.lsh.Hash;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class AbstractVariable {
@@ -622,10 +624,17 @@ public class AbstractVariable {
 
     public static AbstractVariable fromPath(String path, MersenneTwister mt) throws Exception {
 
-        BufferedReader csvReader = new BufferedReader(new FileReader(path));
+//        BufferedReader csvReader = new BufferedReader(new FileReader(path));
+        BufferedReader csvReader = new BufferedReader(
+                new InputStreamReader(
+                        AbstractVariable.class.getClassLoader().getResourceAsStream(path),
+                        StandardCharsets.UTF_8
+                )
+        );
 
         String variableName = path.substring(
-                path.lastIndexOf(File.separator) + 1,
+//                path.lastIndexOf(File.separator) + 1,
+                path.lastIndexOf("/") + 1,
                 path.lastIndexOf(".")
         );
 

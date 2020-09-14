@@ -50,7 +50,7 @@ public class EDNEL extends AbstractClassifier {
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations, float early_stop_tolerance,
-                 int max_parents, int delay_structure_learning, String resources_path, PBILLogger pbilLogger, Integer seed
+                 int max_parents, int delay_structure_learning, PBILLogger pbilLogger, Integer seed
     ) throws Exception {
 
         this.learning_rate = learning_rate;
@@ -84,7 +84,7 @@ public class EDNEL extends AbstractClassifier {
         }
 
         this.dn = new DependencyNetwork(
-            mt, resources_path, this.burn_in, this.thinning_factor,
+            mt, this.burn_in, this.thinning_factor,
                 this.no_cycles, this.learning_rate, this.max_parents, this.delay_structure_learning
         );
     }

@@ -1,5 +1,6 @@
 package ednel.network;
 
+import ednel.eda.aggregators.Aggregator;
 import ednel.eda.individual.EmptyEnsembleException;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
@@ -8,10 +9,13 @@ import ednel.network.variables.AbstractVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.reflections.Reflections;
+import org.reflections.scanners.ResourcesScanner;
 import smile.neighbor.lsh.Hash;
 
-import java.io.File;
-import java.io.FileReader;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.InvalidParameterException;
 import java.util.*;
@@ -55,7 +59,7 @@ public class DependencyNetwork {
     private boolean no_cycles;
 
     public DependencyNetwork(
-            MersenneTwister mt, String resources_path, int burn_in, int thinning_factor, boolean no_cycles,
+            MersenneTwister mt, int burn_in, int thinning_factor, boolean no_cycles,
             double learningRate, int max_parents, int delay_structure_learning
     ) throws Exception {
         this.mt = mt;
@@ -81,7 +85,7 @@ public class DependencyNetwork {
         this.lastStart = null;
         this.lastFittestValues = null;
 
-        this.readVariablesFromFiles(resources_path);
+        this.readVariablesFromFiles();
         this.graph = DependencyNetwork.generateDeterministicGraph(this.variables);
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.graph);
     }
@@ -283,31 +287,60 @@ public class DependencyNetwork {
     }
 
     /**
-     * Reads variables from file.
+     * Reads variables from csv files. CSV files are within jar of project.
      *
-     * @param resources_path Path to resources folder.
      * @throws Exception If any exception occurs
      */
-    private void readVariablesFromFiles(String resources_path) throws Exception {
+    private void readVariablesFromFiles() throws Exception {
         this.currentGenConnections = 0;
 
         JSONParser jsonParser = new JSONParser();
-        options = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "options.json"));
+        // method for reading from path
+//        this.options = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "options.json"));
 
-        Object[] algorithmsPaths = Files.list(
-                new File(resources_path + File.separator + "distributions").toPath()
-        ).toArray();
+        // method for reading from same jar
+        InputStream stream_options = this.getClass().getClassLoader().getResourceAsStream("options.json");
+        this.options = (JSONObject)jsonParser.parse(
+                new BufferedReader(
+                        new InputStreamReader(
+                                stream_options,
+                                StandardCharsets.UTF_8)
+                )
+        );
 
-        for(int i = 0; i < algorithmsPaths.length; i++) {
-            Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
+        Reflections reflections = new Reflections("distributions", new ResourcesScanner());
+        Set<String> variablePaths = reflections.getResources(x -> true);
 
-            for(Object variablePath : variablePaths) {
-                AbstractVariable variable = AbstractVariable.fromPath(variablePath.toString(), this.mt);
+        for(Object variablePath : variablePaths) {
+            AbstractVariable variable = AbstractVariable.fromPath(variablePath.toString(), this.mt);
 
-                this.variables.put(variable.getName(), variable);
-                this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
-            }
+            this.variables.put(variable.getName(), variable);
+            this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
         }
+
+
+//        for(int i = 0; i < algorithmsPaths.length; i++) {
+////            Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
+//            File[] variablePaths = new File(algorithmsPaths[i].getPath()).listFiles();
+//
+
+//        }
+
+        // TODO previous method
+//        Object[] algorithmsPaths = Files.list(
+//                new File(resources_path + File.separator + "distributions").toPath()
+//        ).toArray();
+//
+//        for(int i = 0; i < algorithmsPaths.length; i++) {
+//            Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
+//
+//            for(Object variablePath : variablePaths) {
+//                AbstractVariable variable = AbstractVariable.fromPath(variablePath.toString(), this.mt);
+//
+//                this.variables.put(variable.getName(), variable);
+//                this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
+//            }
+//        }
     }
 
     /**

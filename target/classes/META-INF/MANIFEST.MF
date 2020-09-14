@@ -1,0 +1,3 @@
+Manifest-Version: 1.0
+Main-Class: ednel.Main
+Class-Path: javassist-3.12.1.GA.jar reflections-0.9.12.jar
