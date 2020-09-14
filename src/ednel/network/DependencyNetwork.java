@@ -1,7 +1,9 @@
 package ednel.network;
 
+import ednel.eda.individual.EmptyEnsembleException;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
+import ednel.eda.individual.NoAggregationPolicyException;
 import ednel.network.variables.AbstractVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
@@ -409,7 +411,7 @@ public class DependencyNetwork {
                 } else {
                     this.currentGenDiscardedIndividuals += 1;
                 }
-            } catch (InvalidParameterException e) {  // invalid individual generated
+            } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException e) {  // invalid individual generated
                 this.currentGenDiscardedIndividuals += 1;
             }
         }

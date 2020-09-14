@@ -1,6 +1,7 @@
 package ednel.eda.aggregators.rules;
 
-import ednel.TestDataset;
+import ednel.Main;
+import ednel.TestDatasets;
 import ednel.eda.aggregators.RuleExtractorAggregator;
 import org.apache.commons.cli.*;
 import weka.classifiers.AbstractClassifier;
@@ -94,7 +95,7 @@ public class RandomForestRuleClassifier extends RandomForest implements OptionHa
 
                 System.out.print(String.format("on dataset %s... ", dataset_name));
 
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = TestDataset.loadFoldsOfDatasets(
+                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = Main.loadFoldsOfDatasets(
                         commandLine.getOptionValue("datasets_path"),
                         dataset_name
                 );

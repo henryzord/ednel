@@ -1,6 +1,7 @@
 package ednel.eda.aggregators;
 
-import ednel.TestDataset;
+import ednel.Main;
+import ednel.TestDatasets;
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.aggregators.rules.RuleExtractor;
 import ednel.eda.aggregators.rules.SimpleRuleClassifier;
@@ -11,9 +12,7 @@ import weka.classifiers.Evaluation;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
-import weka.classifiers.rules.Rule;
 import weka.classifiers.trees.J48;
-import weka.classifiers.trees.RandomForest;
 import weka.core.Instance;
 import weka.core.Instances;
 
@@ -246,7 +245,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
                 System.out.print(String.format("on dataset %s...\n", dataset_name));
 
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = TestDataset.loadFoldsOfDatasets(
+                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = Main.loadFoldsOfDatasets(
                         commandLine.getOptionValue("datasets_path"),
                         dataset_name
                 );

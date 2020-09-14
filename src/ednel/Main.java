@@ -53,7 +53,7 @@ public class Main {
         return datasets;
     }
 
-    public static void main(String[] args) throws Exception {
+    public static CommandLine parseCommandLine(String[] args) throws ParseException {
         Options options = new Options();
 
         options.addOption(Option.builder()
@@ -257,6 +257,11 @@ public class Main {
         CommandLineParser parser = new DefaultParser();
 
         CommandLine commandLine = parser.parse(options, args);
+        return commandLine;
+    }
+
+    public static void main(String[] args) throws Exception {
+        CommandLine commandLine = parseCommandLine(args);
 
         int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
         int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));

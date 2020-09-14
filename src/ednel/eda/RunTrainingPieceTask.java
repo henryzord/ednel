@@ -22,6 +22,10 @@ public class RunTrainingPieceTask implements Runnable {
     private Method writeMethod;
     private Object writeObj;
 
+    private boolean log;
+
+    private boolean setException = false;
+
     public RunTrainingPieceTask(
             String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time,
             Instances train_data, Instances test_data, Method writeMethod, Object writeObj
@@ -29,6 +33,8 @@ public class RunTrainingPieceTask implements Runnable {
         this.dataset_name = dataset_name;
         this.n_sample = n_sample;
         this.n_fold = n_fold;
+
+        this.log = commandLine.hasOption("log");
 
         this.str_time = str_time;
 
@@ -78,8 +84,9 @@ public class RunTrainingPieceTask implements Runnable {
             toReport.put("overall", this.ednel.getOverallBest());
             toReport.put("last", this.ednel.getCurrentGenBest());
 
-            this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
-
+            if(this.log) {
+                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
+            }
 
             if((this.writeMethod != null) && (this.writeObj != null)) {
                 Double[] overall_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest())};
@@ -93,6 +100,11 @@ public class RunTrainingPieceTask implements Runnable {
             System.err.println("An error occurred, but could not be thrown:");
             System.err.println(e.getMessage());
             e.printStackTrace();
+            this.setException = true;
         }
+    }
+
+    public boolean triggerException() {
+        return setException;
     }
 }

@@ -91,7 +91,7 @@ public class ExtractedRule extends Rule {
 
                 this.attrIndex[i] = attr_index;
 
-                if(parted[1].trim().toLowerCase().equals("all")) {
+                if(!isNominal && parted[1].trim().toLowerCase().equals("all")) {
                     this.operators[i] = new EqualsAny();
                 } else {
                     this.operators[i] = AbstractOperator.valueOf(op);

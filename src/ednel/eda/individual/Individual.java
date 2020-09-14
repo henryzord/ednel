@@ -278,10 +278,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             }
         }
         if(n_active_classifiers <= 0) {
-            throw new Exception("Ensemble must contain at least one classifier!");
+            throw new EmptyEnsembleException("Ensemble must contain at least one classifier!");
         }
         if(this.aggregator == null) {
-            throw new Exception("Ensemble must have an aggregation policy!");
+            throw new NoAggregationPolicyException("Ensemble must have an aggregation policy!");
         }
         this.aggregator.setCompetences(this.orderedClassifiers, data);
     }
