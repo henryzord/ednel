@@ -113,4 +113,3 @@ Example:
 ```bash
 python scripts/plot_network.py --experiment-path "C:\Users\henry\Projects\trash\28-06-2020-14-14-49\dummygerman\sample_01_fold_01"
 ```
-
