@@ -240,6 +240,8 @@ public class RuleExtractor {
 
         if(pre.toLowerCase().equals("all")) {
             return String.format("%s = all", column_name);
+        } else if(pre.toLowerCase().equals("?")) {
+            return String.format("%s = ?", column_name);
         }
 
         String[] parts = pre.substring(1, pre.length() - 1).split("-");

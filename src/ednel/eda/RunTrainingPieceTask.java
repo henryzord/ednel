@@ -8,6 +8,8 @@ import weka.core.Instances;
 
 import java.io.File;
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 
 public class RunTrainingPieceTask implements Runnable {
@@ -28,10 +30,14 @@ public class RunTrainingPieceTask implements Runnable {
     private Exception except;
     private boolean hasCompleted = false;
 
+    private LocalDateTime start, end;
+
     public RunTrainingPieceTask(
             String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time,
             Instances train_data, Instances test_data, Method writeMethod, Object writeObj
     ) throws Exception {
+        start = LocalDateTime.now();
+
         this.dataset_name = dataset_name;
         this.n_sample = n_sample;
         this.n_fold = n_fold;
@@ -88,8 +94,8 @@ public class RunTrainingPieceTask implements Runnable {
             }
 
             if((this.writeMethod != null) && (this.writeObj != null)) {
-                Double[] overall_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest())};
-                Double[] last_auc = {FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest())};
+                Double[] overall_auc = {this.overallIndividualPerformance()};
+                Double[] last_auc = {this.lastIndividualPerformance()};
 
                 this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "last", last_auc);
                 this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "overall", overall_auc);
@@ -103,22 +109,58 @@ public class RunTrainingPieceTask implements Runnable {
             this.except = e;
         } finally {
             this.hasCompleted = true;
+            this.end = LocalDateTime.now();
         }
     }
 
+    /**
+     * Whether an exception was set during execution.
+     */
     public boolean hasSetAnException() {
         return hasSetAnException;
     }
 
+    /**
+     * The set exception (if any). Check it by using method hasSetAnException.
+     */
     public Exception getSetException() {
         return except;
     }
 
+    /**
+     * Whether this code successfully completed execution.
+     */
     public boolean hasCompleted() {
         return hasCompleted;
     }
 
+    /**
+     * Name of experimented dataset.
+     */
     public String getDatasetName() {
         return this.dataset_name;
+    }
+
+    /**
+     * Elapsed time (in seconds) of this algorithm run.
+     */
+    public int getElapsedTimeInSeconds() {
+        return (int)this.start.until(this.end, ChronoUnit.SECONDS);
+    }
+
+    /**
+     * How well the best individual found (according to fitness) performs on the test set.
+     * @return Unweighted area under the ROC curve (Unweighted AUC) on the test set.
+     */
+    public Double overallIndividualPerformance() throws Exception {
+        return FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getOverallBest());
+    }
+
+    /**
+     * How well the best individual of the last generation (according to fitness) performs on the test set.
+     * @return Unweighted area under the ROC curve (Unweighted AUC) on the test set.
+     */
+    public Double lastIndividualPerformance() throws Exception {
+        return FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ednel.getCurrentGenBest());
     }
 }

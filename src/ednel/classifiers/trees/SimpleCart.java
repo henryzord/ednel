@@ -2203,7 +2203,9 @@ public class SimpleCart extends RandomizableClassifier implements
             lines[i] = lines[i].replaceAll("\\| ", "").trim();
             if(lines[i].contains(":")) {
                 String[] parted = lines[i].split(":");
-                new_lines.add(parted[0].trim());
+                if(parted[0].trim().length() > 0) {
+                    new_lines.add(parted[0].trim());
+                }  // otherwise does not add nothing, because it is a tree with only one node
                 new_lines.add(parted[1].trim());
                 levels.add(count + 1);
             } else {
