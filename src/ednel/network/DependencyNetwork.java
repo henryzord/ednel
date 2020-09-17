@@ -30,8 +30,10 @@ public class DependencyNetwork {
     private JSONObject options;
     private HashMap<String, AbstractVariable> variables;
 
-    /** A dictionary where each key is a variable name and each entry the ArrayList of all its children */
-    private HashMap<String, ArrayList<String>> graph;
+    /** A dictionary of dictionaries. Each key is a variable, and each value another dictionary. In this second dictionary,
+     * keys are the type of relationship the variable has with its children: whether deterministic or probabilistic. The
+     * values of this second dictionary are ArrayList of children names. */
+    private HashMap<String, HashMap<String, ArrayList<String>>> graph;
 
     private MersenneTwister mt;
     private int burn_in;
@@ -45,9 +47,6 @@ public class DependencyNetwork {
     private HashMap<String, ArrayList<String>> bufferStructureLearning;
 
     private ArrayList<String> samplingOrder = null;
-
-    /** Last solution space point visited by Gibbs Sampling */
-    private HashMap<String, String> lastStart;
 
     // counters
     /** Discarded individuals of this generation */
@@ -82,7 +81,6 @@ public class DependencyNetwork {
         this.currentGenDiscardedIndividuals = 0;
         this.currentGenConnections = 0;
 
-        this.lastStart = null;
         this.lastFittestValues = null;
 
         this.readVariablesFromFiles();
@@ -93,22 +91,29 @@ public class DependencyNetwork {
     /**
      * Updates graph attribute of this object, but only with deterministic relationships
      */
-    private static HashMap<String, ArrayList<String>> generateDeterministicGraph(HashMap<String, AbstractVariable> variables) {
-        HashMap<String, ArrayList<String>> graph = new HashMap<>();
+    private static HashMap<String, HashMap<String, ArrayList<String>>> generateDeterministicGraph(HashMap<String, AbstractVariable> variables) {
+        HashMap<String, HashMap<String, ArrayList<String>>> graph = new HashMap<>();
 
         for(AbstractVariable variable : variables.values()) {
             if(!graph.containsKey(variable.getName())) {
-                graph.put(variable.getName(), new ArrayList<>());
+                HashMap<String, ArrayList<String>> temp = new HashMap<>();
+                temp.put("deterministic", new ArrayList<>());
+                temp.put("probabilistic", new ArrayList<>());
+                graph.put(variable.getName(), temp);
             }
             for(String parentName : variable.getDeterministicParents()) {
-                ArrayList<String> alc;
+                HashMap<String, ArrayList<String>> temp;
                 if(!graph.containsKey(parentName)) {
-                    alc = new ArrayList<>();
+                    temp = new HashMap<>();
+                    temp.put("deterministic", new ArrayList<>());
+                    temp.put("probabilistic", new ArrayList<>());
                 } else {
-                    alc = graph.get(parentName);
+                    temp = graph.get(parentName);
                 }
+                ArrayList<String> alc = temp.get("deterministic");
                 alc.add(variable.getName());
-                graph.put(parentName, alc);
+                temp.put("deterministic", alc);
+                graph.put(parentName, temp);
             }
         }
         return graph;
@@ -215,28 +220,45 @@ public class DependencyNetwork {
      * @param graph HashMap where keys are variable names and entries the list of its children
      * @return an ArrayList with the inferred sampling order
      */
-    private static ArrayList<String> inferSamplingOrder(HashMap<String, ArrayList<String>> graph) {
+    private static ArrayList<String> inferSamplingOrder(HashMap<String, HashMap<String, ArrayList<String>>> graph) {
         ArrayList<String> samplingOrder = new ArrayList<>(graph.size());
         HashSet<String> added_set = new HashSet<>();
 
         // parentsOf has the parents of a given variable
-        HashMap<String, HashSet<String>> parentsOf = new HashMap<>();
-        for(String var : graph.keySet()) {
-            ArrayList<String> children = graph.get(var);
+        HashMap<String, HashSet<String>> probParentsOf = new HashMap<>();
+        HashMap<String, HashSet<String>> detParentsOf = new HashMap<>();
 
-            if(!parentsOf.containsKey(var)) {
-                parentsOf.put(var, new HashSet<>());
+        for(String var : graph.keySet()) {
+            ArrayList<String> probChildren = graph.get(var).get("probabilistic");
+            ArrayList<String> detChildren = graph.get(var).get("deterministic");
+
+            if(!probParentsOf.containsKey(var)) {
+                probParentsOf.put(var, new HashSet<>());
+            }
+            if(!detParentsOf.containsKey(var)) {
+                detParentsOf.put(var, new HashSet<>());
             }
 
-            for(String child : children) {
+            for(String child : probChildren) {
                 HashSet<String> toAdd;
-                if(parentsOf.containsKey(child)) {
-                    toAdd = parentsOf.get(child);
+                if(probParentsOf.containsKey(child)) {
+                    toAdd = probParentsOf.get(child);
                 } else {
                     toAdd = new HashSet<>();
                 }
                 toAdd.add(var);
-                parentsOf.put(child, toAdd);
+                probParentsOf.put(child, toAdd);
+            }
+
+            for(String child : detChildren) {
+                HashSet<String> toAdd;
+                if(detParentsOf.containsKey(child)) {
+                    toAdd = detParentsOf.get(child);
+                } else {
+                    toAdd = new HashSet<>();
+                }
+                toAdd.add(var);
+                detParentsOf.put(child, toAdd);
             }
         }
 
@@ -251,27 +273,35 @@ public class DependencyNetwork {
             ArrayList<String> added_now = new ArrayList<>();
 
             String best_candidate = null;
-            int best_missing_parents = Integer.MAX_VALUE;
+            int best_missing_prob = Integer.MAX_VALUE;
+            int best_missing_det = Integer.MAX_VALUE;
             int best_voting = 0;
 
             boolean addedAny = false;
             for(String var : shuffableVariables) {
-                Set<String> alreadyAddedParents = new HashSet<>();
-                alreadyAddedParents.addAll(parentsOf.get(var));
-                alreadyAddedParents.retainAll(added_set);
+                Set<String> alreadyAddedProbParents = new HashSet<>(probParentsOf.get(var));
+                Set<String> alreadyAddedDetParents = new HashSet<>(detParentsOf.get(var));
+                alreadyAddedProbParents.retainAll(added_set);
+                alreadyAddedDetParents.retainAll(added_set);
 
-                int missing_parents = parentsOf.get(var).size() - alreadyAddedParents.size();
+                int missing_prob_parents = probParentsOf.get(var).size() - alreadyAddedProbParents.size();
+                int missing_det_parents = detParentsOf.get(var).size() - alreadyAddedDetParents.size();
 
                 // if there are no missing parents, add right away
-                if(missing_parents == 0) {
+                if(missing_prob_parents == 0 && missing_det_parents == 0) {
                     addedAny = true;
                     samplingOrder.add(var);
                     added_set.add(var);
                     added_now.add(var);
-                } else if((missing_parents < best_missing_parents) && (parentsOf.get(var).size() >= best_voting)) {
-                    best_missing_parents = missing_parents;
-                    best_candidate = var;
-                    best_voting = parentsOf.get(var).size();
+                } else if(missing_det_parents < best_missing_det) {
+                    if(missing_prob_parents < best_missing_prob) {
+                        if((probParentsOf.get(var).size() + detParentsOf.get(var).size()) > best_voting) {
+                            best_missing_prob = missing_prob_parents;
+                            best_missing_det = missing_det_parents;
+                            best_candidate = var;
+                            best_voting = probParentsOf.get(var).size() + detParentsOf.get(var).size();
+                        }
+                    }
                 }
             }
             // will have to make sacrifices
@@ -280,7 +310,6 @@ public class DependencyNetwork {
                 added_set.add(best_candidate);
                 added_now.add(best_candidate);
             }
-
             shuffableVariables.removeAll(added_now);
         }
         return samplingOrder;
@@ -346,10 +375,11 @@ public class DependencyNetwork {
     /**
      * Samples a single individual.
      *
-     * @return A new individual, in the format of a dictionary of characteristics.
+     * @return A HashMap with two items: the updated lastStart point in the solution space, and the option table
+     *         generated for the sampled individual.
      * @throws Exception IF any exception occurs
      */
-    private HashMap<String, String> sampleIndividual() throws Exception {
+    private HashMap<String, HashMap<String, String>> sampleIndividual(HashMap<String, String> lastStart) throws Exception {
         HashMap<String, String> optionTable = new HashMap<>();
 
         for(String variableName : this.samplingOrder) {
@@ -407,14 +437,17 @@ public class DependencyNetwork {
                 }
             }
         }
-        return optionTable;
+        HashMap<String, HashMap<String, String>> components = new HashMap<>();
+        components.put("lastStart", lastStart);
+        components.put("optionTable", optionTable);
+
+        return components;
     }
 
     public HashMap<String, Object[]> gibbsSample(HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed) throws Exception {
         Individual[] individuals = new Individual[sampleSize];
         Double[] fitnesses = new Double[sampleSize];
 
-        this.lastStart = lastStart;
         this.currentGenEvals = 0;
 
         int outerCounter = 0;
@@ -423,17 +456,20 @@ public class DependencyNetwork {
         // burns some individuals
         for(int i = 0; i < burn_in; i++) {
             // updates currentLastStart and currentOptionTable
-            this.sampleIndividual();
+            HashMap<String, HashMap<String, String>> components = this.sampleIndividual(lastStart);
+            lastStart = components.get("lastStart");
         }
         this.currentGenDiscardedIndividuals = burn_in;
 
         while(individualCounter < sampleSize) {
-            HashMap<String, String> optionTable = this.sampleIndividual();
+            HashMap<String, HashMap<String, String>> components = this.sampleIndividual(lastStart);
+            HashMap<String, String> optionTable = components.get("optionTable");
+            lastStart = components.get("lastStart");
             outerCounter += 1;
 
             try {
                 if(outerCounter >= this.thinning_factor) {
-                    Individual individual = new Individual(optionTable, this.lastStart);
+                    Individual individual = new Individual(optionTable, lastStart);
                     fitnesses[individualCounter] = fc.evaluateEnsemble(seed, individual);
                     individuals[individualCounter] = individual;
 
@@ -448,7 +484,6 @@ public class DependencyNetwork {
                 this.currentGenDiscardedIndividuals += 1;
             }
         }
-        this.lastStart = null;
 
         return new HashMap<String, Object[]>(){{
             put("population", individuals);
@@ -744,15 +779,13 @@ public class DependencyNetwork {
         Collections.shuffle(this.samplingOrder);  // adds randomness to the process
 
         for(String variableName : this.samplingOrder) {
-            HashSet<String> candSet = new HashSet<>();
-            candSet.addAll(this.variables.keySet());  // candidates to be parents of a variable
+            HashSet<String> candSet = new HashSet<>(this.variables.keySet());  // candidates to be parents of a variable
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
             candSet.removeAll(this.variables.get(variableName).getDeterministicParents());  // removes deterministic parents
+
             // removes deterministic children of this variable
-            for(String child : graph.get(variableName)) {
-                if(this.variables.get(child).getDeterministicParents().contains(variableName)) {
-                    candSet.remove(child);
-                }
+            for(String child : graph.get(variableName).get("deterministic")) {
+                candSet.remove(child);
             }
 
             // probabilistic parent set starts empty
@@ -790,9 +823,11 @@ public class DependencyNetwork {
                     probParentSet.add(bestCandidate);
                     candSet.remove(bestCandidate);
 
-                    ArrayList<String> updatedChildren = this.graph.get(bestCandidate);
+                    HashMap<String, ArrayList<String>> temp = this.graph.get(bestCandidate);
+                    ArrayList<String> updatedChildren = temp.get("probabilistic");
                     updatedChildren.add(variableName);
-                    this.graph.put(bestCandidate, updatedChildren);
+                    temp.put("probabilistic", updatedChildren);
+                    this.graph.put(bestCandidate, temp);
                 }
             }
 
@@ -823,14 +858,18 @@ public class DependencyNetwork {
      * @param child Child variable
      * @return true if introduces cycle, false otherwise
      */
-    private static boolean doesItInsertCycle(String parent, String child, HashMap<String, ArrayList<String>> graph) {
+    private static boolean doesItInsertCycle(String parent, String child, HashMap<String, HashMap<String, ArrayList<String>>> graph) {
         HashSet<String> visited = new HashSet<>();
         visited.add(parent);
         visited.add(child);
 
         Stack<String> stack = new Stack<>();
-        stack.addAll(graph.get(parent));
-        stack.addAll(graph.get(child));
+
+        String[] childrenType = new String[]{"deterministic", "probabilistic"};
+        for(String childType : childrenType) {
+            stack.addAll(graph.get(parent).get(childType));
+            stack.addAll(graph.get(child).get(childType));
+        }
 
         while(stack.size() > 0) {
             String current = stack.pop();
@@ -839,12 +878,14 @@ public class DependencyNetwork {
             }
             visited.add(current);
 
-            ArrayList<String> next = graph.get(current);
-            for(String item : next) {
-                if(visited.contains(item)) {
-                    return true;
-                } else {
-                    stack.addAll(graph.get(item));
+            for(String childType : childrenType) {
+                ArrayList<String> next = graph.get(current).get(childType);
+                for(String item : next) {
+                    if(visited.contains(item)) {
+                        return true;
+                    } else {
+                        stack.addAll(graph.get(item).get(childType));
+                    }
                 }
             }
         }

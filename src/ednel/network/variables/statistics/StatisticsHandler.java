@@ -1,17 +1,17 @@
-package ednel.network.variables;
+package ednel.network.variables.statistics;
 
 import ednel.utils.Combination;
 
 import java.util.*;
 
-public class BivariateStatistics {
+public class StatisticsHandler {
 
     /** Bivariate conditional probabilities */
     protected HashMap<String, HashMap<Combination, Double>> oldBivariateStatistics;
 
     protected String variable_name;
     
-    public BivariateStatistics(
+    public StatisticsHandler(
             String variable_name,
             HashMap<String, HashMap<String, ArrayList<Integer>>> table,
             ArrayList<Double> probabilities, HashSet<String> det_parents

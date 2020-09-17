@@ -1,16 +1,14 @@
 package ednel.network.variables;
 
+import ednel.network.variables.statistics.StatisticsHandler;
 import ednel.utils.Combination;
 import ednel.utils.CombinationNotPresentException;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.exception.MathArithmeticException;
 import org.apache.commons.math3.exception.NotANumberException;
 import org.apache.commons.math3.random.MersenneTwister;
-import smile.neighbor.lsh.Hash;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -43,7 +41,7 @@ public class AbstractVariable {
 
     private HashSet<Integer> all_indices;
 
-    protected BivariateStatistics bs;
+    protected StatisticsHandler bs;
 
     public AbstractVariable(
             String name, HashMap<String, HashMap<String, ArrayList<Integer>>> table,
@@ -73,7 +71,7 @@ public class AbstractVariable {
             throw new Exception("Dependency Network must start with at most one deterministic parent!");
         }
 
-        this.bs = new BivariateStatistics(this.getName(), this.table, this.probabilities, this.det_parents);
+        this.bs = new StatisticsHandler(this.getName(), this.table, this.probabilities, this.det_parents);
 
         this.indices = new ArrayList<>(this.probabilities.size());
         for(String value : values) {
@@ -408,9 +406,6 @@ public class AbstractVariable {
                 currFittestValues, this.all_parents, this.det_parents, this.table
         );
 
-//        HashSet<String> oldParents = new HashSet<>();
-//        oldParents.addAll(this.bs.getOldBivariateStatistics().keySet());
-//        oldParents.remove(this.getName());
         HashSet<String> newParents = new HashSet<>();
         newParents.addAll(newBivariateStatistics.keySet());
         newParents.remove(this.getName());

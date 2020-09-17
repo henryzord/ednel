@@ -15,18 +15,20 @@ import java.util.*;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
 
-    public J48 j48;
-    public SimpleCart simpleCart;
-    public PART part;
-    public JRip jrip;
-    public DecisionTable decisionTable;
-    public Aggregator aggregator;
+    protected J48 j48;
+    protected SimpleCart simpleCart;
+    protected PART part;
+    protected JRip jrip;
+    protected DecisionTable decisionTable;
+    protected Aggregator aggregator;
 
-    public String aggregatorName;
+    protected String aggregatorName;
 
+    /** Number of classifiers currently being used by this ensemble. */
     protected int n_active_classifiers;
     protected Instances train_data;
 
+    /** Array of characteristics of this individual. May contain null values. */
     protected HashMap<String, String> characteristics = null;
 
     protected HashMap<String, AbstractClassifier> classifiers;
@@ -81,9 +83,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         String[] options = new String [optionTable.size() * 2];
         HashSet<String> algNames = new HashSet<>();
         algNames.addAll(optionTable.keySet());
-//        algNames.remove("BestFirst");
-//        algNames.remove("GreedyStepwise");
-//        algNames.remove("DecisionTable");
 
         int counter = 0;
         for(String algName : algNames) {
@@ -92,20 +91,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             options[counter + 1] =  String.valueOf(curVal).equals("null")? "" : curVal;
             counter += 2;
         }
-        // process decision table
-//        options[counter] = "-" + "DecisionTable";
-//        if(characteristics.get("DecisionTable").equals("true")) {
-//            counter += 1;
-//            String[] dtOptions = optionTable.get("DecisionTable").split(" ");
-//            String searchAlg_full = Utils.getOption("S", dtOptions);
-//            String searchAlg_short = searchAlg_full.split("\\.")[2];
-//
-//            options[counter] = (" " + String.join(" ", dtOptions).trim() +
-//                    " -S " + searchAlg_full + " " + optionTable.getOrDefault(searchAlg_short, "")).trim();
-//        }
 
         this.setOptions(options);
-//        this.buildClassifier(train_data);
     }
 
     public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
@@ -135,16 +122,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.setOptions(options);
         this.buildClassifier(train_data);
     }
-
-//    public String[][] getClassifiersNames() {
-//        return new String[][]{
-//            {"j48", "J48", "Lweka/eda.classifiers/trees/J48;"},
-//            {"simpleCart", "SimpleCart", "Lweka/eda.classifiers/trees/SimpleCart;"},
-//            {"part", "PART", "Lweka/eda.classifiers/rules/PART;"},
-//            {"jrip", "JRip", "Lweka/eda.classifiers/rules/JRip;"},
-//            {"decisionTable", "DecisionTable", "Lweka/eda.classifiers/rules/DecisionTable;"}
-//        };
-//    }
 
     public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
         if(Individual.aggregatorClasses == null) {
@@ -327,15 +304,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         options.add(String.join(" ", aggregator.getOptions()));
 
         String[] strOptions = options.toArray(new String[options.size()]);
-
         return strOptions;
     }
 
     public HashMap<String, AbstractClassifier> getClassifiers() {
         return classifiers;
     }
-
-
 
     @Override
     public String toString() {
