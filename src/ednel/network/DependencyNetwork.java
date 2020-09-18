@@ -6,6 +6,7 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.eda.individual.NoAggregationPolicyException;
 import ednel.network.variables.AbstractVariable;
+import org.apache.commons.io.input.TailerListener;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -27,7 +28,6 @@ import static java.lang.Math.log;
 public class DependencyNetwork {
     private final double learningRate;
 
-    private JSONObject options;
     private HashMap<String, AbstractVariable> variables;
 
     /** A dictionary of dictionaries. Each key is a variable, and each value another dictionary. In this second dictionary,
@@ -56,6 +56,7 @@ public class DependencyNetwork {
     private HashMap<String, ArrayList<String>> lastFittestValues;
 
     private boolean no_cycles;
+    private OptionHandler optionHandler;
 
     public DependencyNetwork(
             MersenneTwister mt, int burn_in, int thinning_factor, boolean no_cycles,
@@ -323,19 +324,8 @@ public class DependencyNetwork {
     private void readVariablesFromFiles() throws Exception {
         this.currentGenConnections = 0;
 
-        JSONParser jsonParser = new JSONParser();
-        // method for reading from path
-//        this.options = (JSONObject)jsonParser.parse(new FileReader(resources_path + File.separator + "options.json"));
-
         // method for reading from same jar
-        InputStream stream_options = this.getClass().getClassLoader().getResourceAsStream("options.json");
-        this.options = (JSONObject)jsonParser.parse(
-                new BufferedReader(
-                        new InputStreamReader(
-                                stream_options,
-                                StandardCharsets.UTF_8)
-                )
-        );
+        this.optionHandler = new OptionHandler();
 
         Reflections reflections = new Reflections("distributions", new ResourcesScanner());
         Set<String> variablePaths = reflections.getResources(x -> true);
@@ -346,30 +336,6 @@ public class DependencyNetwork {
             this.variables.put(variable.getName(), variable);
             this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
         }
-
-
-//        for(int i = 0; i < algorithmsPaths.length; i++) {
-////            Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
-//            File[] variablePaths = new File(algorithmsPaths[i].getPath()).listFiles();
-//
-
-//        }
-
-        // TODO previous method
-//        Object[] algorithmsPaths = Files.list(
-//                new File(resources_path + File.separator + "distributions").toPath()
-//        ).toArray();
-//
-//        for(int i = 0; i < algorithmsPaths.length; i++) {
-//            Object[] variablePaths = Files.list(new File(algorithmsPaths[i].toString()).toPath()).toArray();
-//
-//            for(Object variablePath : variablePaths) {
-//                AbstractVariable variable = AbstractVariable.fromPath(variablePath.toString(), this.mt);
-//
-//                this.variables.put(variable.getName(), variable);
-//                this.currentGenConnections += this.variables.get(variable.getName()).getParentCount();
-//            }
-//        }
     }
 
     /**
@@ -388,53 +354,7 @@ public class DependencyNetwork {
 
             if(!String.valueOf(sampledValue).equals("null")) {
                 String algorithmName = this.variables.get(variableName).getAlgorithmName();
-
-                JSONObject optionObj = (JSONObject)options.getOrDefault(variableName, null);
-                if(optionObj == null) {
-                    String algorithmOptions = optionTable.getOrDefault(algorithmName, "");
-
-                    // if algorithm options is expecting a sampled value
-                    // from this variable, replace it in the options string
-                    if(algorithmOptions.contains(variableName)) {
-                        optionTable.put(algorithmName, algorithmOptions.replace(variableName, sampledValue));
-                    }
-
-                    optionObj = (JSONObject)options.getOrDefault(sampledValue, null);
-                }
-
-                // checks whether this is an option
-                if(optionObj != null) {
-                    Boolean presenceMeans = (Boolean)optionObj.get("presenceMeans");
-                    String optionName = String.valueOf(optionObj.get("optionName"));
-                    String dtype = String.valueOf(optionObj.get("dtype"));
-
-                    if(dtype.equals("np.bool")) {
-                        if(String.valueOf(sampledValue).toLowerCase().equals("false")) {
-                            if(!presenceMeans) {
-                                optionTable.put(algorithmName, (optionTable.getOrDefault(algorithmName, "") + " " + optionName).trim());
-                            }
-                        }
-                        if(String.valueOf(sampledValue).toLowerCase().equals("true")) {
-                            if(presenceMeans) {
-                                optionTable.put(algorithmName, (optionTable.getOrDefault(algorithmName, "") + " " + optionName).trim());
-                            }
-                        }
-                    } else if(dtype.equals("dict")) {
-                        JSONObject dict = (JSONObject)((new JSONParser()).parse(optionName));
-
-                        optionTable.put(
-                                algorithmName, (
-                                        optionTable.getOrDefault(algorithmName, "") + " " + dict.get(sampledValue)
-                                ).trim()
-                        );
-                    } else {
-                        optionTable.put(
-                                algorithmName, (
-                                        optionTable.getOrDefault(algorithmName, "") + " " + optionName + " " + sampledValue
-                                ).trim()
-                        );
-                    }
-                }
+                optionTable = this.optionHandler.handle(optionTable, variableName, algorithmName, sampledValue);
             }
         }
         HashMap<String, HashMap<String, String>> components = new HashMap<>();
@@ -529,10 +449,12 @@ public class DependencyNetwork {
         return combinations;
     }
 
-    public void update(Individual[] population, Integer[] sortedIndices, float selectionShare, int generation) throws Exception {
+    /**
+     * collects data from fittest individuals
+     */
+    private HashMap<String, ArrayList<String>> getFittestIndividualsValues(float selectionShare, Integer[] sortedIndices, Individual[] population) {
         int to_select = Math.round(selectionShare * sortedIndices.length);
 
-        // collects data from fittest individuals
         Individual[] fittestIndividuals = new Individual[to_select];
         for(int i = 0; i < to_select; i++) {
             fittestIndividuals[i] = population[sortedIndices[i]];
@@ -547,6 +469,11 @@ public class DependencyNetwork {
                 currFittestValues.get(var).add(fit.getCharacteristics().get(var));
             }
         }
+        return currFittestValues;
+    }
+
+    public void update(Individual[] population, Integer[] sortedIndices, float selectionShare, int generation) throws Exception {
+        HashMap<String, ArrayList<String>> currFittestValues = this.getFittestIndividualsValues(selectionShare, sortedIndices, population);
 
         for(String var : this.samplingOrder) {
             ArrayList<String> values = this.bufferStructureLearning.getOrDefault(var, new ArrayList<>());
@@ -555,7 +482,7 @@ public class DependencyNetwork {
         }
 
         // only updates structure if there is a previous fittest population
-        if(generation > 0 && (generation % this.delay_structure_learning) == 0) {
+        if(generation > 0 && ((this.delay_structure_learning <= 1) || (generation % this.delay_structure_learning) == 0)) {
             this.updateStructure(this.bufferStructureLearning);
             this.bufferStructureLearning = new HashMap<>();
         }
@@ -566,6 +493,15 @@ public class DependencyNetwork {
         this.samplingOrder = DependencyNetwork.inferSamplingOrder(this.graph);
     }
 
+    /**
+     * Updates probabilities of this Dependency Network, using the pre-established structure (whether learnt in this
+     * generation or not).
+     * @param currFittestValues A HashMap where each key is a variable name and each value the array of values from the
+     *                          current sub-population of fittest individuals.
+     * @param lastFittestValues A HashMap where each key is a variable name and each value the array of values from the
+     *                          previous sub-population of fittest individuals.
+     * @throws Exception If any exceptions occurs.
+     */
     public void updateProbabilities(
             HashMap<String, ArrayList<String>> currFittestValues,
             HashMap<String, ArrayList<String>> lastFittestValues

@@ -107,78 +107,45 @@ public class AbstractVariable {
     }
 
     /**
-     * For each entry in the probabilities attribute in this object, writes the combination of probabilistic parents
-     * parents/this variable values (in this order) that is associated with that probability.
-     */
-//    protected void initVariablesCombinations() {
-//        int n_combinations = 1;
-//        for(String val : this.table.keySet()) {
-//            n_combinations *= this.table.get(val).size();
-//        }
-//
-//        this.variablesCombinations = new String [n_combinations];
-//        Arrays.fill(this.variablesCombinations, "");
-//        this.addToVariablesCombinations(this.prob_parents);
-//        this.addToVariablesCombinations(new HashSet<String>(){{
-//            add(name);
-//        }});
-//    }
-//
-//    private void addToVariablesCombinations(HashSet<String> variables) {
-//        for(String parent : variables) {
-//            for(String val : this.table.get(parent).keySet()) {
-//                Iterator<Integer> iter = this.table.get(parent).get(val).iterator();
-//                while(iter.hasNext()) {
-//                    this.variablesCombinations[iter.next()] += val + ",";
-//                }
-//            }
-//        }
-//    }
-
-    /**
      * Samples a new value for this variable, based on conditions.
      *
      * @param lastStart Last values from Dependency Network.
      * @return A new value for this variable.
      */
-    public String conditionalSampling(HashMap<String, String> lastStart) {
-
+    public String conditionalSampling(HashMap<String, String> lastStart) throws CombinationNotPresentException {
         // tries to sample a value given probabilistic parent values.
         // if probabilistic parents are absents from current sample, samples an unconditional value
-        try {
-            int[] indices = this.getArrayOfIndices(
-                    this.table, lastStart,null,false, this.getAllParents()
-            );
 
-            double[] localProbs = new double [indices.length];
-            for(int i = 0; i < localProbs.length; i++) {
-                localProbs[i] = probabilities.get(indices[i]);
+        // killer move: checks first for deterministic parents. if any is null, then automatically returns null
+        for(String detParent : this.getDeterministicParents()) {
+            if(String.valueOf(lastStart.get(detParent)).equals("null")) {
+                return null;
             }
-            // samples values based on probabilities
-            try {
-                EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
-                String value = this.uniqueValues.get(this.indices.get(localDist.sample()));
-                if(!String.valueOf(value).equals("null")) {
-                    return value;
-                }
-            } catch(MathArithmeticException mae) {
-                System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
-                System.out.println("probabilistic parents: ");
-                for(String parent : this.prob_parents) {
-                    System.out.println("\t" + parent + " value: " + lastStart.get(parent));
-                }
-                throw mae;
-            } catch(NotANumberException nne) {
-//                return null;
-                System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
-                System.out.println("probabilistic parents: ");
-                for(String parent : this.prob_parents) {
-                    System.out.println("\t" + parent + " value: " + lastStart.get(parent));
-                }
-                throw nne;
+        }
+
+        // otherwise, samples value from probabilistic variables
+        int[] indices = this.getArrayOfIndices(
+                this.table, lastStart,null,false, this.getAllParents()
+        );
+
+        double[] localProbs = new double [indices.length];
+        for(int i = 0; i < localProbs.length; i++) {
+            localProbs[i] = probabilities.get(indices[i]);
+        }
+        // samples values based on probabilities
+        try {
+            EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
+            String value = this.uniqueValues.get(this.indices.get(localDist.sample()));
+            if(!String.valueOf(value).equals("null")) {
+                return value;
             }
-        } catch(CombinationNotPresentException cnp) {  // probabilistic parent combination of values not present
-            return null;  // returns null value
+        } catch(MathArithmeticException | NotANumberException mae) {
+            System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
+            System.out.println("probabilistic parents: ");
+            for(String parent : this.prob_parents) {
+                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+            }
+            throw mae;
         }
         return null;
     }
@@ -262,8 +229,7 @@ public class AbstractVariable {
             HashSet<String> allParents
     ) throws CombinationNotPresentException {
 
-        HashSet<Integer> intersection = new HashSet<>();
-        intersection.addAll(this.all_indices);
+        HashSet<Integer> intersection = new HashSet<>(this.all_indices);
 
         ArrayList<Integer> localIndices;
         for (Iterator<String> it = allParents.iterator(); it.hasNext(); ) {
@@ -392,30 +358,37 @@ public class AbstractVariable {
     }
 
     /**
-     * Update probabilities of this Variable based on the fittest population of a generation.
+     * Updates probabilities of this variable, based on the relationship it has with its parents (both deterministic and
+     * probabilistic ones). Will not update conditional probabilities on deterministic parents.
      *
-     * @param currFittestValues Fittest individuals from the current population
-     * @throws Exception If any exception occurs
+     * @param currFittestValues A HashMap where each key is a variable name and each value the array of values from the
+     *                          current sub-population of fittest individuals.
+     * @param lastFittestValues A HashMap where each key is a variable name and each value the array of values from the
+     *                          previous sub-population of fittest individuals.
+     * @throws Exception If any exceptions occurs.
      */
     public void updateProbabilities(
             HashMap<String, ArrayList<String>> currFittestValues,
             HashMap<String, ArrayList<String>> lastFittestValues,
             double learningRate) throws Exception {
 
+        // collects bivariate statistics between child variable and all of its parents from the current fittest population
         HashMap<String, HashMap<Combination, Double>> newBivariateStatistics = this.bs.getBivariateStatisticsFromPopulation(
-                currFittestValues, this.all_parents, this.det_parents, this.table
+                currFittestValues, this.all_parents, this.prob_parents, this.det_parents, this.table
         );
 
-        HashSet<String> newParents = new HashSet<>();
-        newParents.addAll(newBivariateStatistics.keySet());
+        HashSet<String> newParents = new HashSet<>(newBivariateStatistics.keySet());
         newParents.remove(this.getName());
 
         // updates bivariate statistics, as well as univariate statistics, with learning rate
-        newBivariateStatistics = this.bs.updateWithLearningRate(
-                this.det_parents, newParents, learningRate,
-                this.uniqueValues, lastFittestValues,
-                newBivariateStatistics, this.table
-        );
+        // but only if learning rate is different from 1
+        if(Math.abs(1 - learningRate) < 0.01) {
+            newBivariateStatistics = this.bs.updateStatisticsWithLearningRate(
+                    this.det_parents, newParents, learningRate,
+                    this.uniqueValues, lastFittestValues,
+                    newBivariateStatistics, this.table
+            );
+        }
 
         this.probabilities = new ArrayList<>(this.n_combinations);
         for(int i = 0; i < this.n_combinations; i++) {
