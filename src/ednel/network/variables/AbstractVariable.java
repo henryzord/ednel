@@ -140,10 +140,10 @@ public class AbstractVariable {
                 return value;
             }
         } catch(MathArithmeticException | NotANumberException mae) {
-            System.out.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
-            System.out.println("probabilistic parents: ");
+            System.err.println("Variable: " + this.name + " value: " + lastStart.get(this.name));
+            System.err.println("probabilistic parents: ");
             for(String parent : this.prob_parents) {
-                System.out.println("\t" + parent + " value: " + lastStart.get(parent));
+                System.err.println("\t" + parent + " value: " + lastStart.get(parent));
             }
             throw mae;
         }
@@ -374,17 +374,14 @@ public class AbstractVariable {
 
         // collects bivariate statistics between child variable and all of its parents from the current fittest population
         HashMap<String, HashMap<Combination, Double>> newBivariateStatistics = this.bs.getBivariateStatisticsFromPopulation(
-                currFittestValues, this.all_parents, this.prob_parents, this.det_parents, this.table
+                currFittestValues, this.prob_parents, this.det_parents, this.table
         );
-
-        HashSet<String> newParents = new HashSet<>(newBivariateStatistics.keySet());
-        newParents.remove(this.getName());
 
         // updates bivariate statistics, as well as univariate statistics, with learning rate
         // but only if learning rate is different from 1
-        if(Math.abs(1 - learningRate) < 0.01) {
+        if(Math.abs(1 - learningRate) > 0.01) {
             newBivariateStatistics = this.bs.updateStatisticsWithLearningRate(
-                    this.det_parents, newParents, learningRate,
+                    this.prob_parents, learningRate,
                     this.uniqueValues, lastFittestValues,
                     newBivariateStatistics, this.table
             );
@@ -395,7 +392,7 @@ public class AbstractVariable {
             this.probabilities.add(-1.0);
         }
 
-        if(newParents.size() == 0) {
+        if((this.prob_parents.size() == 0) && (this.det_parents.size() == 0)) {
             HashMap<Combination, Double> local = newBivariateStatistics.get(this.getName());
 
             for(Combination comb : local.keySet()) {
@@ -421,8 +418,7 @@ public class AbstractVariable {
                 HashMap<String, Integer> childValueIndex = new HashMap<>();
 
                 for(String childVal : this.uniqueValues) {
-                    HashSet<Integer> indices = new HashSet<>();
-                    indices.addAll(parentCombinations.get(combination));
+                    HashSet<Integer> indices = new HashSet<>(parentCombinations.get(combination));
                     indices.retainAll(this.table.get(this.getName()).get(childVal));
                     if(indices.size() != 1) {
                         throw new Exception("unexpected behavior!");
@@ -436,14 +432,12 @@ public class AbstractVariable {
                         pair.put(parent, combination.get(parent));
 
                         double bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));
+
                         if(Double.isNaN(bivariateProb)) {
                             bivariateProb = 0.0;  // will only be used if laplace correction is set to false
                         }
 
-                        shadowProb.set(
-                                childValueIndex.get(childVal),
-                                shadowProb.get(childValueIndex.get(childVal)) * bivariateProb
-                        );
+                        shadowProb.set(index, shadowProb.get(index) * bivariateProb);
                     }
                 }
                 double sum = 0.0;

@@ -103,7 +103,7 @@ public class StatisticsHandler {
      */
     public HashMap<String, HashMap<Combination, Double>> getBivariateStatisticsFromPopulation(
             HashMap<String, ArrayList<String>> fittestValues,
-            HashSet<String> all_parents, HashSet<String> prob_parents, HashSet<String> det_parents,
+            HashSet<String> prob_parents, HashSet<String> det_parents,
             HashMap<String, HashMap<String, ArrayList<Integer>>> table
     ) {
 
@@ -113,20 +113,20 @@ public class StatisticsHandler {
         HashMap<Combination, Double> uni_local = this.initializeCombinationsOfValues(null, null, table, null);
         newBivariateStatistics.put(this.variable_name, uni_local);
 
-        // does not update bivariate statistics for deterministic parents; just copies values
-        for(String parentName : det_parents) {
-            newBivariateStatistics.put(parentName, this.oldBivariateStatistics.get(parentName));
-        }
+        HashSet<String> all_parents = new HashSet<>(det_parents);
+        all_parents.addAll(prob_parents);
 
-        // adds bivariate statistics: creates dictionaries of combinations and counts
-        for(String parentName : prob_parents) {
+        // creates dictionaries of combinations and counts
+        for(String parentName : all_parents) {
             HashSet<String> parentValues = new HashSet<>(table.get(parentName).keySet());
             HashMap<Combination, Double> local = this.initializeCombinationsOfValues(parentName, parentValues, table, det_parents.contains(parentName));
             newBivariateStatistics.put(parentName, local);
         }
 
-        newBivariateStatistics = this.collectFittestIndividualCounts(fittestValues, prob_parents, newBivariateStatistics, true);
-        newBivariateStatistics = this.normalizeProbabilities(prob_parents, newBivariateStatistics, true);
+        // collects statistics from population
+        newBivariateStatistics = this.collectFittestIndividualCounts(fittestValues, all_parents, newBivariateStatistics, true);
+        // normalizes distributions
+        newBivariateStatistics = this.normalizeProbabilities(all_parents, newBivariateStatistics, true);
 
         return newBivariateStatistics;
     }
@@ -146,26 +146,61 @@ public class StatisticsHandler {
             String parentName, HashSet<String> parentValues, HashMap<String, HashMap<String, ArrayList<Integer>>> table, Boolean isAdeterministicParent) {
         HashMap<Combination, Double> local = new HashMap<>();
 
-        HashSet<String> childValues = new HashSet<>();
-        childValues.addAll(table.get(this.variable_name).keySet());
+        HashSet<String> childValues = new HashSet<>(table.get(this.variable_name).keySet());
 
+        // uses laplace correction to prevent zero distributions
         if(parentName != null) {
-            // TODO testing this!!!
-            double addValue = isAdeterministicParent? 0 : 1;
-
             for(String parentVal : parentValues) {
                 for(String childVal : childValues) {
                     HashMap<String, String> pairs = new HashMap<>();
                     pairs.put(this.variable_name, childVal);
                     pairs.put(parentName, parentVal);
-                    local.put(new Combination(pairs), addValue);  // TODO using laplace correction!
+
+                    if(isAdeterministicParent) {
+                        if(String.valueOf(parentVal).equals("null") || String.valueOf(parentVal).equals("false")) {
+                           if(String.valueOf(childVal).equals("null")) {
+                               local.put(new Combination(pairs), 1.0);
+                           } else {
+                               local.put(new Combination(pairs), 0.0);
+                           }
+                        } else {
+                            local.put(new Combination(pairs), 1.0);
+                        }
+                    } else {
+                        local.put(new Combination(pairs), 1.0);
+                    }
+//                    if(String.valueOf(parentVal).equals("null") || String.valueOf(parentVal).equals("false")) {
+//                        if(String.valueOf(childVal).equals("null")) {
+//                            if(isAdeterministicParent) {
+//                                local.put(new Combination(pairs), 1.0);
+//                            } else {
+//                                local.put(new Combination(pairs), 0.0);
+//                            }
+//                        } else if(isAdeterministicParent) {
+//                            local.put(new Combination(pairs), 0.0);
+//                        } else {
+//                            local.put(new Combination(pairs), 1.0);
+//                        }
+//                    } else if(String.valueOf(childVal).equals("null")) {
+//                        if(isAdeterministicParent) {
+//                            local.put(new Combination(pairs), 0.0);
+//                        } else {
+//                            local.put(new Combination(pairs), 1.0);
+//                        }
+//                    } else {
+//                        local.put(new Combination(pairs), 1.0);
+//                    }
                 }
             }
         } else {
             for(String childVal : childValues) {
                 HashMap<String, String> pairs = new HashMap<>();
                 pairs.put(this.variable_name, childVal);
-                local.put(new Combination(pairs), 1.0);  // TODO using laplace correction!
+                if(String.valueOf(childVal).equals("null")) {
+                    local.put(new Combination(pairs), 0.0);
+                } else {
+                    local.put(new Combination(pairs), 1.0);
+                }
             }
         }
         return local;
@@ -234,14 +269,15 @@ public class StatisticsHandler {
             Set<Combination> combinations = bivariateStatistics.get(probParent).keySet();
 
             for(Combination comb : combinations) {
-                if(String.valueOf(comb.getPairs().get(probParent)).equals("null")) {
+                if(String.valueOf(comb.getPairs().get(probParent)).equals("null") &&
+                        !String.valueOf(comb.getPairs().get(this.variable_name)).equals("null")) {
+
                     HashMap<String, String> pair = new HashMap<>();
                     pair.put(this.variable_name, comb.getPairs().get(this.variable_name));
-
                     Double freq = bivariateStatistics.get(this.variable_name).get(new Combination(pair));
 
                     HashMap<Combination, Double> local = bivariateStatistics.get(probParent);
-                    local.put(comb, freq);
+                    local.put(comb, local.get(comb) + freq);
                     bivariateStatistics.put(probParent, local);
                 }
             }
@@ -307,7 +343,6 @@ public class StatisticsHandler {
     /**
      * Updates statistics (both bivariate and univariate) with learning rate.
      *
-     * @param newParents
      * @param learningRate
      * @param childUniqueValues
      * @param newBivariateStatistics
@@ -316,8 +351,7 @@ public class StatisticsHandler {
      * @throws Exception
      */
     public HashMap<String, HashMap<Combination, Double>> updateStatisticsWithLearningRate(
-            HashSet<String> det_parents,
-            HashSet<String> newParents,
+            HashSet<String> probParents,
             double learningRate,
             ArrayList<String> childUniqueValues,
             HashMap<String, ArrayList<String>> lastFittestValues,
@@ -328,20 +362,16 @@ public class StatisticsHandler {
         HashMap<Combination, Double> oldLocal = this.oldBivariateStatistics.get(this.variable_name);
         HashMap<Combination, Double> newLocal = newBivariateStatistics.get(this.variable_name);
 
-        HashSet<String> prob_parents = new HashSet<>();
-        prob_parents.addAll(newParents);
-        prob_parents.removeAll(det_parents);
-
         // updates univariate statistics
         newBivariateStatistics.put(
                 this.variable_name,
                 this.updateUnivariateWithLearningRate(childUniqueValues, learningRate, oldLocal, newLocal)
         );
 
-        if(newParents.size() > 0) {
+        if(probParents.size() > 0) {
             // updates bivariate statistics using learning rate
             HashMap<String, HashMap<Combination, Double>> updatedBivariateStatistics = new HashMap<>();
-            for(String parent : newParents) {
+            for(String parent : probParents) {
                 // if there are no bivariate statistics from last generation
                 // this happens when a new probabilistic parent is introduced
                 // in the current generation
@@ -351,7 +381,7 @@ public class StatisticsHandler {
                     }};
                     HashSet<String> temp = new HashSet<>(table.get(parent).keySet());
                     // TODO testing!
-                    this.oldBivariateStatistics.put(parent, this.initializeCombinationsOfValues(parent, temp, table, det_parents.contains(parent)));
+                    this.oldBivariateStatistics.put(parent, this.initializeCombinationsOfValues(parent, temp, table, !probParents.contains(parent)));
                     this.collectFittestIndividualCounts(lastFittestValues, new HashSet<>(soloParent), this.oldBivariateStatistics, false);
                     this.normalizeProbabilities(new HashSet<>(soloParent), this.oldBivariateStatistics, false);
                 }
