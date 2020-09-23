@@ -2,6 +2,10 @@ package ednel.eda.individual;
 
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.aggregators.Aggregator;
+import ednel.eda.aggregators.RuleExtractorAggregator;
+import ednel.utils.PBILLogger;
+import guru.nidi.graphviz.engine.Format;
+import guru.nidi.graphviz.engine.Graphviz;
 import org.reflections.Reflections;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
@@ -10,6 +14,10 @@ import weka.classifiers.rules.PART;
 import weka.classifiers.trees.J48;
 import weka.core.*;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
 import java.util.*;
 
@@ -36,53 +44,49 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     private static HashMap<String, Class<? extends Aggregator>> aggregatorClasses;
 
-    public Individual() throws Exception {
-        this.j48 = null;
-        this.part = null;
-        this.jrip = null;
-        this.decisionTable = null;
-        this.simpleCart = null;
-
-        this.characteristics = new HashMap<>(51);  // approximate number of variables in the GM
-
-        this.classifiers = new HashMap<>(6);
-        this.classifiers.put("J48", null);
-        this.classifiers.put("SimpleCart", null);
-        this.classifiers.put("PART", null);
-        this.classifiers.put("JRip", null);
-        this.classifiers.put("DecisionTable", null);
-
-        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
-    }
-
     public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics) throws Exception {
-        this();
+        this.classifiers = new HashMap<>(6);
+        this.characteristics = new HashMap<>();
+        for(String key : characteristics.keySet()) {
+            this.characteristics.put(key, characteristics.get(key));
+        }
 
-        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
-        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
-            this.decisionTable = new DecisionTable();
-            this.classifiers.put("DecisionTable", this.decisionTable);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
-            this.j48 = new J48();
-            this.classifiers.put("J48", this.j48);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
-            this.simpleCart = new SimpleCart();
-            this.classifiers.put("SimpleCart", this.simpleCart);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
-            this.part = new PART();
-            this.classifiers.put("PART", this.part);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
-            this.jrip = new JRip();
-            this.classifiers.put("JRip", this.jrip);
-        }
+//        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
+//            this.decisionTable = new DecisionTable();
+//        } else {
+//            this.decisionTable = null;
+//        }
+//
+//        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
+//            this.j48 = new J48();
+//        } else {
+//            this.j48 = null;
+//        }
+
+//
+//        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
+//            this.simpleCart = new SimpleCart();
+//        } else {
+//            this.simpleCart = null;
+//        }
+
+//
+//        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
+//            this.part = new PART();
+//        } else {
+//            this.part = null;
+//        }
+
+//
+//        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
+//            this.jrip = new JRip();
+//        } else {
+//            this.jrip = null;
+//        }
+
 
         String[] options = new String [optionTable.size() * 2];
-        HashSet<String> algNames = new HashSet<>();
-        algNames.addAll(optionTable.keySet());
+        HashSet<String> algNames = new HashSet<>(optionTable.keySet());
 
         int counter = 0;
         for(String algName : algNames) {
@@ -92,56 +96,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             counter += 2;
         }
 
+        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
         this.setOptions(options);
-    }
-
-    public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
-        this();
-
-        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
-        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
-            this.decisionTable = new DecisionTable();
-            this.classifiers.put("DecisionTable", this.decisionTable);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
-            this.j48 = new J48();
-            this.classifiers.put("J48", this.j48);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
-            this.simpleCart = new SimpleCart();
-            this.classifiers.put("SimpleCart", this.simpleCart);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
-            this.part = new PART();
-            this.classifiers.put("PART", this.part);
-        }
-        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
-            this.jrip = new JRip();
-            this.classifiers.put("JRip", this.jrip);
-        }
-        this.setOptions(options);
-        this.buildClassifier(train_data);
-    }
-
-    public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
-        if(Individual.aggregatorClasses == null) {
-            Individual.aggregatorClasses = new HashMap<>();
-
-            Reflections reflections = new Reflections("ednel.eda.aggregators");
-            Set<Class<? extends Aggregator>> allClasses = reflections.getSubTypesOf(Aggregator.class);
-            for (Iterator<Class<? extends Aggregator>> it = allClasses.iterator(); it.hasNext(); ) {
-                Class<? extends Aggregator> agg = it.next();
-                String[] splitted = agg.getName().split("\\.");
-                String agg_name = splitted[splitted.length - 1];
-                Individual.aggregatorClasses.put(agg_name, agg);
-            }
-        }
-        return Individual.aggregatorClasses;
-
-    }
-
-    public HashMap<String, String> getCharacteristics() {
-        return characteristics;
     }
 
     @Override
@@ -169,6 +125,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
         if(j48Parameters.length > 1) {
             try {
+                j48 = new J48();
                 j48.setOptions(j48Parameters);
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier J48: " + e.getMessage());
@@ -178,6 +135,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
         if(simpleCartParameters.length > 1) {
             try {
+                simpleCart = new SimpleCart();
                 simpleCart.setOptions(simpleCartParameters);
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier SimpleCart: " + e.getMessage());
@@ -187,6 +145,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
         if(partParameters.length > 1) {
             try {
+                part = new PART();
                 part.setOptions(partParameters);
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier PART: " + e.getMessage());
@@ -196,6 +155,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
         if(jripParameters.length > 1) {
             try {
+                jrip = new JRip();
                 jrip.setOptions(jripParameters);
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier JRip: " + e.getMessage());
@@ -228,6 +188,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             }
 
             try {
+                decisionTable = new DecisionTable();
                 decisionTable.setOptions(newDtParams);
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier DecisionTable: " + e.getMessage());
@@ -237,7 +198,42 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
 
         this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+        this.classifiers.put("J48", this.j48);
+        this.classifiers.put("SimpleCart", this.simpleCart);
+        this.classifiers.put("PART", this.part);
+        this.classifiers.put("JRip", this.jrip);
+        this.classifiers.put("DecisionTable", this.decisionTable);
+
+        this.n_active_classifiers = 0;
     }
+
+//    public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
+//        this();
+//
+//        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
+//        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
+//            this.decisionTable = new DecisionTable();
+//            this.classifiers.put("DecisionTable", this.decisionTable);
+//        }
+//        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
+//            this.j48 = new J48();
+//            this.classifiers.put("J48", this.j48);
+//        }
+//        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
+//            this.simpleCart = new SimpleCart();
+//            this.classifiers.put("SimpleCart", this.simpleCart);
+//        }
+//        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
+//            this.part = new PART();
+//            this.classifiers.put("PART", this.part);
+//        }
+//        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
+//            this.jrip = new JRip();
+//            this.classifiers.put("JRip", this.jrip);
+//        }
+//        this.setOptions(options);
+//        this.buildClassifier(train_data);
+//    }
 
     @Override
     public void buildClassifier(Instances data) throws Exception {
@@ -261,6 +257,27 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             throw new NoAggregationPolicyException("Ensemble must have an aggregation policy!");
         }
         this.aggregator.setCompetences(this.orderedClassifiers, data);
+    }
+
+    public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
+        if(Individual.aggregatorClasses == null) {
+            Individual.aggregatorClasses = new HashMap<>();
+
+            Reflections reflections = new Reflections("ednel.eda.aggregators");
+            Set<Class<? extends Aggregator>> allClasses = reflections.getSubTypesOf(Aggregator.class);
+            for (Iterator<Class<? extends Aggregator>> it = allClasses.iterator(); it.hasNext(); ) {
+                Class<? extends Aggregator> agg = it.next();
+                String[] splitted = agg.getName().split("\\.");
+                String agg_name = splitted[splitted.length - 1];
+                Individual.aggregatorClasses.put(agg_name, agg);
+            }
+        }
+        return Individual.aggregatorClasses;
+
+    }
+
+    public HashMap<String, String> getCharacteristics() {
+        return characteristics;
     }
 
     @Override
@@ -313,7 +330,191 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public String toString() {
-        return "method not implemented yet";
+        StringBuilder res = new StringBuilder();
+
+        res.append("# Extracted rules\n\n");
+
+        if(this.aggregator instanceof RuleExtractorAggregator) {
+            res.append(this.aggregator.toString());
+        } else {
+            RuleExtractorAggregator agg = new RuleExtractorAggregator();
+            try {
+                agg.setCompetences(this.orderedClassifiers, this.train_data);
+                res.append(agg.toString());
+            } catch(Exception e) {
+                // could not collect aggregated rules
+            }
+        }
+
+        res.append("# Text representation of classifiers as-is\n\n");
+
+        HashMap<String, AbstractClassifier> classifiers = this.getClassifiers();
+
+        for(String clfName : classifiers.keySet()) {
+            AbstractClassifier clf = classifiers.get(clfName);
+            if(clf != null) {
+                try {
+                    res.append(Individual.formatClassifierString(clf));
+                    res.append("\n\n");
+                } catch (Exception ex) {
+                    res.append(clf.toString());
+                    res.append("\n\n");
+                }
+            }
+        }
+        return res.toString();
+    }
+
+    public void treeModelsToFiles(String file_name) {
+        HashMap<String, AbstractClassifier> classifiers = this.getClassifiers();
+        for(String clfName : classifiers.keySet()) {
+            AbstractClassifier clf = classifiers.get(clfName);
+
+            if(clf != null) {
+                try {
+                    Method graphMethod = clf.getClass().getMethod("graph");
+                    String dotText = (String)graphMethod.invoke(clf);
+
+                    String imageFilename = String.format("%s_%s_graph.png", file_name, clfName);
+                    Graphviz.fromString(dotText).render(Format.PNG).toFile(new File(imageFilename));
+                    // bw.write(String.format("# %s\n![](%s)\n", clfName, imageFilename));
+//                } catch (NoSuchMethodException e) {
+//                    return Individual.formatClassifierString(clf);
+//                }
+                } catch(Exception e) {
+                    // nothing happens
+                }
+            }
+        }
+    }
+
+
+    public static String formatClassifierString(AbstractClassifier clf) throws Exception {
+        return (String)Individual.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(Individual.class, clf);
+    }
+
+    @SuppressWarnings("unused")
+    public static String formatJ48String(AbstractClassifier clf) throws Exception {
+        try {
+            String txt = clf.toString().split("------------------")[1].split("Number of Leaves")[0].trim();
+            String[] branches = txt.split("\n");
+            String body = "";
+            for(int i = 0; i < branches.length; i++) {
+                int depth = branches[i].split("\\|").length - 1;
+                for(int j = 0; j < depth; j++) {
+                    body += "\t";
+                }
+                body += "* " + branches[i].replaceAll("\\|  ", "").trim() + "\n";
+            }
+            String header = "## J48 Decision Tree";
+            return String.format("%s\n\n%s", header, body);
+        } catch(Exception e) {
+            return clf.toString();
+        }
+    }
+    @SuppressWarnings("unused")
+    public static String formatSimpleCartString(AbstractClassifier clf) throws Exception  {
+        try {
+            String txt = clf.toString().split("CART Decision Tree")[1].split("Number of Leaf Nodes")[0].trim();
+            String[] branches = txt.split("\n");
+            String body = "";
+            for(int i = 0; i < branches.length; i++) {
+                int depth = branches[i].split("\\|").length - 1;
+                for(int j = 0; j < depth; j++) {
+                    body += "\t";
+                }
+                body += "* " + branches[i].replaceAll("\\|  ", "").trim() + "\n";
+            }
+            String header = "## SimpleCart Decision Tree";
+            return String.format("%s\n\n%s", header, body);
+        } catch(Exception e) {
+            return clf.toString();
+        }
+    }
+    @SuppressWarnings("unused")
+    public static String formatJRipString(AbstractClassifier clf) throws Exception {
+        try {
+            String rulesStr = clf.toString().split("===========")[1].split("Number of Rules")[0].trim();
+            String classAttrName = rulesStr.substring(rulesStr.lastIndexOf("=>") + 2, rulesStr.lastIndexOf("=")).trim();
+            String[] rules = rulesStr.split("\n");
+            String newRuleStr = "rules | predicted class\n---|---\n";
+            for(int i = 0; i < rules.length; i++) {
+                String[] partials = rules[i].split(String.format(" => %s=", classAttrName));
+                for(String partial : partials) {
+                    newRuleStr += partial.trim() + "|";
+                }
+                newRuleStr = newRuleStr.substring(0, newRuleStr.length() - 1) + "\n";
+            }
+            String r_str = String.format("## JRip\n\nDecision list:\n\n%s", newRuleStr);
+            return r_str;
+        } catch(Exception e) {
+            return clf.toString();
+        }
+    }
+    @SuppressWarnings("unused")
+    public static String formatPARTString(AbstractClassifier clf) throws Exception {
+        try {
+            String defaultStr = clf.toString().split("------------------\\n\\n")[1];
+            defaultStr = defaultStr.substring(0, defaultStr.lastIndexOf("Number of Rules"));
+            String[] rules = defaultStr.split("\n\n");
+            String newRuleStr = "rules | predicted class\n---|---\n";
+            for(int i = 0; i < rules.length; i++) {
+                String[] partials = rules[i].replace("\n", " ").split(":");
+                for(String partial : partials) {
+                    newRuleStr += partial.trim() + "|";
+                }
+                newRuleStr = newRuleStr.substring(0, newRuleStr.length() - 1) + "\n";
+            }
+            String r_str = String.format("## PART\n\nDecision list:\n\n%s", newRuleStr);
+            return r_str;
+
+        } catch (Exception e) {
+            return clf.toString();
+        }
+    }
+    @SuppressWarnings("unused")
+    public static String formatDecisionTableString(AbstractClassifier clf) throws Exception {
+        try {
+            DecisionTable.class.getMethod("setDisplayRules", Boolean.TYPE).invoke(clf, true);
+
+            Boolean usesIbk = (Boolean)DecisionTable.class.getMethod("getUseIBk").invoke(clf);
+
+            String defaultString = "Non matches covered by " + (usesIbk? "IB1" : "Majority class");
+            String[] lines = clf.toString().toLowerCase().replaceAll("\'", "").split("rules:")[1].split("\n");
+
+            ArrayList<String> sanitized_lines = new ArrayList<String>(lines.length);
+
+            int count_columns = 0;
+            for(String line : lines) {
+                if(line.contains("=")) {
+                    if(sanitized_lines.size() == 1) {
+                        String delimiter = "---";
+                        for(int k = 1; k < count_columns; k++) {
+                            delimiter += "|---";
+                        }
+                        sanitized_lines.add(delimiter);
+                    }
+                } else if ((line.length() > 0)) {
+                    String[] columns = line.trim().split(" ");
+                    ArrayList<String> sanitized_columns = new ArrayList<String>(columns.length);
+                    count_columns = 0;
+                    for(String column : columns) {
+                        if (column.length() > 0) {
+                            sanitized_columns.add(column);
+                            count_columns += 1;
+                        }
+                    }
+                    sanitized_lines.add(String.join("|", sanitized_columns));
+                }
+            }
+
+            String table_str  = String.join("\n", sanitized_lines);
+
+            String r_str = String.format("## Decision Table\n\n%s\n\n%s", defaultString, table_str);
+            return r_str;
+        } catch(Exception e) {
+            return clf.toString();
+        }
     }
 
     @Override

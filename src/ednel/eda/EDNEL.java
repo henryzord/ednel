@@ -93,7 +93,8 @@ public class EDNEL extends AbstractClassifier {
     public void buildClassifier(Instances data) throws Exception {
         FitnessCalculator fc = new FitnessCalculator(5, data);
 
-        this.currentGenBest = new BaselineIndividual(data);
+        this.currentGenBest = new BaselineIndividual();
+
         LocalDateTime start = LocalDateTime.now();
         LocalDateTime t1, t2;
         for(int c = 0; c < this.n_generations; c++) {

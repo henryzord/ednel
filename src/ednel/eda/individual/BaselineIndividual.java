@@ -4,84 +4,73 @@
 
 package ednel.eda.individual;
 
-import ednel.classifiers.trees.SimpleCart;
-import weka.classifiers.rules.DecisionTable;
-import weka.classifiers.rules.JRip;
-import weka.classifiers.rules.PART;
-import weka.classifiers.trees.J48;
-import weka.core.Instances;
+import java.util.Collections;
+import java.util.HashMap;
 
 public class BaselineIndividual extends Individual {
 
-    public BaselineIndividual(Instances train_data) throws Exception {
-        super();
+    private static final HashMap<String, String> options;
 
-        this.j48 = new J48();
-        this.part = new PART();
-        this.jrip = new JRip();
-        this.decisionTable = new DecisionTable();
-        this.simpleCart = new SimpleCart();
+    private static final HashMap<String, String> baselineCharacteristics;
 
+    static {
+        HashMap<String, String> localOptions = new HashMap<>();
+        localOptions.put("J48", "-C 0.25 -M 2");
+        localOptions.put("SimpleCart", "-M 2 -N 5 -C 1 -S 1");
+        localOptions.put("PART", "-M 2 -C 0.25 -Q 1");
+        localOptions.put("JRip", "-F 3 -N 2.0 -O 2 -S 1");
+        localOptions.put("DecisionTable", "-R -X 1 -S weka.attributeSelection.BestFirst");
+        localOptions.put("Aggregator", "MajorityVotingAggregator");
+        localOptions.put("BestFirst", "-D 1 -N 5");
 
-        String j48Parameters            = "-C 0.25 -M 2";
-        String simpleCartParameters     = "-M 2 -N 5 -C 1 -S 1";
-        String partParameters           = "-M 2 -C 0.25 -Q 1";
-        String jripParameters           = "-F 3 -N 2.0 -O 2 -S 1";
-        String decisionTableParameters  = "-R -X 1 -S weka.attributeSelection.BestFirst";
-        String bestFirstParameters      = "-D 1 -N 5";
-        String greedyStepwiseParameters = "";
-        String aggregatorParameters     = "MajorityVotingAggregator";
+        options = localOptions;
 
-        String[] options = {
-                "-J48", j48Parameters, "-SimpleCart", simpleCartParameters, "-PART", partParameters,
-                "-JRip", jripParameters, "-DecisionTable", decisionTableParameters,
-                "-Aggregator", aggregatorParameters, "-GreedyStepwise", greedyStepwiseParameters,
-                "-BestFirst", bestFirstParameters
-        };
+        HashMap<String, String> localChars = new HashMap<>();
+        localChars.put("Aggregator", "MajorityVotingAggregator");
+        localChars.put("J48", "true");
+        localChars.put("J48_binarySplits", "false");
+        localChars.put("J48_useLaplace", "true");
+        localChars.put("J48_minNumObj", "2");
+        localChars.put("J48_useMDLcorrection", "false");
+        localChars.put("J48_collapseTree", "true");
+        localChars.put("J48_doNotMakeSplitPointActualValue", "false");
+        localChars.put("J48_pruning", "confidenceFactor");
+        localChars.put("J48_numFolds", null);
+        localChars.put("J48_subtreeRaising", "true");
+        localChars.put("J48_confidenceFactorValue", "0.25");
+        localChars.put("SimpleCart", "true");
+        localChars.put("SimpleCart_heuristic", "true");
+        localChars.put("SimpleCart_minNumObj", "2");
+        localChars.put("SimpleCart_usePrune", "true");
+        localChars.put("SimpleCart_numFoldsPruning", "5");
+        localChars.put("SimpleCart_useOneSE", "false");
+        localChars.put("JRip", "true");
+        localChars.put("JRip_checkErrorRate", "true");
+        localChars.put("JRip_minNo", "2");
+        localChars.put("JRip_usePruning", "true");
+        localChars.put("JRip_optimizations", "2");
+        localChars.put("JRip_folds", "3");
+        localChars.put("PART", "true");
+        localChars.put("PART_doNotMakeSplitPointActualValue", "false");
+        localChars.put("PART_minNumObj", "2");
+        localChars.put("PART_binarySplits", "false");
+        localChars.put("PART_useMDLcorrection", "true");
+        localChars.put("PART_pruning", "confidenceFactor");
+        localChars.put("PART_confidenceFactorValue", "0.25");
+        localChars.put("PART_numFolds", null);
+        localChars.put("DecisionTable", "true");
+        localChars.put("DecisionTable_useIBk", "false");
+        localChars.put("DecisionTable_crossVal", "1");
+        localChars.put("DecisionTable_evaluationMeasure", "auc");
+        localChars.put("DecisionTable_search", "weka.attributeSelection.BestFirst");
+        localChars.put("BestFirst_direction", "1");
+        localChars.put("BestFirst_searchTermination", "5");
+        localChars.put("GreedyStepwise_conservativeForwardSelection", null);
+        localChars.put("GreedyStepwise_searchBackwards", null);
+        baselineCharacteristics = localChars;
+    }
 
-        this.setOptions(options);
-        this.buildClassifier(train_data);
-
-        this.characteristics.put("Aggregator", "MajorityVotingAggregator");
-        this.characteristics.put("J48", "true");
-        this.characteristics.put("J48_binarySplits", "false");
-        this.characteristics.put("J48_useLaplace", "true");
-        this.characteristics.put("J48_minNumObj", "2");
-        this.characteristics.put("J48_useMDLcorrection", "false");
-        this.characteristics.put("J48_collapseTree", "true");
-        this.characteristics.put("J48_doNotMakeSplitPointActualValue", "false");
-        this.characteristics.put("J48_pruning", "confidenceFactor");
-        this.characteristics.put("J48_numFolds", null);
-        this.characteristics.put("J48_subtreeRaising", "true");
-        this.characteristics.put("J48_confidenceFactorValue", "0.25");
-        this.characteristics.put("SimpleCart", "true");
-        this.characteristics.put("SimpleCart_heuristic", "true");
-        this.characteristics.put("SimpleCart_minNumObj", "2");
-        this.characteristics.put("SimpleCart_usePrune", "true");
-        this.characteristics.put("SimpleCart_numFoldsPruning", "5");
-        this.characteristics.put("SimpleCart_useOneSE", "false");
-        this.characteristics.put("JRip", "true");
-        this.characteristics.put("JRip_checkErrorRate", "true");
-        this.characteristics.put("JRip_minNo", "2");
-        this.characteristics.put("JRip_usePruning", "true");
-        this.characteristics.put("JRip_optimizations", "2");
-        this.characteristics.put("JRip_folds", "3");
-        this.characteristics.put("PART", "true");
-        this.characteristics.put("PART_doNotMakeSplitPointActualValue", "false");
-        this.characteristics.put("PART_minNumObj", "2");
-        this.characteristics.put("PART_binarySplits", "false");
-        this.characteristics.put("PART_useMDLcorrection", "true");
-        this.characteristics.put("PART_pruning", "confidenceFactor");
-        this.characteristics.put("PART_confidenceFactorValue", "0.25");
-        this.characteristics.put("PART_numFolds", null);
-        this.characteristics.put("DecisionTable", "true");
-        this.characteristics.put("DecisionTable_useIBk", "false");
-        this.characteristics.put("DecisionTable_crossVal", "1");
-        this.characteristics.put("DecisionTable_evaluationMeasure", "auc");
-        this.characteristics.put("DecisionTable_search", "weka.attributeSelection.BestFirst");
-        this.characteristics.put("BestFirst_direction", "1");
-        this.characteristics.put("BestFirst_searchTermination", "5");
-        this.characteristics.put("GreedyStepwise_conservativeForwardSelection", null);
-        this.characteristics.put("GreedyStepwise_searchBackwards", null);
+    public BaselineIndividual() throws Exception {
+        super(BaselineIndividual.options, BaselineIndividual.baselineCharacteristics);
     }
 }

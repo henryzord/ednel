@@ -14,6 +14,8 @@ import java.util.Iterator;
 
 public class ExtractedRule extends Rule {
     private double classIndex;
+    private String classValue;
+    private String antecedentsValue;
 
     private int[] attrIndex;
     private double[] thresholds;
@@ -65,6 +67,8 @@ public class ExtractedRule extends Rule {
         String consequent = this.string.substring(this.string.lastIndexOf(":") + 1, this.string.length()).trim();
 
         this.classIndex = data.classAttribute().indexOfValue(consequent);
+        this.antecedentsValue = antecedents;
+        this.classValue = consequent;
         this.numClasses = data.classAttribute().numValues();
 
         // if there are pre-conditions to this specific rule; otherwise, it is the default rule
@@ -159,6 +163,14 @@ public class ExtractedRule extends Rule {
     @Override
     public double getConsequent() {
         return this.classIndex;
+    }
+
+    public String getConsequentValue() {
+        return this.classValue;
+    }
+
+    public String getAntecedents() {
+        return this.antecedentsValue;
     }
 
     @Override

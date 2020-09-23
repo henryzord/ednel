@@ -284,12 +284,17 @@ public class PBILLogger {
 
             bw.write(this.getEvaluationLineForClassifier(indName, evaluation));
 
-            HashMap<String, AbstractClassifier> overallClassifiers = individuals.get(indName).getClassifiers();
+            HashMap<String, AbstractClassifier> indClassifiers = individuals.get(indName).getClassifiers();
 
-            for(String key: overallClassifiers.keySet()) {
-                if(!String.valueOf(overallClassifiers.get(key)).equals("null")) {
+            for(String key: indClassifiers.keySet()) {
+                if(!String.valueOf(indClassifiers.get(key)).equals("null")) {
                     evaluation = new Evaluation(train_data);
-                    evaluation.evaluateModel(overallClassifiers.get(key), test_data);
+                    try {
+                        evaluation.evaluateModel(indClassifiers.get(key), test_data);
+                    } catch(Exception e) {
+                        evaluation.evaluateModel(indClassifiers.get(key), test_data);  // TODO remove me!
+                    }
+
                     fitnesses[i] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
                 } else {
                     fitnesses[i] = 0.0;
@@ -357,29 +362,14 @@ public class PBILLogger {
 
     private void individualsClassifiersToFile(HashMap<String, Individual> individuals) throws Exception {
         for(String indName : individuals.keySet()) {
+            String destination_path = dataset_thisrun_path + File.separator + indName;
+
             BufferedWriter bw = new BufferedWriter(new FileWriter(
-                    dataset_thisrun_path + File.separator + indName  + "_classifiers.md"
+                    destination_path + "_classifiers.md"
             ));
 
-            HashMap<String, AbstractClassifier> classifiers = individuals.get(indName).getClassifiers();
-            for(String clfName : classifiers.keySet()) {
-                AbstractClassifier clf = classifiers.get(clfName);
-
-                if(clf != null) {
-                    // return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
-                    try {
-                        Method graphMethod = clf.getClass().getMethod("graph");
-                        String dotText = (String)graphMethod.invoke(clf);
-
-                        String imageFilename = String.format("%s_%s_graph.png", indName, clfName);
-                        Graphviz.fromString(dotText).render(Format.PNG).toFile(new File(dataset_thisrun_path + File.separator + imageFilename));
-                        bw.write(String.format("# %s\n![](%s)\n", clfName, imageFilename));
-                    } catch (NoSuchMethodException e) {
-                        String clfString = PBILLogger.formatClassifierString(clf);
-                        bw.write(clfString + "\n\n\n");
-                    }
-                }
-            }
+            bw.write(individuals.get(indName).toString());
+            individuals.get(indName).treeModelsToFiles(destination_path);
             bw.close();
         }
     }
@@ -481,132 +471,5 @@ public class PBILLogger {
                 this.dnConnections.get(this.curGen - 1)
         ));
     }
-
-    public static String formatClassifierString(AbstractClassifier clf) throws Exception {
-        return (String)PBILLogger.class.getMethod("format" + clf.getClass().getSimpleName() + "String", AbstractClassifier.class).invoke(PBILLogger.class, clf);
-    }
-
-    @SuppressWarnings("unused")
-    public static String formatJ48String(AbstractClassifier clf) throws Exception {
-        try {
-            String txt = clf.toString().split("------------------")[1].split("Number of Leaves")[0].trim();
-            String[] branches = txt.split("\n");
-            String body = "";
-            for(int i = 0; i < branches.length; i++) {
-                int depth = branches[i].split("\\|").length - 1;
-                for(int j = 0; j < depth; j++) {
-                    body += "\t";
-                }
-                body += "* " + branches[i].replaceAll("\\|  ", "").trim() + "\n";
-            }
-            String header = "# J48 Decision Tree";
-            return String.format("%s\n\n%s", header, body);
-        } catch(Exception e) {
-            return clf.toString();
-        }
-    }
-    @SuppressWarnings("unused")
-    public static String formatSimpleCartString(AbstractClassifier clf) throws Exception  {
-        try {
-            String txt = clf.toString().split("CART Decision Tree")[1].split("Number of Leaf Nodes")[0].trim();
-            String[] branches = txt.split("\n");
-            String body = "";
-            for(int i = 0; i < branches.length; i++) {
-                int depth = branches[i].split("\\|").length - 1;
-                for(int j = 0; j < depth; j++) {
-                    body += "\t";
-                }
-                body += "* " + branches[i].replaceAll("\\|  ", "").trim() + "\n";
-            }
-            String header = "# SimpleCart Decision Tree";
-            return String.format("%s\n\n%s", header, body);
-        } catch(Exception e) {
-            return clf.toString();
-        }
-    }
-    @SuppressWarnings("unused")
-    public static String formatJRipString(AbstractClassifier clf) throws Exception {
-        try {
-            String rulesStr = clf.toString().split("===========")[1].split("Number of Rules")[0].trim();
-            String classAttrName = rulesStr.substring(rulesStr.lastIndexOf("=>") + 2, rulesStr.lastIndexOf("=")).trim();
-            String[] rules = rulesStr.split("\n");
-            String newRuleStr = "rules | predicted class\n---|---\n";
-            for(int i = 0; i < rules.length; i++) {
-                String[] partials = rules[i].split(String.format(" => %s=", classAttrName));
-                for(String partial : partials) {
-                    newRuleStr += partial.trim() + "|";
-                }
-                newRuleStr = newRuleStr.substring(0, newRuleStr.length() - 1) + "\n";
-            }
-            String r_str = String.format("# JRip\n\nDecision list:\n\n%s", newRuleStr);
-            return r_str;
-      } catch(Exception e) {
-            return clf.toString();
-        }
-    }
-    @SuppressWarnings("unused")
-    public static String formatPARTString(AbstractClassifier clf) throws Exception {
-        try {
-            String defaultStr = clf.toString().split("------------------\\n\\n")[1];
-            defaultStr = defaultStr.substring(0, defaultStr.lastIndexOf("Number of Rules"));
-            String[] rules = defaultStr.split("\n\n");
-            String newRuleStr = "rules | predicted class\n---|---\n";
-            for(int i = 0; i < rules.length; i++) {
-                String[] partials = rules[i].replace("\n", " ").split(":");
-                for(String partial : partials) {
-                    newRuleStr += partial.trim() + "|";
-                }
-                newRuleStr = newRuleStr.substring(0, newRuleStr.length() - 1) + "\n";
-            }
-            String r_str = String.format("# PART\n\nDecision list:\n\n%s", newRuleStr);
-            return r_str;
-
-        } catch (Exception e) {
-            return clf.toString();
-        }
-    }
-    @SuppressWarnings("unused")
-    public static String formatDecisionTableString(AbstractClassifier clf) throws Exception {
-        try {
-            Boolean usesIbk = (Boolean) DecisionTable.class.getMethod("getUseIBk").invoke(clf);
-
-            String defaultString = "Non matches covered by " + (usesIbk? "IB1" : "Majority class");
-            String[] lines = clf.toString().toLowerCase().replaceAll("\'", "").split("rules:")[1].split("\n");
-
-            ArrayList<String> sanitized_lines = new ArrayList<String>(lines.length);
-
-            int count_columns = 0;
-            for(String line : lines) {
-                if(line.contains("=")) {
-                    if(sanitized_lines.size() == 1) {
-                        String delimiter = "---";
-                        for(int k = 1; k < count_columns; k++) {
-                            delimiter += "|---";
-                        }
-                        sanitized_lines.add(delimiter);
-                    }
-                } else if ((line.length() > 0)) {
-                    String[] columns = line.trim().split(" ");
-                    ArrayList<String> sanitized_columns = new ArrayList<String>(columns.length);
-                    count_columns = 0;
-                    for(String column : columns) {
-                        if (column.length() > 0) {
-                            sanitized_columns.add(column);
-                            count_columns += 1;
-                        }
-                    }
-                    sanitized_lines.add(String.join("|", sanitized_columns));
-                }
-            }
-
-            String table_str  = String.join("\n", sanitized_lines);
-
-            String r_str = String.format("# Decision Table\n\n%s\n\n%s", defaultString, table_str);
-            return r_str;
-        } catch(Exception e) {
-            return clf.toString();
-        }
-    }
-
 }
 

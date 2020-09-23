@@ -1,7 +1,6 @@
 package ednel.eda.aggregators;
 
 import ednel.Main;
-import ednel.TestDatasets;
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.aggregators.rules.RuleExtractor;
 import ednel.eda.aggregators.rules.SimpleRuleClassifier;
@@ -21,19 +20,24 @@ import java.util.*;
 
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
+    int n_classes;
+
     ArrayList<ExtractedRule> unorderedRules;
     ArrayList<Double> unorderedRulesQualities;
-    int n_classes;
+
     HashMap<String, ExtractedRule[]> orderedRules;
-    HashMap<String, Double[]> orderedRuleQualities;
+    HashMap<String, Double[]> orderedRulesQualities;
 
     public RuleExtractorAggregator() {
+        this.n_classes = 0;
+
         this.unorderedRules = new ArrayList<>();
         this.unorderedRulesQualities = new ArrayList<>();
-        this.competences = new double[0];
-        this.n_classes = 0;
+
         this.orderedRules = new HashMap<>();
-        this.orderedRuleQualities = new HashMap<>();
+        this.orderedRulesQualities = new HashMap<>();
+
+        this.competences = new double[0];
     }
 
     /**
@@ -50,7 +54,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         HashSet<ExtractedRule> unordered_cand_rules = new HashSet<>();
 
         this.orderedRules = new HashMap<>();
-        this.orderedRuleQualities = new HashMap<>();
+        this.orderedRulesQualities = new HashMap<>();
 
         final boolean[] all_activated = new boolean[train_data.size()];
         for(int i = 0; i < train_data.size(); i++) {
@@ -63,10 +67,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             }
             // algorithm generates unordered rules; proceed
             if(!clfs[i].getClass().equals(JRip.class) && !clfs[i].getClass().equals(PART.class)) {
-
-                unordered_cand_rules.addAll(Arrays.asList(
-                        RuleExtractor.fromClassifierToRules(clfs[i], train_data)
-                ));
+                unordered_cand_rules.addAll(Arrays.asList(RuleExtractor.fromClassifierToRules(clfs[i], train_data)));
             } else if(clfs[i].getClass().equals(PART.class) || clfs[i].getClass().equals(JRip.class)) {
                 String clf_name = clfs[i].getClass().getSimpleName();
                 ExtractedRule[] ordered_rules = RuleExtractor.fromClassifierToRules(clfs[i], train_data);
@@ -83,10 +84,9 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                         activated[n] = activated[n] && !(covered[n] && (ordered_rules[j].getConsequent() == train_data.get(n).classValue()));
                     }
                 }
-                orderedRuleQualities.put(clf_name, rule_qualities);
+                orderedRulesQualities.put(clf_name, rule_qualities);
             }
         }
-
         this.selectUnorderedRules(train_data, unordered_cand_rules, all_activated);
     }
 
@@ -144,7 +144,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
                 ExtractedRule[] rules = this.orderedRules.get(classifier);
                 for(int j = 0; j < rules.length; j++) {
                     if(rules[j].covers(batch.get(i))) {
-                        double voteWeight = this.orderedRuleQualities.get(classifier)[j];
+                        double voteWeight = this.orderedRulesQualities.get(classifier)[j];
                         classProbs[i][(int)rules[j].getConsequent()] += voteWeight;
                         votesSum += voteWeight;
                     }
@@ -178,7 +178,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             ExtractedRule[] rules = this.orderedRules.get(classifier);
             for(int j = 0; j < rules.length; j++) {
                 if(rules[j].covers(instance)) {
-                    double voteWeight = this.orderedRuleQualities.get(classifier)[j];
+                    double voteWeight = this.orderedRulesQualities.get(classifier)[j];
                     classProbs[(int)rules[j].getConsequent()] += voteWeight;
                     votesSum += voteWeight;
                 }
@@ -198,6 +198,32 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
 
         return classProbs;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder res = new StringBuilder("## Unordered rules\n\n");
+
+        res.append("| Rule | Predicted class | Quality (precision * recall) |\n|:----|----:|----:|\n");
+
+        for(int i = 0; i < this.unorderedRules.size(); i++) {
+            res.append(String.format(Locale.US, "| %s | %s | %f |\n", this.unorderedRules.get(i).getAntecedents(), this.unorderedRules.get(i).getConsequentValue(), this.unorderedRulesQualities.get(i)));
+        }
+
+        res.append("\n## Ordered rules\n\n");
+
+        for(String key : this.orderedRules.keySet()) {
+            res.append(String.format("### %s\n\n", key));
+
+            res.append("| Rule | Predicted class | Quality (precision * recall) |\n|:----|----:|----:|\n");
+
+            for(int i = 0; i < this.orderedRules.get(key).length; i++) {
+                res.append(String.format(Locale.US, "| %s | %s | %f |\n", this.orderedRules.get(key)[i].getAntecedents(), this.orderedRules.get(key)[i].getConsequentValue(), this.orderedRulesQualities.get(key)[i]));
+            }
+            res.append("\n\n");
+        }
+
+        return res.toString();
     }
 
     public static void main(String[] args) {
