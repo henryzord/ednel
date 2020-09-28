@@ -381,7 +381,7 @@ public class AbstractVariable {
         // but only if learning rate is different from 1
         if(Math.abs(1 - learningRate) > 0.01) {
             newBivariateStatistics = this.bs.updateStatisticsWithLearningRate(
-                    this.prob_parents, learningRate,
+                    this.prob_parents, this.det_parents, learningRate,
                     this.uniqueValues, lastFittestValues,
                     newBivariateStatistics, this.table
             );
@@ -431,7 +431,13 @@ public class AbstractVariable {
                         pair.put(this.getName(), childVal);
                         pair.put(parent, combination.get(parent));
 
-                        double bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));
+                        double bivariateProb;
+                        try {
+                            bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));
+                        } catch(Exception e) {
+                            bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));  // TODO remove me!
+                        }
+
 
                         if(Double.isNaN(bivariateProb)) {
                             bivariateProb = 0.0;  // will only be used if laplace correction is set to false

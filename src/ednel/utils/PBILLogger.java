@@ -17,16 +17,15 @@ import weka.classifiers.rules.DecisionTable;
 import weka.core.Instances;
 
 import javax.annotation.processing.FilerException;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class PBILLogger {
 
@@ -352,12 +351,45 @@ public class PBILLogger {
     private void dependencyNetworkStructureToFile(DependencyNetwork dn) throws IOException {
         //BufferedWriter bw = new BufferedWriter();
         if(this.log) {
-            FileWriter fw = new FileWriter(dataset_thisrun_path + File.separator + "dependency_network_structure.json");
+            // writes to file
+            String sourceFile = dataset_thisrun_path + File.separator + "dependency_network_structure.json";
+
+            File inFile = new File(sourceFile);
+
+            FileWriter fw = new FileWriter(inFile);
             Gson converter = new GsonBuilder().setPrettyPrinting().create();
             fw.write(converter.toJson(this.pastDependencyStructures));
             fw.flush();
             fw.close();
+
+            // now zips
+            this.zipFile(sourceFile, dataset_thisrun_path + File.separator + "dependency_network_structure.zip");
+            inFile.delete();
         }
+    }
+
+    /**
+     * Zips any file.
+     *
+     * @param inFile Path to file as present in operating system.
+     * @param outFile Path and name of zip file to be written.
+     * @throws IOException
+     */
+    private void zipFile(String inFile, String outFile) throws IOException {
+        FileOutputStream fos = new FileOutputStream(outFile);
+        ZipOutputStream zipOut = new ZipOutputStream(fos);
+        File fileToZip = new File(inFile);
+        FileInputStream fis = new FileInputStream(fileToZip);
+        ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
+        zipOut.putNextEntry(zipEntry);
+        byte[] bytes = new byte[1024];
+        int length;
+        while((length = fis.read(bytes)) >= 0) {
+            zipOut.write(bytes, 0, length);
+        }
+        zipOut.close();
+        fis.close();
+        fos.close();
     }
 
     private void individualsClassifiersToFile(HashMap<String, Individual> individuals) throws Exception {

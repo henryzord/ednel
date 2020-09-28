@@ -352,6 +352,7 @@ public class StatisticsHandler {
      */
     public HashMap<String, HashMap<Combination, Double>> updateStatisticsWithLearningRate(
             HashSet<String> probParents,
+            HashSet<String> det_parents,
             double learningRate,
             ArrayList<String> childUniqueValues,
             HashMap<String, ArrayList<String>> lastFittestValues,
@@ -410,6 +411,9 @@ public class StatisticsHandler {
                 updatedBivariateStatistics.put(parent, local);
             }
             updatedBivariateStatistics.put(this.variable_name, newBivariateStatistics.get(this.variable_name));
+            for(String det_parent : det_parents) {
+                updatedBivariateStatistics.put(det_parent, newBivariateStatistics.get(det_parent));
+            }
             newBivariateStatistics = updatedBivariateStatistics;
         }
         return newBivariateStatistics;

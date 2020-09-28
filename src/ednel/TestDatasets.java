@@ -1,4 +1,6 @@
 /**
+ * Tests whether EDNEL will run on a given list of datasets.
+ *
  * To test datasets use the following instruction:
  *
  * java -classpath ednel.jar ednel.TestDatasets --datasets_path C:\Users\henry\Projects\ednel\keel_datasets_10fcv --datasets_names pima --metadata_path C:\Users\henry\Projects\trash\ednel\ --n_generations 2 --n_individuals 25 --n_samples 1 --learning_rate 0.7 --selection_share 0.5 --burn_in 2 --thinning_factor 0 --early_stop_generations 200 --early_stop_tolerance 0.001 --max_parents 0 --delay_structure_learning 1 --n_jobs 1 --timeout 300

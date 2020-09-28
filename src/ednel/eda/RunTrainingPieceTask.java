@@ -104,7 +104,10 @@ public class RunTrainingPieceTask implements Runnable {
         } catch(Exception e) {
             System.err.println("An error occurred, but could not be thrown:");
             System.err.println(e.getMessage());
-            e.printStackTrace();
+            StackTraceElement[] track = e.getStackTrace();
+            for(StackTraceElement trace : track) {
+                System.err.println(trace.toString());
+            }
             this.hasSetAnException = true;
             this.except = e;
         } finally {

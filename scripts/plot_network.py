@@ -5,6 +5,8 @@ import json
 import os
 import re
 import argparse
+from zipfile import ZipFile
+
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -24,6 +26,11 @@ from matplotlib import pyplot as plt
 from networkx.drawing.nx_agraph import graphviz_layout
 
 from characteristics_to_pca import read_population_dataframe, update_population_contour
+
+
+def read_zip(input_zip):
+    input_zip = ZipFile(input_zip)
+    return {name: input_zip.read(name) for name in input_zip.namelist()}
 
 
 def print_version(G: nx.DiGraph):
@@ -165,7 +172,8 @@ def read_probabilistic_graphs(probabilistic_path: str):
     throughout an evolutionary process of EDNEL.
     """
 
-    _dict = json.load(open(probabilistic_path))
+    dict_str = read_zip(probabilistic_path)
+    _dict = json.loads(list(dict_str.values())[0])
 
     structure_dict = dict()
     probabilities_dict = dict()
@@ -443,7 +451,7 @@ def add_plot_dropdown(logger_data):
 
 def main(args):
     prob_structs, probs = read_probabilistic_graphs(
-        os.path.join(args.experiment_path, 'dependency_network_structure.json')
+        os.path.join(args.experiment_path, 'dependency_network_structure.zip')
     )
 
     if args.print is True:
