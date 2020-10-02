@@ -1,31 +1,28 @@
 
 # utilities
-import copy
+import argparse
 import json
 import os
 import re
-import argparse
+from collections import Counter
 from zipfile import ZipFile
 
-import numpy as np
-import pandas as pd
-from pandas.api.types import is_numeric_dtype
-
 import dash
-import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
-import plotly.graph_objects as go
-
+import dash_table
 import networkx as nx
-
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
 from dash.dependencies import Input, Output
+from matplotlib import pyplot as plt
 from matplotlib.cm import Pastel1, viridis
 from matplotlib.colors import to_hex
-from matplotlib import pyplot as plt
 from networkx.drawing.nx_agraph import graphviz_layout
+from pandas.api.types import is_numeric_dtype
 
-from characteristics_to_pca import read_population_dataframe, update_population_contour
+from characteristics_to_pca import read_population_dataframe, run_pca, update_population_contour, to_all_numeric_columns
 
 
 def read_zip(input_zip):
@@ -150,20 +147,6 @@ def get_node_colors(all_variables: list):
 
     var_color_dict = dict(zip(all_variables, [families_colors[x] for x in families]))
     return var_color_dict
-
-
-# def read_deterministic_graph(deterministic_path: str = None):
-#     if deterministic_path is None:
-#         return nx.DiGraph()
-#
-#     raw = json.load(open(deterministic_path, 'r'))
-#     G = nx.DiGraph()
-#     for variable, parents in raw.items():
-#         G.add_node(variable)
-#         for parent in list(parents.keys()):
-#             G.add_edge(variable, parent, type='deterministic')
-#
-#     return G
 
 
 def read_probabilistic_graphs(probabilistic_path: str):
@@ -303,7 +286,7 @@ def update_gen_structure_map(prob_structs, gen, var_color_dict):
             ),
             text=variable_names,
             hovertemplate='%{text}',
-            name='%03d Variables' % int(gen)
+            name='%03d generation' % int(gen)
         )
     )
 
@@ -345,39 +328,13 @@ def add_population_contour(population_df: pd.DataFrame, gen):
     return graph
 
 
-def init_app(structure_map, population_map, probabilities_table, fitness_plot, plot_dropdown, generation_slider, variable_dropdown, neighbors_dropdown, mesh_dropdown):
-    app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
-
-    app.layout = html.Div([
-        html.Div([
-            structure_map,
-            html.Div([html.P("Generation"), generation_slider], style={'width': '97%', 'margin-left': '10px', 'margin-bottom': '25px'}),
-            html.Div([
-                html.Div([html.P("Number of Neighbors"), neighbors_dropdown], style={'width': '49%', 'display': 'inline-block'}),
-                html.Div([html.P("Mesh Size"), mesh_dropdown], style={'width': '49%', 'display': 'inline-block'}),
-            ]),
-            population_map,
-        ], className="six columns"),
-        html.Div([
-            variable_dropdown,
-            html.Div([probabilities_table], style={"maxHeight": "415px", 'height': '415px', "overflow": "scroll"}),
-            html.P("Population Metrics throughout Generations"),
-            html.P("Metrics"),
-            plot_dropdown,
-            fitness_plot
-        ], className="six columns"),
-    ], id='dash-container')
-
-    return app
-
-
 def add_neighbors_dropdown():
     values = [1, 3, 5]
 
     neighbors_dropdown = dcc.Dropdown(
         id='neighbors-dropdown',
         options=[{'label': str(s), 'value': s} for s in values],
-        value=values[0]
+        value=values[-1]
     )
     return neighbors_dropdown
 
@@ -449,6 +406,88 @@ def add_plot_dropdown(logger_data):
     return dropdown
 
 
+def add_chromosome_heatmap(characteristics_df, gen):
+    fig = update_chromossome_heatmap(characteristics_df=characteristics_df, gen=gen)
+    graph = dcc.Graph(id='chromossome-heatmap', figure=fig)
+    return graph
+
+
+def update_chromossome_heatmap(characteristics_df, gen):
+    fig = go.Figure(
+        layout=go.Layout(
+            title='Most frequent value frequency in each allele',
+            xaxis=go.layout.XAxis(
+                visible=False
+            ),
+            yaxis=go.layout.YAxis(
+                visible=False
+            ),
+            height=210,
+            # paper_bgcolor='rgba(0,0,0,0)',
+            # plot_bgcolor='rgba(0,0,0,0)'
+        )
+    )
+
+    df = characteristics_df.loc[characteristics_df.index == gen]
+
+    columns = set(df.columns) - {'fitness'}
+
+    common_values_fracts = np.empty((1, len(columns)), dtype=np.float)
+
+    texts = np.empty((1, len(columns)), dtype=np.object)
+
+    for i, column in enumerate(columns):
+        counter = Counter(df[column])
+        common_values_fracts[0][i] = counter.most_common(1)[0][1] / len(df)
+        texts[0][i] = '%s: %s' % (column, str(counter.most_common(1)[0][0]))
+
+    fig.add_trace(go.Heatmap(
+        z=common_values_fracts,
+        zmin=0,
+        zmax=1,
+        colorscale='BuPu',
+        colorbar=None,
+        text=texts,
+        hovertemplate='%{text}<br>Frequency: %{z}',
+        name='%03d generation' % int(gen),
+        showscale=False
+    ))
+
+
+
+    return fig
+
+
+def init_app(structure_map, population_map, chromossome_heatmap, probabilities_table, fitness_plot, plot_dropdown,
+             generation_slider, variable_dropdown, neighbors_dropdown, mesh_dropdown):
+    app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
+
+    app.layout = html.Div([
+        html.Div([
+            structure_map,
+            html.Div([html.P("Generation"), generation_slider],
+                     style={'width': '97%', 'margin-left': '10px', 'margin-bottom': '25px'}),
+            chromossome_heatmap,
+            html.Div([
+                html.Div([html.P("Number of Neighbors"), neighbors_dropdown],
+                         style={'width': '49%', 'display': 'inline-block'}),
+                html.Div([html.P("Mesh Size"), mesh_dropdown], style={'width': '49%', 'display': 'inline-block'}),
+            ]),
+            population_map,
+        ], className="six columns"),
+        html.Div([
+            variable_dropdown,
+            html.Div([probabilities_table], style={"maxHeight": "415px", 'height': '415px', "overflow": "scroll"}),
+            html.P("Population Metrics throughout Generations"),
+            html.P("Metrics"),
+            plot_dropdown,
+            fitness_plot
+        ], className="six columns"),
+    ], id='dash-container')
+
+    return app
+
+
 def main(args):
     prob_structs, probs = read_probabilistic_graphs(
         os.path.join(args.experiment_path, 'dependency_network_structure.zip')
@@ -457,8 +496,10 @@ def main(args):
     if args.print is True:
         print_version(prob_structs)
     elif args.print is False:
-        population_df = read_population_dataframe(os.path.join(args.experiment_path, 'characteristics.csv'))
+        characteristics_df = read_population_dataframe(os.path.join(args.experiment_path, 'characteristics.csv'))
+        population_df = run_pca(to_all_numeric_columns(characteristics_df))
         logger_data = pd.read_csv(open(os.path.join(args.experiment_path, 'loggerData.csv'), 'r'), sep=',', quotechar='\"')
+
 
         gens = sorted(list(probs.keys()))
         first_gen = gens[0]
@@ -466,6 +507,7 @@ def main(args):
         any_var = variables[0]
         var_color_dict = get_node_colors(all_variables=variables)
 
+        chromossome_heatmap = add_chromosome_heatmap(characteristics_df=characteristics_df, gen=first_gen)
         structure_map = add_gen_structure_map(prob_structs=prob_structs, gen=first_gen, var_color_dict=var_color_dict)
         population_map = add_population_contour(population_df=population_df, gen=first_gen)
         fitness_plot = add_fitness_plot(logger_data=logger_data)
@@ -479,6 +521,7 @@ def main(args):
         app = init_app(
             structure_map=structure_map,
             population_map=population_map,
+            chromossome_heatmap=chromossome_heatmap,
             probabilities_table=probabilities_table,
             fitness_plot=fitness_plot,
             plot_dropdown=plot_dropdown,
@@ -530,6 +573,15 @@ def main(args):
         def population_fitness_callback(plots):
             fitness_plot_fig = update_fitness_plot(logger_data=logger_data, plots=plots)
             return fitness_plot_fig
+
+        @app.callback(
+            Output('chromossome-heatmap', 'figure'),
+            [Input('generation-slider', 'value')]
+        )
+        def population_heatmap_callback(gen):
+            _str_gen = '%03d' % gen
+            chromossome_heatmap_fig = update_chromossome_heatmap(characteristics_df=characteristics_df, gen=_str_gen)
+            return chromossome_heatmap_fig
 
         app.run_server(debug=False)
     else:

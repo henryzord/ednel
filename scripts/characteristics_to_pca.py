@@ -1,4 +1,6 @@
 import argparse
+import copy
+
 import pandas as pd
 import numpy as np
 import os
@@ -21,8 +23,12 @@ def run_pca(df: pd.DataFrame):
 
     :param df: DataFrame with meta-characteristics of individuals in all evolutionary process.
     """
-    index = deepcopy(df.apply(lambda x: x.name.split('_')[:2][-1], axis=1))
-    fitness = deepcopy(df['fitness'].values)
+    index = deepcopy(df.index)
+    fitness = deepcopy(df.fitness.values)
+
+    del df['fitness']
+    if 'test_auc' in df.columns:
+        del df['test_auc']
 
     pca = PCA(n_components=2, copy=False)
     npa = pca.fit_transform(df)
@@ -37,25 +43,42 @@ def read_population_dataframe(csv_path: str):
     Reads a csv file into a DataFrame.
 
     This csv file must be the result of a (partial) run of EDNEL.
-    Will swap NaN values with -1, and convert categorical columns to one-hot encoding.
-
-    :param csv_path: Full path to the csv file.
-    :type csv_path: str
-    :return: A dataframe with the information.
-    :rtype: pandas.DataFrame
     """
     df = pd.read_csv(csv_path, index_col=0)
     for column in df.columns:
         if df[column].dtype == np.object:
+            df[column].fillna('null', inplace=True)
             df.loc[:, column] = df[column].astype('category')
-            one_hot = pd.get_dummies(df[column])
-            df = df.drop(column, axis=1)
+
+    index = df.apply(lambda x: x.name.split('_')[:2][-1], axis=1)
+    df.index = index
+    if 'test_auc' in df.columns:
+        del df['test_auc']
+    return df
+
+
+def to_all_numeric_columns(df: pd.DataFrame):
+    """
+    Will swap NaN values with -1, and convert categorical columns to one-hot encoding.
+
+    :param df: a DataFrame with categorical columns
+    :type df: pandas.DataFrame
+    :return: The transformed DataFrame.
+    :rtype: pandas.DataFrame
+    """
+
+    new_df = copy.deepcopy(df)
+    
+    for column in new_df.columns:
+        if new_df[column].dtype.name == 'category':
+            one_hot = pd.get_dummies(new_df[column])
+            new_df = new_df.drop(column, axis=1)
             for subcolumn in one_hot.columns:
-                df.loc[:, column + '_' + str(subcolumn)] = one_hot[subcolumn]
+                new_df.loc[:, column + '_' + str(subcolumn)] = one_hot[subcolumn]
 
     # replaces nan values with -1
-    df = df.fillna(value=-1)
-    return run_pca(df)
+    new_df = new_df.fillna(value=-1)
+    return new_df
 
 
 def update_population_contour(df: pd.DataFrame, gen: str, n_neighbors: int = 1, mesh_size: float = 0.5):
@@ -98,7 +121,9 @@ def update_population_contour(df: pd.DataFrame, gen: str, n_neighbors: int = 1, 
             x=xrange,
             y=yrange,
             z=Z,
-            colorscale='RdBu'
+            colorscale='RdBu',
+            hovertemplate='Predicted fitness: %{z}',
+            name='%03d generation' % int(gen)
         )
     )
 
@@ -113,7 +138,10 @@ def update_population_contour(df: pd.DataFrame, gen: str, n_neighbors: int = 1, 
             marker=dict(
                 color='white',
                 size=4,
-            )
+            ),
+            text=['Actual fitness: %f' % x for x in df.fitness],
+            hovertemplate='%{text}',
+            name='%03d generation' % int(gen)
         )
     )
 
@@ -211,21 +239,3 @@ def update_population_scatter(df: pd.DataFrame, csv_path: str):
 
     to_write_path = os.sep.join(csv_path.split(os.sep)[:-1])
     plot(fig, filename=os.path.join(to_write_path, 'characteristics.html'))
-
-
-def main(args):
-    df = read_population_dataframe(args.csv_path)
-    update_population_scatter(df, args.csv_path)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='script for collapsing metrics'
-    )
-
-    parser.add_argument(
-        '--csv-path', action='store', required=True,
-        help='Path to .csv with characteristics of individuals in a run of the algorithm.'
-    )
-
-    main(parser.parse_args())
