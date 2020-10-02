@@ -364,7 +364,10 @@ public class DependencyNetwork {
         return components;
     }
 
-    public HashMap<String, Object[]> gibbsSample(HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed) throws Exception {
+    public HashMap<String, Object[]> gibbsSample(
+            HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed
+    ) throws Exception {
+
         Individual[] individuals = new Individual[sampleSize];
         Double[] fitnesses = new Double[sampleSize];
 
@@ -475,14 +478,18 @@ public class DependencyNetwork {
     public void update(Individual[] population, Integer[] sortedIndices, float selectionShare, int generation) throws Exception {
         HashMap<String, ArrayList<String>> currFittestValues = this.getFittestIndividualsValues(selectionShare, sortedIndices, population);
 
-        for(String var : this.samplingOrder) {
-            ArrayList<String> values = this.bufferStructureLearning.getOrDefault(var, new ArrayList<>());
-            values.addAll(currFittestValues.get(var));
-            this.bufferStructureLearning.put(var, values);
+        if(this.learningRate > 0) {
+            for(String var : this.samplingOrder) {
+                ArrayList<String> values = this.bufferStructureLearning.getOrDefault(var, new ArrayList<>());
+                values.addAll(currFittestValues.get(var));
+                this.bufferStructureLearning.put(var, values);
+            }
         }
 
+
         // only updates structure if there is a previous fittest population
-        if(generation > 0 && ((this.delay_structure_learning <= 1) || (generation % this.delay_structure_learning) == 0)) {
+        if((this.max_parents > 0) &&
+                (generation > 0 && ((this.delay_structure_learning <= 1) || (generation % this.delay_structure_learning) == 0))) {
             this.updateStructure(this.bufferStructureLearning);
             this.bufferStructureLearning = new HashMap<>();
         }

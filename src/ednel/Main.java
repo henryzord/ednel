@@ -234,7 +234,15 @@ public class Main {
                 .desc("Whether to log metadata to files.")
                 .build());
 
-        options.addOption("t", false, "Whether to allow cycles in dependency network.");
+        options.addOption(Option.builder()
+                .longOpt("log_test")
+                .type(Boolean.class)
+                .required(false)
+                .hasArg(false)
+                .desc("Whether to log test set statistics.")
+                .build());
+
+//        options.addOption("t", false, "Whether to allow cycles in dependency network.");
 
         options.addOption(Option.builder()
                 .longOpt("no_cycles")
@@ -246,8 +254,7 @@ public class Main {
 
         CommandLineParser parser = new DefaultParser();
 
-        CommandLine commandLine = parser.parse(options, args);
-        return commandLine;
+        return parser.parse(options, args);
     }
 
     public static void main(String[] args) throws Exception {

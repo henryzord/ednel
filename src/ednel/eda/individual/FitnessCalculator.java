@@ -29,7 +29,8 @@ public class FitnessCalculator {
         this.train_data.stratify(this.n_folds);
     }
 
-    public static double getUnweightedAreaUnderROC(Instances train_data, Instances test_data, AbstractClassifier clf) throws Exception {
+    public static double getUnweightedAreaUnderROC(
+            Instances train_data, Instances test_data, AbstractClassifier clf) throws Exception {
         Evaluation evaluation = new Evaluation(train_data);
         evaluation.evaluateModel(clf, test_data);
         return getUnweightedAreaUnderROC(evaluation);
@@ -70,35 +71,6 @@ public class FitnessCalculator {
         trainEvaluation /= n_folds;
         return trainEvaluation;
     }
-
-//    public Double[] evaluateEnsembles(int seed, Individual[] population) throws Exception {
-//        int n_individuals = population.length;
-//
-//        Double[] trainEvaluations = new Double [n_individuals];
-//
-//        for(int k = 0; k < n_individuals; k++) {
-//            trainEvaluations[k] = 0.0;
-//        }
-//
-//        Random random = new Random(seed);
-//        Evaluation trainEval = new Evaluation(train_data);
-//
-//        // do the folds
-//        for (int i = 0; i < n_folds; i++) {
-//            Instances local_train = train_data.trainCV(n_folds, i, random);
-//            Instances local_val = train_data.testCV(n_folds, i);
-//
-//            for(int j = 0; j < n_individuals; j++) {
-//                population[j].buildClassifier(local_train);
-//                trainEval.evaluateModel(population[j], local_val);
-//                trainEvaluations[j] += getUnweightedAreaUnderROC(trainEval);
-//            }
-//        }
-//        for(int k = 0; k < n_individuals; k++) {
-//            trainEvaluations[k] /= n_folds;
-//        }
-//        return trainEvaluations;
-//    }
 
     public static void main(String[] args) {
         try {

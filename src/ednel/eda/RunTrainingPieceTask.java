@@ -2,8 +2,8 @@ package ednel.eda;
 
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
-import org.apache.commons.cli.CommandLine;
 import ednel.utils.PBILLogger;
+import org.apache.commons.cli.CommandLine;
 import weka.core.Instances;
 
 import java.io.File;
@@ -50,6 +50,8 @@ public class RunTrainingPieceTask implements Runnable {
         this.writeMethod = writeMethod;
         this.writeObj = writeObj;
 
+        boolean log_test =  commandLine.hasOption("log_test");
+
         PBILLogger pbilLogger = new PBILLogger(
                 dataset_name,
                 commandLine.getOptionValue("metadata_path") + File.separator +
@@ -58,8 +60,10 @@ public class RunTrainingPieceTask implements Runnable {
                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
                 n_sample, n_fold,
                 commandLine.hasOption("log")
-
         );
+        if(log_test) {
+            pbilLogger.setDatasets(train_data, test_data);
+        }
 
         this.ednel = new EDNEL(
                 Double.parseDouble(commandLine.getOptionValue("learning_rate")),

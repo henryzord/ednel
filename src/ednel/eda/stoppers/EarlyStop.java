@@ -1,34 +1,62 @@
 package ednel.eda.stoppers;
 
+import ednel.eda.individual.Individual;
+
 public class EarlyStop {
-    private int delayGenerations;
+    private int windowSize;
+    private int startGen;
     private double tolerance;
-    private double[] lastMedians;
+    private Double bestFitness;
+    private Individual bestIndividual;
 
-    public EarlyStop(int delayGenerations, double tolerance) {
-        this.delayGenerations = delayGenerations;
+    private int faultCounter;
+
+
+    public EarlyStop(int windowSize, double tolerance, int startGen) {
+        this.windowSize = windowSize;
         this.tolerance = tolerance;
+        this.startGen = Math.max(startGen, this.windowSize);
 
-        this.lastMedians = new double [this.delayGenerations];
-        for(int i = 0; i < this.delayGenerations; i++) {
-            this.lastMedians[i] = 0;
+        this.faultCounter = 0;
+        this.bestFitness = -1.0;
+        this.bestIndividual = null;
+    }
+
+    public boolean isStopping(int gen) {
+        return ((gen > this.startGen) && (this.faultCounter > this.windowSize));
+    }
+
+    /**
+     *
+     * @param gen Current generation
+     * @param fitness Fitness of the best individual of the current generation
+     * @param ind Current generation best individual
+     */
+    public void update(int gen, double fitness, Individual ind) {
+        if(gen > this.startGen) {
+            if((fitness - this.bestFitness) >= this.tolerance) {
+                this.faultCounter = 0;
+                this.bestFitness = fitness;
+                this.bestIndividual = ind;
+            } else {
+                this.faultCounter += 1;
+            }
+        } else {
+            this.bestIndividual = ind;
+            this.bestFitness = fitness;
         }
-        this.lastMedians[0] = this.tolerance * 2;
     }
 
-    public boolean isStopping() {
-        return Math.abs(this.lastMedians[this.lastMedians.length - 1] - this.lastMedians[0]) < this.tolerance;
-    }
-
-    public void update(int gen, double medianFitness) {
-        this.lastMedians[gen % this.delayGenerations] = medianFitness;
-    }
-
-    public int getDelayGenerations() {
-        return delayGenerations;
+    public int getWindowSize() {
+        return windowSize;
     }
 
     public double getTolerance() {
         return tolerance;
     }
+
+    public Individual getLastBestIndividual() {
+        return this.bestIndividual;
+    }
+
 }

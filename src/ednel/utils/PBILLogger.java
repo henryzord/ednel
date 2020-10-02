@@ -6,14 +6,11 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
-import guru.nidi.graphviz.engine.Format;
-import guru.nidi.graphviz.engine.Graphviz;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
-import weka.classifiers.rules.DecisionTable;
 import weka.core.Instances;
 
 import javax.annotation.processing.FilerException;
@@ -22,6 +19,7 @@ import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
@@ -58,6 +56,10 @@ public class PBILLogger {
     protected ArrayList<Integer> dnConnections;
 
     protected HashMap<String, String> pastPopulations = null;
+
+    private Instances train_data;
+    private Instances test_data;
+    private ArrayList<Double> currentGenBestTestFitness;
 
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
@@ -110,10 +112,18 @@ public class PBILLogger {
      * @param n_fold
      * @param log Whether to implement more aggressive logging capabilities. May have a great impact in performance.
      */
-    public PBILLogger(String dataset_name, String dataset_metadata_path, int n_individuals, int n_generations, int n_sample, int n_fold, boolean log) {
+    public PBILLogger(
+            String dataset_name, String dataset_metadata_path,
+            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log
+    ) {
         this.dataset_name = dataset_name;
         this.n_sample = n_sample;
         this.n_fold = n_fold;
+
+        this.train_data = null;
+        this.test_data = null;
+        this.currentGenBestTestFitness = null;
+
         this.log = log;
         if(this.log) {
             this.pastPopulations = new HashMap<>(n_generations * n_individuals * 50);
@@ -143,6 +153,17 @@ public class PBILLogger {
         this.curGen = 0;
     }
 
+    public PBILLogger(
+            String dataset_name, String dataset_metadata_path,
+            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log,
+            Instances train_data, Instances test_data
+    ) {
+        this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log);
+        this.train_data = train_data;
+        this.test_data = test_data;
+        this.currentGenBestTestFitness = new ArrayList<>();
+    }
+
     public static double getMedianFitness(Double[] fitnesses, Integer[] sortedIndices) {
         double medianFitness;
         if((fitnesses.length % 2) == 0) {
@@ -157,12 +178,17 @@ public class PBILLogger {
     public void log(Double[] fitnesses, Integer[] sortedIndices,
                     Individual[] population, Individual overall, Individual last,
                     DependencyNetwork dn, LocalDateTime t1, LocalDateTime t2
-    ) {
+    ) throws Exception {
         this.overall = overall;
         this.last = last;
         this.nevals.add(dn.getCurrentGenEvals());
         this.discardedIndividuals.add(dn.getCurrentGenDiscardedIndividuals());
         this.dnConnections.add(dn.getCurrentGenConnections());
+
+        if(this.test_data != null) {
+            last.buildClassifier(train_data);
+            this.currentGenBestTestFitness.add(FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, last));
+        }
 
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
@@ -172,13 +198,38 @@ public class PBILLogger {
         this.curGen += 1;
     }
 
+    /**
+     * Convenience method for log and print functions.
+     * @param fitnesses
+     * @param sortedIndices
+     * @param population
+     * @param overall
+     * @param last
+     * @param dn
+     * @param t1
+     * @param t2
+     * @throws Exception
+     */
+    public void log_and_print(Double[] fitnesses, Integer[] sortedIndices,
+                    Individual[] population, Individual overall, Individual last,
+                    DependencyNetwork dn, LocalDateTime t1, LocalDateTime t2
+    ) throws Exception {
+        this.log(fitnesses, sortedIndices, population, overall, last, dn, t1, t2);
+        this.print();
+    }
+
+
     private void logPopulation(Double[] fitnesses, Integer[] sortedIndices, Individual[] population) {
         if(this.log) {
             for(int i = 0; i < population.length; i++) {
                 for(String characteristic : population[i].getCharacteristics().keySet()) {
-                    this.pastPopulations.put(String.format("gen_%03d_ind_%03d_%s", this.curGen, i, characteristic), population[i].getCharacteristics().get(characteristic));
+                    this.pastPopulations.put(String.format(
+                            "gen_%03d_ind_%03d_%s", this.curGen, i, characteristic
+                    ), population[i].getCharacteristics().get(characteristic));
                 }
-                this.pastPopulations.put(String.format("gen_%03d_ind_%03d_%s", this.curGen, i, "fitness"), String.valueOf(fitnesses[i]));
+                this.pastPopulations.put(String.format(
+                        "gen_%03d_ind_%03d_%s", this.curGen, i, "fitness"
+                ), String.valueOf(fitnesses[i]));
             }
         }
         this.minFitness.add(fitnesses[sortedIndices[fitnesses.length - 1]]);
@@ -259,10 +310,10 @@ public class PBILLogger {
         return line + "," + (evaluation != null? FitnessCalculator.getUnweightedAreaUnderROC(evaluation) : "") + "\n";
     }
 
-    private Double[] evaluationsToFile(HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
-        BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
+    private Double[] evaluationsToFile(
+            HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
 
-//        HashMap<String, Evaluation> clfEvaluations = new HashMap<>(14);
+        BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
         Double[] fitnesses = new Double [individuals.size()];
 
         // writes header
@@ -288,11 +339,7 @@ public class PBILLogger {
             for(String key: indClassifiers.keySet()) {
                 if(!String.valueOf(indClassifiers.get(key)).equals("null")) {
                     evaluation = new Evaluation(train_data);
-                    try {
-                        evaluation.evaluateModel(indClassifiers.get(key), test_data);
-                    } catch(Exception e) {
-                        evaluation.evaluateModel(indClassifiers.get(key), test_data);  // TODO remove me!
-                    }
+                    evaluation.evaluateModel(indClassifiers.get(key), test_data);
 
                     fitnesses[i] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
                 } else {
@@ -306,7 +353,10 @@ public class PBILLogger {
         return fitnesses;
     }
 
-    public void toFile(DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+    public void toFile(
+            DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data
+    ) throws Exception {
+
         Double[] fitnesses = evaluationsToFile(individuals, train_data, test_data);
         PBILLogger.createFolder(dataset_thisrun_path);
         individualsCharacteristicsToFile(individuals, fitnesses);
@@ -317,7 +367,9 @@ public class PBILLogger {
 
     private void loggerDataToFile(ArrayList<String> samplingOrder) throws Exception {
         if(this.log) {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(dataset_thisrun_path + File.separator + "loggerData.csv"));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(
+                    dataset_thisrun_path + File.separator + "loggerData.csv"
+            ));
 
             StringBuilder so_builder = new StringBuilder();
             for(int i = 0; i < samplingOrder.size(); i++) {
@@ -327,17 +379,22 @@ public class PBILLogger {
 
 
             // writes header
-            bw.write("gen,nevals,min,median,max,lap time (seconds),discarded individuals (including burn-in),dependency network connections,sampling order\n");
+            bw.write(
+                    "gen,nevals,min,median,max," + (this.test_data != null? "currentGenBestTestFitness," : "") +
+                    "lap time (seconds),discarded individuals (including burn-in),dependency network connections," +
+                    "sampling order\n");
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
                         Locale.US,
-                        "%d,%d,%.8f,%.8f,%.8f,%04d,%04d,%04d,%s\n",
+                        "%d,%d,%.8f,%.8f,%.8f,"  + (this.test_data != null? "%.8f," : "%s") +
+                                "%04d,%04d,%04d,%s\n",
                         i,
                         this.nevals.get(i),
                         this.minFitness.get(i),
                         this.medianFitness.get(i),
                         this.maxFitness.get(i),
+                        this.test_data != null? this.currentGenBestTestFitness.get(i) : "",
                         this.lapTimes.get(i),
                         this.discardedIndividuals.get(i),
                         this.dnConnections.get(i),
@@ -406,7 +463,9 @@ public class PBILLogger {
         }
     }
 
-    private String getCharacteristicsLineForIndividual(Object[] order, String indName, HashMap<String, String> characteristics, Double aucs) {
+    private String getCharacteristicsLineForIndividual(
+            Object[] order, String indName, HashMap<String, String> characteristics, Double aucs) {
+
         String line = indName;
         for(Object ch : order) {
             line += "," + characteristics.get(ch);
@@ -415,8 +474,12 @@ public class PBILLogger {
         return line + "\n";
     }
 
-    private void individualsCharacteristicsToFile(HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
-        BufferedWriter bw = new BufferedWriter(new FileWriter(dataset_thisrun_path + File.separator + "characteristics.csv"));
+    private void individualsCharacteristicsToFile(
+            HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
+
+        BufferedWriter bw = new BufferedWriter(new FileWriter(
+                dataset_thisrun_path + File.separator + "characteristics.csv"
+        ));
 
         // writes header, saves order of columns
         Object[] order = individuals.get(individuals.keySet().toArray()[0]).getCharacteristics().keySet().toArray();
@@ -455,8 +518,10 @@ public class PBILLogger {
         // create one folder for each dataset
         PBILLogger.createFolder(metadata_path + File.separator + str_time);
         for(String dataset : dataset_names) {
-            PBILLogger.createFolder(metadata_path + File.separator + str_time + File.separator + dataset);
-            PBILLogger.createFolder(metadata_path + File.separator + str_time + File.separator + dataset + File.separator + "overall");
+            String partial = metadata_path + File.separator + str_time + File.separator + dataset;
+
+            PBILLogger.createFolder(partial);
+            PBILLogger.createFolder(partial + File.separator + "overall");
         }
 
         HashMap<String, String> obj = new HashMap<>();
@@ -464,7 +529,10 @@ public class PBILLogger {
             obj.put(parameter.getLongOpt(), parameter.getValue());
         }
 
-        FileWriter fw = new FileWriter(metadata_path + File.separator + str_time + File.separator + "parameters.json");
+        FileWriter fw = new FileWriter(
+                metadata_path + File.separator + str_time + File.separator + "parameters.json"
+        );
+
         Gson converter = new GsonBuilder().setPrettyPrinting().create();
 
         fw.write(converter.toJson(obj));
@@ -483,25 +551,38 @@ public class PBILLogger {
     public void print() {
         if(this.curGen == 1) {
             System.out.println(
-                String.format(
-                    "Dataset\t\t\tGen\t\t\tnevals\t\tMin\t\t\t\t\tMedian\t\t\t\tMax\t\t\t\tLap time (s)\t\t" +
-                    "Discarded Individuals (w/ burn-in)\t\tDN Connections"
-                )
+                    "Dataset\t\t\tGen\t\tnevals\t\tMin\t\t\tMedian\t\tMax\t\t\t" +
+                            (this.test_data != null? "currentGenBest\t" : "") + "Lap time (s)\t" +
+                            "Discarded Individuals\tDN Connections"
             );
+            System.out.println(
+                    (
+                            this.test_data != null? String.join("", Collections.nCopies(18, "\t")) +
+                                    "TestFitness" + String.join("", Collections.nCopies(6, "\t")) :
+                                    String.join("", Collections.nCopies(22, "\t"))
+                    ) + "(w/ burn-in)");
         }
 
         System.out.println(String.format(
-                "%s\t\t\t%d\t\t\t%d\t\t\t%.8f\t\t\t%.8f\t\t\t%.8f\t\t%04d\t\t\t\t%04d\t\t\t\t\t\t\t\t\t%04d",
+                "%s\t\t\t%d\t\t%d\t\t\t%.8f\t%.8f\t%.8f\t" + (this.test_data != null? "%.8f\t\t" : "%s") +
+                        "%04d\t\t\t%04d\t\t\t\t\t%04d",
                 this.dataset_name,
-                this.curGen,
+                this.curGen - 1,
                 this.nevals.get(this.curGen - 1),
                 this.minFitness.get(this.curGen - 1),
                 this.medianFitness.get(this.curGen - 1),
                 this.maxFitness.get(this.curGen - 1),
+                this.test_data != null? this.currentGenBestTestFitness.get(this.curGen - 1) : "",
                 this.lapTimes.get(this.curGen - 1),
                 this.discardedIndividuals.get(this.curGen - 1),
                 this.dnConnections.get(this.curGen - 1)
         ));
+    }
+
+    public void setDatasets(Instances train_data, Instances test_data) {
+        this.train_data = train_data;
+        this.test_data = test_data;
+        this.currentGenBestTestFitness = new ArrayList<>();
     }
 }
 

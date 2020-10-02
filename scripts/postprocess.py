@@ -266,8 +266,6 @@ def get_n_samples_n_folds(path):
 
 
 def recursive_experiment_process(this_path, n_samples, n_folds, write=True):
-    # TODO join everything in a single csv!
-
     if os.path.isdir(this_path):
         if 'overall' in this_path:
             single_experiment_process(this_path, n_samples, n_folds, write=write)
@@ -282,21 +280,47 @@ def recursive_experiment_process(this_path, n_samples, n_folds, write=True):
                 )
 
 
+def summarize_all(experiments_paths):
+    experiments = [x for x in os.listdir(experiments_paths) if os.path.isdir(os.path.join(experiments_paths, x))]
+
+    lines = []
+    header = None
+
+    for experiment in experiments:
+        experiment_path = os.path.join(experiments_paths, experiment)
+
+        datasets_names = [x for x in os.listdir(experiment_path) if os.path.isdir(os.path.join(experiment_path, x))]
+        for dataset_name in datasets_names:
+            df = pd.read_csv(os.path.join(experiment_path, dataset_name, 'overall', 'summary.csv'), header=[0, 1],
+                             index_col=0)
+            line_selector = ['-mean-of-means' in x for x in df.index]
+            data = df.loc[line_selector, ('unweighted_area_under_roc', 'mean')]
+
+            if header is None:
+                header = ['experiment_name', 'dataset_name'] + data.index.tolist()
+
+            lines += [[experiment, dataset_name] + data.values.tolist()]
+
+    last = pd.DataFrame(lines, columns=header)
+    last.to_csv(os.path.join(experiments_paths, 'final_summary.csv'), index=False)
+
+
 def main(metadata_path, write=True):
     n_samples, n_folds = get_n_samples_n_folds(metadata_path)
     recursive_experiment_process(metadata_path, n_samples=n_samples, n_folds=n_folds, write=write)
+    summarize_all(metadata_path)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='After running an experiment, use this experiment to generate .csv files (one for each dataset, placed at <metadata_folder>/overall ' \
-        'for that dataset) with results for each of the metrics considered in EDAEvaluation.metrics'
+        description='After running experiments (one or more), use this script to generate a summary of the 10-fold '
+                    'cross validation procedures. If more than one sample was taken, it will display the mean metrics '
+                    'in the document. It also generates a csv with the comparison of all experiments.'
     )
 
     parser.add_argument(
         '--csv-path', action='store', required=True,
-        help='A path where .csv files (one for each run) are stored. Works recursively (i.e. as long as .csv files are '
-             'within the specified folder, it will work).'
+        help='Path to a folder with experiment folders, one folder for each experiment.'
     )
 
     args = parser.parse_args()

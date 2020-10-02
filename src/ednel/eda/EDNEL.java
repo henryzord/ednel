@@ -49,8 +49,9 @@ public class EDNEL extends AbstractClassifier {
     protected EarlyStop earlyStop;
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
-                 int timeout, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations, float early_stop_tolerance,
-                 int max_parents, int delay_structure_learning, PBILLogger pbilLogger, Integer seed
+                 int timeout, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
+                 float early_stop_tolerance, int max_parents, int delay_structure_learning, PBILLogger pbilLogger,
+                 Integer seed
     ) throws Exception {
 
         this.learning_rate = learning_rate;
@@ -71,7 +72,8 @@ public class EDNEL extends AbstractClassifier {
 
         this.overallFitness = -1.0;
 
-        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance);
+        // at least 10 generations
+        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance, 10);
 
         this.fitted = false;
 
@@ -91,27 +93,20 @@ public class EDNEL extends AbstractClassifier {
 
     @Override
     public void buildClassifier(Instances data) throws Exception {
+        LocalDateTime start = LocalDateTime.now();
+        LocalDateTime t1 = LocalDateTime.now(), t2;
+
         FitnessCalculator fc = new FitnessCalculator(5, data);
 
         this.currentGenBest = new BaselineIndividual();
+        this.overallBest = this.currentGenBest;
 
-        LocalDateTime start = LocalDateTime.now();
-        LocalDateTime t1, t2;
         for(int c = 0; c < this.n_generations; c++) {
-             t1 = LocalDateTime.now();
-
-             boolean overTime = (this.timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > this.timeout);
-
-            if(this.earlyStop.isStopping() || overTime) {
-                break;
-            }
-
             HashMap<String, Object[]> sampled = dn.gibbsSample(
                     this.currentGenBest.getCharacteristics(), this.n_individuals, fc, this.seed
             );
             Individual[] population = (Individual[])sampled.get("population");
             Double[] fitnesses = (Double[])sampled.get("fitnesses");
-
             Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
 
             this.currentGenBest = population[sortedIndices[0]];
@@ -122,22 +117,24 @@ public class EDNEL extends AbstractClassifier {
                 this.overallBest = this.currentGenBest;
             }
 
-            double medianFitness = PBILLogger.getMedianFitness(fitnesses, sortedIndices);
-
-            this.earlyStop.update(c, medianFitness);
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {
-                this.pbilLogger.log(
+                this.pbilLogger.log_and_print(
                         fitnesses, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
                 );
             }
+            t1 = t2;
 
-            this.dn.update(population, sortedIndices, this.selection_share, c);
+            this.earlyStop.update(c, this.currentGenFitness, this.currentGenBest);
 
-            if(this.pbilLogger != null) {
-                this.pbilLogger.print();
+            boolean overTime = (this.timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > this.timeout);
+            if(this.earlyStop.isStopping(c) || overTime) {
+                break;
             }
+            this.dn.update(population, sortedIndices, this.selection_share, c);
         }
+        this.overallBest = this.earlyStop.getLastBestIndividual();  // TODO is this correct?
+
         this.overallBest.buildClassifier(data);
         this.currentGenBest.buildClassifier(data);
 
