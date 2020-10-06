@@ -1,5 +1,6 @@
 package ednel.eda;
 
+import ednel.Main;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
@@ -7,21 +8,18 @@ import org.apache.commons.cli.CommandLine;
 import weka.core.Instances;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.concurrent.Callable;
 
-public class RunTrainingPieceTask implements Runnable {
+public class RunTrainingPieceTask implements Runnable, Callable {
     private String dataset_name;
     private int n_sample;
     private int n_fold;
     private Instances train_data;
     private Instances test_data;
     private EDNEL ednel;
-
-    private Method writeMethod;
-    private Object writeObj;
 
     private boolean log;
 
@@ -32,9 +30,24 @@ public class RunTrainingPieceTask implements Runnable {
 
     private LocalDateTime start, end;
 
+    private boolean log_test;
+
+    private String datasets_path;
+
+    private PBILLogger pbilLogger;
+
+    /**
+     * Runs a given fold of a 10-fold cross validation on EDNEL.
+     *
+     * @param dataset_name
+     * @param n_sample
+     * @param n_fold
+     * @param commandLine
+     * @param str_time
+     * @throws Exception
+     */
     public RunTrainingPieceTask(
-            String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time,
-            Instances train_data, Instances test_data, Method writeMethod, Object writeObj
+            String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time
     ) throws Exception {
         start = LocalDateTime.now();
 
@@ -44,26 +57,19 @@ public class RunTrainingPieceTask implements Runnable {
 
         this.log = commandLine.hasOption("log");
 
-        this.train_data = train_data;
-        this.test_data = test_data;
+        this.datasets_path = commandLine.getOptionValue("datasets_path");
 
-        this.writeMethod = writeMethod;
-        this.writeObj = writeObj;
+        this.log_test = commandLine.hasOption("log_test");
 
-        boolean log_test =  commandLine.hasOption("log_test");
-
-        PBILLogger pbilLogger = new PBILLogger(
+        this.pbilLogger = new PBILLogger(
                 dataset_name,
                 commandLine.getOptionValue("metadata_path") + File.separator +
                         str_time + File.separator + dataset_name,
                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
-                n_sample, n_fold,
+                this.n_sample, this.n_fold,
                 commandLine.hasOption("log")
         );
-        if(log_test) {
-            pbilLogger.setDatasets(train_data, test_data);
-        }
 
         this.ednel = new EDNEL(
                 Double.parseDouble(commandLine.getOptionValue("learning_rate")),
@@ -84,9 +90,20 @@ public class RunTrainingPieceTask implements Runnable {
         );
     }
 
-    @Override
-    public void run() {
+    private void core() {
         try {
+            HashMap<String, Instances> datasets = Main.loadDataset(
+                    this.datasets_path,
+                    this.dataset_name,
+                    this.n_fold
+            );
+            this.train_data = datasets.get("train_data");
+            this.test_data = datasets.get("test_data");
+
+            if(log_test) {
+                pbilLogger.setDatasets(train_data, test_data);
+            }
+
             this.ednel.buildClassifier(this.train_data);
 
             HashMap<String, Individual> toReport = new HashMap<>(2);
@@ -96,15 +113,6 @@ public class RunTrainingPieceTask implements Runnable {
             if(this.log) {
                 this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
             }
-
-            if((this.writeMethod != null) && (this.writeObj != null)) {
-                Double[] overall_auc = {this.overallIndividualPerformance()};
-                Double[] last_auc = {this.lastIndividualPerformance()};
-
-                this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "last", last_auc);
-                this.writeMethod.invoke(this.writeObj, this.dataset_name, this.n_sample, this.n_fold, "overall", overall_auc);
-            }
-
         } catch(Exception e) {
             System.err.println("An error occurred, but could not be thrown:");
             System.err.println(e.getMessage());
@@ -118,6 +126,17 @@ public class RunTrainingPieceTask implements Runnable {
             this.hasCompleted = true;
             this.end = LocalDateTime.now();
         }
+    }
+
+    @Override
+    public Object call() throws Exception {
+        this.core();
+        return !this.hasSetAnException;
+    }
+
+    @Override
+    public void run() {
+        this.core();
     }
 
     /**

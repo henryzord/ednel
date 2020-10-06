@@ -9,8 +9,10 @@ import weka.core.Instances;
 import java.util.HashMap;
 import java.util.Locale;
 
-public class TestBaselines {
-
+/**
+ * Implements a random search hyper-parameter optimization for EDNEL.
+ */
+public class RandomSearch {
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
         Options options = new Options();
 
@@ -36,12 +38,21 @@ public class TestBaselines {
                 .build()
         );
 
+        options.addOption(Option.builder()
+                .longOpt("metadata_path")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Path to folder where runs results will be stored.")
+                .build());
+
         CommandLineParser parser = new DefaultParser();
         return parser.parse(options, args);
     }
 
     public static void main(String[] args) throws Exception {
-        CommandLine commandLine = TestBaselines.parseCommandLine(args);
+        CommandLine commandLine = RandomSearch.parseCommandLine(args);
 
         String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
 

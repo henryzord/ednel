@@ -6,6 +6,7 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
+import guru.nidi.graphviz.attribute.MapAttributes;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
@@ -103,6 +104,8 @@ public class PBILLogger {
             "unweightedMacroFmeasure",
             "unweightedMicroFmeasure"
     };
+    private ArrayList<Double> dnMeanHeuristics;
+    private ArrayList<String> samplingOrders;
 
     /**
      *
@@ -149,6 +152,8 @@ public class PBILLogger {
         this.lapTimes = new ArrayList<>();
         this.nevals = new ArrayList<>();
         this.dnConnections = new ArrayList<>();
+        this.dnMeanHeuristics = new ArrayList<>();
+        this.samplingOrders = new ArrayList<>();
 
         this.curGen = 0;
     }
@@ -184,6 +189,7 @@ public class PBILLogger {
         this.nevals.add(dn.getCurrentGenEvals());
         this.discardedIndividuals.add(dn.getCurrentGenDiscardedIndividuals());
         this.dnConnections.add(dn.getCurrentGenConnections());
+        this.dnMeanHeuristics.add(dn.getCurrentGenMeanHeuristic());
 
         if(this.test_data != null) {
             last.buildClassifier(train_data);
@@ -194,6 +200,16 @@ public class PBILLogger {
 
         this.logPopulation(fitnesses, sortedIndices, population);
         this.logDependencyNetworkStructureAndProbabilities(dn);
+
+        ArrayList<String> samplingOrder = dn.getSamplingOrder();
+        StringBuilder sb = new StringBuilder("");
+        for(String var : samplingOrder) {
+            sb.append(var).append(",");
+        }
+
+        String so_str = sb.toString();
+        so_str = "\"" + so_str.substring(0, so_str.length() - 1) + "\"";
+        this.samplingOrders.add(so_str);
 
         this.curGen += 1;
     }
@@ -361,34 +377,27 @@ public class PBILLogger {
         PBILLogger.createFolder(dataset_thisrun_path);
         individualsCharacteristicsToFile(individuals, fitnesses);
         individualsClassifiersToFile(individuals);
-        loggerDataToFile(dn.getSamplingOrder());
+        loggerDataToFile();
         dependencyNetworkStructureToFile(dn);
     }
 
-    private void loggerDataToFile(ArrayList<String> samplingOrder) throws Exception {
+    private void loggerDataToFile() throws Exception {
         if(this.log) {
             BufferedWriter bw = new BufferedWriter(new FileWriter(
                     dataset_thisrun_path + File.separator + "loggerData.csv"
             ));
 
-            StringBuilder so_builder = new StringBuilder();
-            for(int i = 0; i < samplingOrder.size(); i++) {
-                so_builder.append(samplingOrder.get(i) + ((i < (samplingOrder.size() - 1))? "," : ""));
-            }
-            String so_str = "\"" + so_builder.toString() + "\"";
-
-
             // writes header
             bw.write(
                     "gen,nevals,min,median,max," + (this.test_data != null? "currentGenBestTestFitness," : "") +
-                    "lap time (seconds),discarded individuals (including burn-in),dependency network connections," +
+                    "lap time (seconds),discarded individuals (including burn-in),GM connections,GM mean heuristic," +
                     "sampling order\n");
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
                         Locale.US,
                         "%d,%d,%.8f,%.8f,%.8f,"  + (this.test_data != null? "%.8f," : "%s") +
-                                "%04d,%04d,%04d,%s\n",
+                                "%04d,%04d,%04d,%.8f,%s\n",
                         i,
                         this.nevals.get(i),
                         this.minFitness.get(i),
@@ -398,7 +407,8 @@ public class PBILLogger {
                         this.lapTimes.get(i),
                         this.discardedIndividuals.get(i),
                         this.dnConnections.get(i),
-                        so_str
+                        this.dnMeanHeuristics.get(i),
+                        this.samplingOrders.get(i)
                 ));
             }
             bw.close();

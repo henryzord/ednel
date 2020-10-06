@@ -34,9 +34,9 @@ public class TestDatasets {
 
         for(String dataset_name : dataset_names) {
             try {
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = Main.loadFoldsOfDatasets(datasets_path, dataset_name);
-                Instances train_data = curDatasetFolds.get(1).get("train");
-                Instances test_data = curDatasetFolds.get(1).get("test");
+                HashMap<String, Instances> curDatasetFolds = Main.loadDataset(datasets_path, dataset_name, 1);
+                Instances train_data = curDatasetFolds.get("train_data");
+                Instances test_data = curDatasetFolds.get("test_data");
 
                 sizes[counter] = (double)((train_data.numInstances() + test_data.numInstances()) * train_data.numAttributes());
             } catch(Exception e) {
@@ -73,15 +73,16 @@ public class TestDatasets {
 
         for(int index : sortedIndices) {
             try {
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = Main.loadFoldsOfDatasets(
+                HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
                         commandLine.getOptionValue("datasets_path"),
-                        dataset_names[index]
+                        dataset_names[index],
+                        1
                 );
-                Instances train_data = curDatasetFolds.get(1).get("train");
-                Instances test_data = curDatasetFolds.get(1).get("test");
+                Instances train_data = curDatasetFolds.get("train_data");
+                Instances test_data = curDatasetFolds.get("test_data");
 
                 RunTrainingPieceTask task = new RunTrainingPieceTask(
-                        dataset_names[index], 1, 1, commandLine, str_time, train_data, test_data, null, null
+                        dataset_names[index], 1, 1, commandLine, str_time
                 );
                 tasks[counter_task] = task;
                 counter_task += 1;

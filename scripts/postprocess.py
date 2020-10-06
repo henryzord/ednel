@@ -248,67 +248,99 @@ def get_n_samples_n_folds(path):
     outer_n_folds = -1
 
     if os.path.isdir(path):
-        if 'overall' in path:
-            relation = __get_relation__(path)
+        folders = [x for x in os.listdir(path) if os.path.isdir(os.path.join(path, x))]
+
+        if 'overall' in folders:  # is within a single experiment folder
+            relation = __get_relation__(os.path.join(path, 'overall'))
             outer_n_samples = max(outer_n_samples, max([int(x.split('-')[-1]) for x in relation['sample'].unique()]))
             outer_n_folds = max(outer_n_folds, max([int(x.split('-')[-1]) for x in relation['fold'].unique()]))
-        else:
-            _files = os.listdir(path)
-            if 'summary' in _files:
-                _files.remove("summary")
+        else:  # all experiment folders must have the same number of samples and folds
+            for folder in folders:
+                n_samples, n_folds = get_n_samples_n_folds(os.path.join(path, folder))
+                if (outer_n_samples != -1) and (n_samples != outer_n_samples):
+                    raise Exception("experiments have different number of samples!")
+                else:
+                    outer_n_samples = n_samples
 
-            for _file in _files:
-                n_samples, n_folds = get_n_samples_n_folds(os.path.join(path, _file))
-                outer_n_samples = max(outer_n_samples, n_samples)
-                outer_n_folds = max(outer_n_folds, n_folds)
+                if (outer_n_folds != -1) and (n_folds != outer_n_folds):
+                    raise Exception("experiments have different number of folds!")
+                else:
+                    outer_n_folds = n_folds
+    else:
+        raise Exception("experiment path does not point to a valid experiment directory!")
 
     return outer_n_samples, outer_n_folds
 
 
 def recursive_experiment_process(this_path, n_samples, n_folds, write=True):
     if os.path.isdir(this_path):
-        if 'overall' in this_path:
-            single_experiment_process(this_path, n_samples, n_folds, write=write)
+        folders = [x for x in os.listdir(this_path) if os.path.isdir(os.path.join(this_path, x))]
+
+        if 'overall' in folders:
+            single_experiment_process(os.path.join(this_path, 'overall'), n_samples, n_folds, write=write)
         else:
-            _files = os.listdir(this_path)
-            for _file in _files:
+            for folder in folders:
                 recursive_experiment_process(
-                    os.path.join(this_path, _file),
+                    os.path.join(this_path, folder),
                     n_samples=n_samples,
                     n_folds=n_folds,
                     write=write
                 )
 
 
-def summarize_all(experiments_paths):
-    experiments = [x for x in os.listdir(experiments_paths) if os.path.isdir(os.path.join(experiments_paths, x))]
+def __find_which_level__(path):
+    """
+    Determines at which level it is.
+    """
+
+    level = 1
+
+    folders = os.listdir(path)
+    if 'overall' not in folders:
+        level = 1 + max([__find_which_level__(os.path.join(path, x)) for x in os.listdir(path) if os.path.isdir(os.path.join(path, x))])
+
+    return level
+
+
+def summarize_all(path):
+    # TODO has to decide in which level it is. if within a single experiment folder, place summarized csv here; otherwise
+    # TODO on the same level as other experiments
+
+    level = __find_which_level__(path)
 
     lines = []
     header = None
 
-    for experiment in experiments:
-        experiment_path = os.path.join(experiments_paths, experiment)
+    if level == 2:
+        folders = ['.']
+    else:
+        folders = [x for x in os.listdir(path) if os.path.isdir(os.path.join(path, x))]
 
-        datasets_names = [x for x in os.listdir(experiment_path) if os.path.isdir(os.path.join(experiment_path, x))]
+    for folder in folders:
+        sub_path = os.path.join(path, folder)
+
+        datasets_names = [x for x in os.listdir(sub_path) if os.path.isdir(os.path.join(sub_path, x))]
         for dataset_name in datasets_names:
-            df = pd.read_csv(os.path.join(experiment_path, dataset_name, 'overall', 'summary.csv'), header=[0, 1],
-                             index_col=0)
+            df = pd.read_csv(
+                os.path.join(sub_path, dataset_name, 'overall', 'summary.csv'),
+                header=[0, 1], index_col=0
+            )
             line_selector = ['-mean-of-means' in x for x in df.index]
             data = df.loc[line_selector, ('unweighted_area_under_roc', 'mean')]
 
             if header is None:
                 header = ['experiment_name', 'dataset_name'] + data.index.tolist()
 
-            lines += [[experiment, dataset_name] + data.values.tolist()]
+            lines += [[folder, dataset_name] + data.values.tolist()]
 
     last = pd.DataFrame(lines, columns=header)
-    last.to_csv(os.path.join(experiments_paths, 'final_summary.csv'), index=False)
+    last.to_csv(os.path.join(path, 'final_summary.csv'), index=False)
 
 
-def main(metadata_path, write=True):
-    n_samples, n_folds = get_n_samples_n_folds(metadata_path)
-    recursive_experiment_process(metadata_path, n_samples=n_samples, n_folds=n_folds, write=write)
-    summarize_all(metadata_path)
+def main(experiment_path, write=True):
+    n_samples, n_folds = get_n_samples_n_folds(experiment_path)
+    recursive_experiment_process(experiment_path, n_samples=n_samples, n_folds=n_folds, write=write)
+    summarize_all(experiment_path)  
 
 
 if __name__ == '__main__':
@@ -319,10 +351,10 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--csv-path', action='store', required=True,
-        help='Path to a folder with experiment folders, one folder for each experiment.'
+        '--experiment-path', action='store', required=True,
+        help='Either a path to where several experiments are, or the path of a single experiment. Will act according.'
     )
 
     args = parser.parse_args()
-    main(metadata_path=args.csv_path)  
+    main(experiment_path=args.experiment_path)
 

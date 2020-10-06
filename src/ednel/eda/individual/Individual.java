@@ -44,6 +44,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     private static HashMap<String, Class<? extends Aggregator>> aggregatorClasses;
 
+    static {
+        aggregatorClasses = Individual.getAggregatorClasses();
+    }
+
     public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics) throws Exception {
         this.classifiers = new HashMap<>(6);
         this.characteristics = new HashMap<>();
@@ -114,8 +118,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         String[] aggregatorParameters = Utils.getOption("Aggregator", options).split(" ");
 
         this.aggregatorName = aggregatorParameters[0];
-        HashMap<String, Class<? extends Aggregator>> aggrClass = Individual.getAggregatorClasses();
-        Class<? extends Aggregator> cls = aggrClass.getOrDefault(aggregatorName, null);
+        Class<? extends Aggregator> cls = Individual.aggregatorClasses.getOrDefault(aggregatorName, null);
 
         if(cls != null) {
             this.aggregator = (Aggregator)cls.getConstructor().newInstance();

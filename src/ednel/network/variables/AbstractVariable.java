@@ -7,6 +7,7 @@ import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.exception.MathArithmeticException;
 import org.apache.commons.math3.exception.NotANumberException;
 import org.apache.commons.math3.random.MersenneTwister;
+import smile.neighbor.lsh.Hash;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -409,7 +410,7 @@ public class AbstractVariable {
                 }
             } else {  // there are new parents for this variable
                 // probabilities is set to -1 to catch unexpected behaviors, but for updating
-                // independent probabilities a 1 value is required. so we initialize a new arraylist with all
+                // independent probabilities a 1 value is required. so we initialize a new ArrayList with all
                 // ones
                 ArrayList<Double> shadowProb = new ArrayList<>();
                 for(int i = 0; i < this.n_combinations; i++) {
@@ -435,17 +436,11 @@ public class AbstractVariable {
                             pair.put(this.getName(), childVal);
                             pair.put(parent, combination.get(parent));
 
-                            double bivariateProb;
-                            try {
-                                bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));
-                            } catch(Exception e) {
-                                bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));  // TODO remove me!
-                            }
+                            double bivariateProb = newBivariateStatistics.get(parent).get(new Combination(pair));
 
-
-                            if(Double.isNaN(bivariateProb)) {
-                                bivariateProb = 0.0;  // will only be used if laplace correction is set to false
-                            }
+//                            if(Double.isNaN(bivariateProb)) {
+//                                bivariateProb = 0.0;  // will only be used if laplace correction is set to false
+//                            }
 
                             shadowProb.set(index, shadowProb.get(index) * bivariateProb);
                         }
@@ -454,14 +449,36 @@ public class AbstractVariable {
                     for(int index : childValueIndex.values()) {
                         sum += shadowProb.get(index);
                     }
+                    // TODO here!!!!!
+                    // should not use univariate distribution if bivariate statistic with parent is null!
                     if(sum == 0) {
+                        boolean shouldBeNull = false;
                         for(String val : childValueIndex.keySet()) {
-                            HashMap<String, String> uni_pair = new HashMap<>();
-                            uni_pair.put(this.getName(), val);
+                            for(String det_parent : det_parents) {
+                                HashMap<String, String> localPair = new HashMap<>();
+                                localPair.put(det_parent, combination.get(det_parent));
+                                localPair.put(this.getName(), val);
 
-                            Double prob = newBivariateStatistics.get(this.getName()).get(new Combination(uni_pair));
-                            this.probabilities.set(childValueIndex.get(val), prob);
-                            sum += prob;
+                                if(newBivariateStatistics.get(det_parent).get(new Combination(localPair)) <= 0) {
+                                    shouldBeNull = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if(shouldBeNull) {
+                            for(int index : childValueIndex.values()) {
+                                this.probabilities.set(index, 0.0);
+                            }
+                            this.probabilities.set(childValueIndex.get("null"), 1.0);
+                        } else {
+                            for(String val : childValueIndex.keySet()) {
+                                HashMap<String, String> uni_pair = new HashMap<>();
+                                uni_pair.put(this.getName(), val);
+
+                                Double prob = newBivariateStatistics.get(this.getName()).get(new Combination(uni_pair));
+                                this.probabilities.set(childValueIndex.get(val), prob);
+                                sum += prob;
+                            }
                         }
                     } else {
                         for(int index : childValueIndex.values()) {
@@ -472,7 +489,6 @@ public class AbstractVariable {
             }
             this.bs.setOldBivariateStatistics(newBivariateStatistics);
 
-            // TODO remove me later!
             if(this.probabilities.indexOf(-1.0) != -1) {
                 throw new Exception("should not have -1 values!");
             }

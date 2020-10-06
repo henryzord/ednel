@@ -271,13 +271,14 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
 
                 System.out.print(String.format("on dataset %s...\n", dataset_name));
 
-                HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = Main.loadFoldsOfDatasets(
+                HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
                         commandLine.getOptionValue("datasets_path"),
-                        dataset_name
+                        dataset_name,
+                        1
                 );
 
-                Instances train_data = curDatasetFolds.get(1).get("train");
-                Instances test_data = curDatasetFolds.get(1).get("test");
+                Instances train_data = curDatasetFolds.get("train_data");
+                Instances test_data = curDatasetFolds.get("test_data");
 
                 Random rnd = new Random(5);
                 AbstractClassifier[] clfs = new AbstractClassifier[]{ new DecisionTable(), new JRip(), new SimpleCart(), new J48(), new PART()};

@@ -1,23 +1,14 @@
 package ednel.network;
 
-import ednel.eda.aggregators.Aggregator;
 import ednel.eda.individual.EmptyEnsembleException;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.eda.individual.NoAggregationPolicyException;
 import ednel.network.variables.AbstractVariable;
-import org.apache.commons.io.input.TailerListener;
 import org.apache.commons.math3.random.MersenneTwister;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.reflections.Reflections;
 import org.reflections.scanners.ResourcesScanner;
-import smile.neighbor.lsh.Hash;
 
-import java.io.*;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.InvalidParameterException;
 import java.util.*;
 
@@ -53,6 +44,8 @@ public class DependencyNetwork {
     private int currentGenDiscardedIndividuals;
     private int currentGenEvals;
     private int currentGenConnections;
+    private double currentGenMeanHeuristic;
+
     private HashMap<String, ArrayList<String>> lastFittestValues;
 
     private boolean no_cycles;
@@ -81,6 +74,7 @@ public class DependencyNetwork {
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
         this.currentGenConnections = 0;
+        this.currentGenMeanHeuristic = 0;
 
         this.lastFittestValues = null;
 
@@ -222,6 +216,7 @@ public class DependencyNetwork {
      * @return an ArrayList with the inferred sampling order
      */
     private static ArrayList<String> inferSamplingOrder(HashMap<String, HashMap<String, ArrayList<String>>> graph) {
+//        throw new Exception("some error here!");
         ArrayList<String> samplingOrder = new ArrayList<>(graph.size());
         HashSet<String> added_set = new HashSet<>();
 
@@ -263,14 +258,15 @@ public class DependencyNetwork {
             }
         }
 
+//        throw new Exception("inferring incorrect sampling order!");
+
         int n_variables = graph.size();
 
         ArrayList<String> shuffableVariables = new ArrayList<>(graph.keySet());
+        Collections.shuffle(shuffableVariables);
 
         // tries to add variables with the least amount of parents
         while(added_set.size() < n_variables) {  // while there are still variables to add
-            Collections.shuffle(shuffableVariables);
-
             ArrayList<String> added_now = new ArrayList<>();
 
             String best_candidate = null;
@@ -294,9 +290,9 @@ public class DependencyNetwork {
                     samplingOrder.add(var);
                     added_set.add(var);
                     added_now.add(var);
-                } else if(missing_det_parents < best_missing_det) {
-                    if(missing_prob_parents < best_missing_prob) {
-                        if((probParentsOf.get(var).size() + detParentsOf.get(var).size()) > best_voting) {
+                } else if(missing_det_parents <= best_missing_det) {
+                    if(missing_prob_parents <= best_missing_prob) {
+                        if((probParentsOf.get(var).size() + detParentsOf.get(var).size()) >= best_voting) {
                             best_missing_prob = missing_prob_parents;
                             best_missing_det = missing_det_parents;
                             best_candidate = var;
@@ -405,6 +401,7 @@ public class DependencyNetwork {
                 }
             } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException e) {  // invalid individual generated
                 this.currentGenDiscardedIndividuals += 1;
+//                System.out.println(e.getMessage()); // TODO remove!
             }
         }
 
@@ -721,6 +718,9 @@ public class DependencyNetwork {
 
         Collections.shuffle(this.samplingOrder);  // adds randomness to the process
 
+        double n_computed_amis = 0;
+        this.currentGenMeanHeuristic = 0;
+
         for(String variableName : this.samplingOrder) {
             HashSet<String> candSet = new HashSet<>(this.variables.keySet());  // candidates to be parents of a variable
             candSet.remove(variableName);  // removes itself, otherwise makes no sense
@@ -762,9 +762,11 @@ public class DependencyNetwork {
                 }
                 candSet.removeAll(toRemove);
 
-                if(bestHeuristic > 0) {
+                if(bestHeuristic >= 0.1) {  // TODO increased from 0 to 0.1!
+                    this.currentGenMeanHeuristic = this.currentGenMeanHeuristic + bestHeuristic;
+                    n_computed_amis = n_computed_amis + 1.0;
+
                     probParentSet.add(bestCandidate);
-                    candSet.remove(bestCandidate);
 
                     HashMap<String, ArrayList<String>> temp = this.graph.get(bestCandidate);
                     ArrayList<String> updatedChildren = temp.get("probabilistic");
@@ -772,6 +774,7 @@ public class DependencyNetwork {
                     temp.put("probabilistic", updatedChildren);
                     this.graph.put(bestCandidate, temp);
                 }
+                candSet.remove(bestCandidate);
             }
 
             AbstractVariable thisVariable = this.variables.get(variableName);
@@ -793,6 +796,7 @@ public class DependencyNetwork {
 
             this.currentGenConnections += thisVariable.getParentCount();
         }
+        this.currentGenMeanHeuristic /= n_computed_amis <= 0.0? 1.0 : n_computed_amis;
     }
 
     /**
@@ -853,6 +857,10 @@ public class DependencyNetwork {
 
     public ArrayList<String> getSamplingOrder() {
         return this.samplingOrder;
+    }
+
+    public Double getCurrentGenMeanHeuristic() {
+        return this.currentGenMeanHeuristic;
     }
 }
 

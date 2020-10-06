@@ -1,6 +1,5 @@
 package ednel;
 
-import ednel.eda.CompileResultsTask;
 import ednel.eda.RunTrainingPieceTask;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
@@ -8,50 +7,81 @@ import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
-    /**
-     * This method loads the whole dataset 10 times, since it is split in 10 pairs of training-test subsets.
-     * @param datasets_path Path where all datasets are stored.
-     * @param dataset_name Name of dataset desired to be open
-     * @return A HashMap object where each entry is an iteration of a 10-fold cross-validation (starting at 1 and ending
-     * at 10), and each value a subsequent HashMap with training and test subsets.
-     */
-    public static HashMap<Integer, HashMap<String, Instances>> loadFoldsOfDatasets(
-            String datasets_path, String dataset_name) throws Exception {
 
-        HashMap<Integer, HashMap<String, Instances>> datasets = new HashMap<>();
+    private static final int init_fold = 1;
+    private static final int end_fold = 11;
+    private static final int n_folds = 10;
 
-        for(int j = 1; j < 11; j++) {  // 10 folds
-            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
-                    datasets_path + File.separator +
-                            dataset_name + File.separator + dataset_name + "-10-" + j + "tra.arff"
-            );
-            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource(
-                    datasets_path + File.separator +
-                            dataset_name + File.separator + dataset_name + "-10-" + j + "tst.arff"
-            );
+//    /**
+//     * This method loads the whole dataset 10 times, since it is split in 10 pairs of training-test subsets.
+//     * @param datasets_path Path where all datasets are stored.
+//     * @param dataset_name Name of dataset desired to be open
+//     * @return A HashMap object where each entry is an iteration of a 10-fold cross-validation (starting at 1 and ending
+//     * at 10), and each value a subsequent HashMap with training and test subsets.
+//     */
+//    public static HashMap<Integer, HashMap<String, Instances>> loadFoldsOfDatasets(
+//            String datasets_path, String dataset_name) throws Exception {
+//
+//        HashMap<Integer, HashMap<String, Instances>> datasets = new HashMap<>();
+//
+//        for(int j = 1; j < 11; j++) {  // 10 folds
+//            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
+//                    datasets_path + File.separator +
+//                            dataset_name + File.separator + dataset_name + "-10-" + j + "tra.arff"
+//            );
+//            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource(
+//                    datasets_path + File.separator +
+//                            dataset_name + File.separator + dataset_name + "-10-" + j + "tst.arff"
+//            );
+//
+//            Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
+//            train_data.setClassIndex(train_data.numAttributes() - 1);
+//            test_data.setClassIndex(test_data.numAttributes() - 1);
+//
+//            datasets.put(
+//                    j, new HashMap<String, Instances>(){{
+//                   put("train", train_data);
+//                   put("test", test_data);
+//                }}
+//            );
+//        }
+//        return datasets;
+//    }
 
-            Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
-            train_data.setClassIndex(train_data.numAttributes() - 1);
-            test_data.setClassIndex(test_data.numAttributes() - 1);
+    public static HashMap<String, Instances> loadDataset(
+            String datasets_path, String dataset_name, int n_fold) throws Exception {
 
-            datasets.put(
-                    j, new HashMap<String, Instances>(){{
-                   put("train", train_data);
-                   put("test", test_data);
-                }}
-            );
-        }
+        HashMap<String, Instances> datasets = new HashMap<>();
+
+        ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
+                datasets_path + File.separator +
+                        dataset_name + File.separator + dataset_name + "-10-" + n_fold + "tra.arff"
+        );
+        ConverterUtils.DataSource test_set = new ConverterUtils.DataSource(
+                datasets_path + File.separator +
+                        dataset_name + File.separator + dataset_name + "-10-" + n_fold + "tst.arff"
+        );
+
+        Instances train_data = train_set.getDataSet(), test_data = test_set.getDataSet();
+        train_data.setClassIndex(train_data.numAttributes() - 1);
+        test_data.setClassIndex(test_data.numAttributes() - 1);
+
+        datasets.put("train_data", train_data);
+        datasets.put("test_data", test_data);
+
         return datasets;
     }
+
 
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
         Options options = new Options();
@@ -260,8 +290,8 @@ public class Main {
     public static void main(String[] args) throws Exception {
         CommandLine commandLine = parseCommandLine(args);
 
-        int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
-        int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
+        int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples", "1"));
+        int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs", "1"));
 
         // writes metadata
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
@@ -271,42 +301,29 @@ public class Main {
 
         String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
 
-        // always 10 folds
-//            CompileResultsTask compiler = new CompileResultsTask(dataset_names, n_samples, 10);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs);
 
-        ThreadPoolExecutor executor = null;
-        if(n_jobs > 1) {
-            executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_jobs);
-//                executor.execute(compiler);
-        }
+        final int n_tasks = dataset_names.length * n_samples * Main.n_folds;
+
+        ArrayList<Callable<Object>> taskQueue = new ArrayList<>(n_tasks);
 
         for(String dataset_name : dataset_names) {
-            HashMap<Integer, HashMap<String, Instances>> curDatasetFolds = loadFoldsOfDatasets(
-                    commandLine.getOptionValue("datasets_path"),
-                    dataset_name
-            );
-
             for(int n_sample = 1; n_sample < n_samples + 1; n_sample++) {
-                for(int n_fold = 1; n_fold < 11; n_fold++) {  // 10 folds
-                    Instances train_data = curDatasetFolds.get(n_fold).get("train");
-                    Instances test_data = curDatasetFolds.get(n_fold).get("test");
-
+                for(int n_fold = Main.init_fold; n_fold < Main.end_fold; n_fold++) {  // 10 folds
                     RunTrainingPieceTask task = new RunTrainingPieceTask(
-                            dataset_name, n_sample, n_fold, commandLine, str_time, train_data, test_data, null, null
-//                                compiler.getClass().getMethod(
-//                                        "accessAUCData",
-//                                        String.class, int.class, int.class, String.class, Double[].class
-//                                ),
-//                                compiler
+                            dataset_name, n_sample, n_fold, commandLine, str_time
                     );
-                    if(n_jobs > 1) {
-                        executor.execute(task);
-                    } else {
-                        task.run();
-                    }
-                    Thread.sleep(1000);  // prevents creating all threads at once
+                    taskQueue.add(Executors.callable(task));
                 }
             }
         }
+        ArrayList<Future<Object>> answers = (ArrayList<Future<Object>>)executor.invokeAll(taskQueue);
+        executor.shutdown();
+        int finished = 0;
+        for(int i = 0; i < answers.size(); i++) {
+            finished += answers.get(i).isDone()? 1 : 0;
+        }
+        System.out.println(String.format("%d tasks completed", finished));
+
     }
 }
