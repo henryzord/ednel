@@ -1,6 +1,7 @@
 
 # utilities
 import argparse
+import copy
 import json
 import os
 import re
@@ -430,7 +431,7 @@ def update_chromossome_heatmap(characteristics_df, gen):
 
     df = characteristics_df.loc[characteristics_df.index == gen]
 
-    columns = set(df.columns) - {'fitness'}
+    columns = sorted(set(df.columns) - {'fitness'})
 
     common_values_fracts = np.empty((1, len(columns)), dtype=np.float)
 
@@ -438,6 +439,19 @@ def update_chromossome_heatmap(characteristics_df, gen):
 
     for i, column in enumerate(columns):
         counter = Counter(df[column])
+
+        if df[column].dtype.name != 'category':
+
+            keys = copy.deepcopy(list(counter.keys()))
+
+            corrected_counter = dict(null=0)
+            for k in keys:
+                if np.isnan(k):
+                    corrected_counter['null'] += counter[k]
+                    del counter[k]
+
+            counter['null'] = corrected_counter['null']
+
         common_values_fracts[0][i] = counter.most_common(1)[0][1] / len(df)
         texts[0][i] = '%s: %s' % (column, str(counter.most_common(1)[0][0]))
 
@@ -499,7 +513,6 @@ def main(args):
         characteristics_df = read_population_dataframe(os.path.join(args.experiment_path, 'characteristics.csv'))
         population_df = run_pca(to_all_numeric_columns(characteristics_df))
         logger_data = pd.read_csv(open(os.path.join(args.experiment_path, 'loggerData.csv'), 'r'), sep=',', quotechar='\"')
-
 
         gens = sorted(list(probs.keys()))
         first_gen = gens[0]
