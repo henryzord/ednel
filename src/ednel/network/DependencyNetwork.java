@@ -364,13 +364,10 @@ public class DependencyNetwork {
             HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed
     ) throws Exception {
 
-        Individual[] individuals = new Individual[sampleSize];
         Double[] fitnesses = new Double[sampleSize];
+        Individual[] individuals = new Individual[sampleSize];
 
         this.currentGenEvals = 0;
-
-        int outerCounter = 0;
-        int individualCounter = 0;
 
         // burns some individuals
         for(int i = 0; i < burn_in; i++) {
@@ -380,28 +377,58 @@ public class DependencyNetwork {
         }
         this.currentGenDiscardedIndividuals = burn_in;
 
-        while(individualCounter < sampleSize) {
+        HashMap<String, String> initialSearchPoint = (HashMap<String, String>)lastStart.clone();
+
+        int thinning_counter = 0;
+        int individual_counter = 0;
+        int inner_invalid_streak = 0;
+        int outer_invalid_streak = 0;
+
+        while(individual_counter < sampleSize) {  // while there are still individuals to sample
             HashMap<String, HashMap<String, String>> components = this.sampleIndividual(lastStart);
             HashMap<String, String> optionTable = components.get("optionTable");
             lastStart = components.get("lastStart");
-            outerCounter += 1;
+            thinning_counter += 1;
 
-            try {
-                if(outerCounter >= this.thinning_factor) {
+            // if this individual should be taken into account; otherwise
+            // discards because thinning_factor is larger than zero
+            if(thinning_counter >= this.thinning_factor) {
+                try {
                     Individual individual = new Individual(optionTable, lastStart);
-                    fitnesses[individualCounter] = fc.evaluateEnsemble(seed, individual);
-                    individuals[individualCounter] = individual;
+                    fitnesses[individual_counter] = fc.evaluateEnsemble(seed, individual);
+                    individuals[individual_counter] = individual;
 
-                    outerCounter = 0;
+                    thinning_counter = 0;
+                    individual_counter += 1;
 
-                    individualCounter += 1;
+                    inner_invalid_streak = 0;
+                    outer_invalid_streak = 0;
+
                     this.currentGenEvals += 1;
-                } else {
+                } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException e) {
+                    // generated invalid individual
                     this.currentGenDiscardedIndividuals += 1;
-                }
-            } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException e) {  // invalid individual generated
-                this.currentGenDiscardedIndividuals += 1;
+
+                    inner_invalid_streak += 1;
+                    if(inner_invalid_streak >= 5) {  // 5 is an arbitrary parameter
+                        if(individual_counter > 0) {
+                            lastStart = individuals[individual_counter - 1].getCharacteristics();
+                            outer_invalid_streak += 1;
+                            inner_invalid_streak = 0;
+                        } else {
+                            inner_invalid_streak = 0;
+                            outer_invalid_streak = 5;
+                        }
+
+                        if(outer_invalid_streak >= 5) {
+                            lastStart = initialSearchPoint;
+                            outer_invalid_streak = 0;
+                        }
+                    }
 //                System.out.println(e.getMessage()); // TODO remove!
+                }
+            } else {
+                this.currentGenDiscardedIndividuals += 1;
             }
         }
 

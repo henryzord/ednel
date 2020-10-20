@@ -351,7 +351,7 @@ def add_mesh_dropdown():
     return mesh_dropdown
 
 
-def update_fitness_plot(logger_data, plots):
+def update_fitness_plot(logger_data, plots, options):
     fig = go.Figure(
         layout=go.Layout(
             # title='Population metrics throughout generations',
@@ -370,15 +370,26 @@ def update_fitness_plot(logger_data, plots):
 
     for plot in plots:
         if plot in logger_data.columns and is_numeric_dtype(logger_data[plot]):
+            if 'smooth' in options:
+                x = np.arange(len(logger_data[plot]) - 1)
+                y = [(logger_data[plot].iloc[xi] + logger_data[plot].iloc[xi + 1])/2. for xi in x]
+
+            else:
+                x = np.arange(len(logger_data[plot]))
+                y = logger_data[plot]
 
             fig.add_trace(
                 go.Scatter(
-                    x=np.arange(len(logger_data[plot])),
-                    y=logger_data[plot],
+                    x=x,
+                    y=y,
                     mode='lines',
                     marker=dict(
                         color=plot_colors[plot],
                         size=20,
+                    ),
+                    line=dict(
+                        smoothing=1.3 if 'smooth' in options else 0.,
+                        shape='spline' if 'smooth' in options else 'linear'
                     ),
                     text=[plot] * len(logger_data[plot]),
                     name=plot,
@@ -386,11 +397,14 @@ def update_fitness_plot(logger_data, plots):
                 )
             )
 
+    if 'logscale' in options:
+        fig.update_yaxes(type="log")
+
     return fig
 
 
 def add_fitness_plot(logger_data):
-    fig = update_fitness_plot(logger_data, plots=['median'])
+    fig = update_fitness_plot(logger_data, plots=['median'], options=[])
     plot = dcc.Graph(id='fitness-plot', figure=fig)
     return plot
 
@@ -405,6 +419,19 @@ def add_plot_dropdown(logger_data):
         id='plot-dropdown',
     )
     return dropdown
+
+
+def add_fitness_plot_options():
+    options = dcc.Checklist(
+        options=[
+            {'label': 'smooth', 'value': 'smooth'},
+            {'label': 'logscale', 'value': 'logscale'},
+        ],
+        value=[],
+        labelStyle={'display': 'inline-block'},
+        id='fitness-plot-checklist'
+    )
+    return options
 
 
 def add_chromosome_heatmap(characteristics_df, gen):
@@ -466,14 +493,11 @@ def update_chromossome_heatmap(characteristics_df, gen):
         name='%03d generation' % int(gen),
         showscale=False
     ))
-
-
-
     return fig
 
 
 def init_app(structure_map, population_map, chromossome_heatmap, probabilities_table, fitness_plot, plot_dropdown,
-             generation_slider, variable_dropdown, neighbors_dropdown, mesh_dropdown):
+             fitness_plot_options, generation_slider, variable_dropdown, neighbors_dropdown, mesh_dropdown):
     app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
 
     app.layout = html.Div([
@@ -495,6 +519,7 @@ def init_app(structure_map, population_map, chromossome_heatmap, probabilities_t
             html.P("Population Metrics throughout Generations"),
             html.P("Metrics"),
             plot_dropdown,
+            fitness_plot_options,
             fitness_plot
         ], className="six columns"),
     ], id='dash-container')
@@ -524,6 +549,7 @@ def main(args):
         structure_map = add_gen_structure_map(prob_structs=prob_structs, gen=first_gen, var_color_dict=var_color_dict)
         population_map = add_population_contour(population_df=population_df, gen=first_gen)
         fitness_plot = add_fitness_plot(logger_data=logger_data)
+        fitness_plot_options = add_fitness_plot_options()
         plot_dropdown = add_plot_dropdown(logger_data=logger_data)
         probabilities_table = add_probabilities_table(probs=probs, gen=first_gen, variable=any_var)
         generation_slider = add_generation_slider(gens=gens)
@@ -538,6 +564,7 @@ def main(args):
             probabilities_table=probabilities_table,
             fitness_plot=fitness_plot,
             plot_dropdown=plot_dropdown,
+            fitness_plot_options=fitness_plot_options,
             generation_slider=generation_slider,
             variable_dropdown=variable_dropdown,
             neighbors_dropdown=neighbors_dropdown,
@@ -581,10 +608,11 @@ def main(args):
 
         @app.callback(
             Output('fitness-plot', 'figure'),
-            [Input('plot-dropdown', 'value')]
+            [Input('plot-dropdown', 'value'),
+             Input('fitness-plot-checklist', 'value')]
         )
-        def population_fitness_callback(plots):
-            fitness_plot_fig = update_fitness_plot(logger_data=logger_data, plots=plots)
+        def population_fitness_callback(plots, options):
+            fitness_plot_fig = update_fitness_plot(logger_data=logger_data, plots=plots, options=options)
             return fitness_plot_fig
 
         @app.callback(

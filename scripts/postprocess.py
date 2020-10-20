@@ -303,9 +303,6 @@ def __find_which_level__(path):
 
 
 def summarize_all(path):
-    # TODO has to decide in which level it is. if within a single experiment folder, place summarized csv here; otherwise
-    # TODO on the same level as other experiments
-
     level = __find_which_level__(path)
 
     lines = []

@@ -279,8 +279,15 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     }
 
+    /**
+     * Returns a copy of this individual's characteristics.
+     */
     public HashMap<String, String> getCharacteristics() {
-        return characteristics;
+        HashMap<String, String> copy = new HashMap<>();
+        for(String key : this.characteristics.keySet()) {
+            copy.put(key, this.characteristics.get(key));
+        }
+        return copy;
     }
 
     @Override
