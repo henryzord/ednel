@@ -362,7 +362,7 @@ def for_comparison(df, experiment_path):
     )
 
     new_table.to_csv(
-        os.path.join(os.sep.join(args.csv_path.split(os.sep)[:-1]), "for_comparison.csv")
+        os.path.join(args.experiment_path, "for_comparison.csv")
     )
 
     outer_hypers = []
@@ -379,7 +379,7 @@ def for_comparison(df, experiment_path):
 
     hypers_table = pd.DataFrame(outer_hypers, columns=hyper_columns)
     hypers_table.to_csv(
-        os.path.join(os.sep.join(args.csv_path.split(os.sep)[:-1]), "hyperparameters.csv")
+        os.path.join(experiment_path, "hyperparameters.csv")
     )
 
 
