@@ -9,11 +9,13 @@ export JAVA_HOME="/usr/lib/jvm/jdk1.8.0_221
 
 import argparse
 import itertools as it
+import json
 import os
 from functools import reduce
 
 import numpy as np
 import pandas as pd
+import operator as op
 
 
 class EDAEvaluation(object):
@@ -332,12 +334,60 @@ def summarize_all(path):
 
     last = pd.DataFrame(lines, columns=header)
     last.to_csv(os.path.join(path, 'final_summary.csv'), index=False)
+    return last
+
+
+def for_comparison(df, experiment_path):
+    # df = pd.read_csv(args.csv_path, index_col=[0, 1])
+
+    df.index = pd.MultiIndex.from_arrays([df['experiment_name'], df['dataset_name']])
+    del df['experiment_name']
+    del df['dataset_name']
+
+    datasets_names = df.index.get_level_values('dataset_name').unique().sort_values().tolist()
+    experiments_names = df.index.get_level_values('experiment_name').unique().sort_values().tolist()
+
+    res = []
+    for dataset in datasets_names:
+        experiments_res = []
+        for experiment in experiments_names:
+            try:
+                experiments_res += df.loc[(experiment, dataset)][['last-mean-of-means', 'overall-mean-of-means']].tolist()
+            except KeyError:
+                experiments_res += [np.NaN, np.NaN]
+        res += [[dataset] + experiments_res]
+
+    new_table = pd.DataFrame(
+        res, columns=['dataset_name'] + list(reduce(op.add, [[x + '_last', x + '_overall'] for x in experiments_names]))
+    )
+
+    new_table.to_csv(
+        os.path.join(os.sep.join(args.csv_path.split(os.sep)[:-1]), "for_comparison.csv")
+    )
+
+    outer_hypers = []
+    hyper_columns = []
+    for experiment in experiments_names:
+        j = json.load(open(os.path.join(experiment_path, experiment, 'parameters.json')))
+        hypers_names = sorted(j.keys())
+        hyper_columns = hypers_names
+        local_hypers = []
+        local_hypers += [experiment]
+        for hyper_name in hypers_names:
+            local_hypers += [j[hyper_name]]
+        outer_hypers += [local_hypers]
+
+    hypers_table = pd.DataFrame(outer_hypers, columns=hyper_columns)
+    hypers_table.to_csv(
+        os.path.join(os.sep.join(args.csv_path.split(os.sep)[:-1]), "hyperparameters.csv")
+    )
 
 
 def main(experiment_path, write=True):
     n_samples, n_folds = get_n_samples_n_folds(experiment_path)
     recursive_experiment_process(experiment_path, n_samples=n_samples, n_folds=n_folds, write=write)
-    summarize_all(experiment_path)  
+    summary = summarize_all(experiment_path)
+    for_comparison(df=summary, experiment_path=experiment_path)
 
 
 if __name__ == '__main__':

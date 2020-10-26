@@ -229,8 +229,7 @@ public class StatisticsHandler {
 
             // collects bivariate statistics
             for(String parent : prob_parents) {
-                // does not collect metrics if the parent is null; will use values from univariate distribution
-
+                // does not collect metrics if the parent is null
                 String parentValue = fittestValues.get(parent).get(i);
 
                 valuePairs = new HashMap<>();
