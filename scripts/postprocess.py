@@ -370,7 +370,7 @@ def for_comparison(df, experiment_path):
     for experiment in experiments_names:
         j = json.load(open(os.path.join(experiment_path, experiment, 'parameters.json')))
         hypers_names = sorted(j.keys())
-        hyper_columns = hypers_names
+        hyper_columns = ['experiment_name'] + hypers_names
         local_hypers = []
         local_hypers += [experiment]
         for hyper_name in hypers_names:
