@@ -184,12 +184,25 @@ def single_experiment_process(this_path, n_samples, n_folds, write=True):
                                                names=['metric', 'statistics']),
             dtype=np.float64
         )
+
+        column_labels = np.unique(rels[0].columns.get_level_values(0).tolist())
+        n_header = 0
+        n_values = 0
+        for column_label in column_labels:
+            n_header += int(column_label in list(EDAEvaluation.metrics_dict.keys()))
+            n_values += int(column_label in list(EDAEvaluation.metrics_dict.values()))
+
+        if n_header > n_values:
+            needs_dict = False
+        else:
+            needs_dict = True
+
         for metric_name, metric_operation in EDAEvaluation.metrics:
             if (metric_name == 'confusion_matrix') or (metric_name == 'class_priors'):
                 dict_ens = {}
                 for ens_name in ens_names:
                     for rel in rels:
-                        to_process = rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name]]
+                        to_process = rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name] if needs_dict else metric_name]
                         is_nan = False
                         try:
                             is_nan = np.isnan(to_process)
@@ -209,7 +222,7 @@ def single_experiment_process(this_path, n_samples, n_folds, write=True):
 
             else:
                 for ens_name in ens_names:
-                    values = [rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name]] for rel in rels]
+                    values = [rel.loc[ens_name, EDAEvaluation.metrics_dict[metric_name] if needs_dict else metric_name] for rel in rels]
                     condensed.loc[ens_name, (metric_name, 'mean')] = np.mean(values)
                     condensed.loc[ens_name, (metric_name, 'std')] = np.std(values)
 
@@ -347,22 +360,35 @@ def for_comparison(df, experiment_path):
     datasets_names = df.index.get_level_values('dataset_name').unique().sort_values().tolist()
     experiments_names = df.index.get_level_values('experiment_name').unique().sort_values().tolist()
 
+    new_table_columns = ['dataset_name']
+
     res = []
     for dataset in datasets_names:
         experiments_res = []
         for experiment in experiments_names:
+            to_process_columns = []
+            for column in df.columns:
+                splitted = column.split('-')  # type: list
+                index_mean = splitted.index('mean')
+                if index_mean - 1 == 0:
+                    to_process_columns += [column]
+                    new_table_columns += ['_'.join([experiment, splitted[0]])]
+
             try:
-                experiments_res += df.loc[(experiment, dataset)][['last-mean-of-means', 'overall-mean-of-means']].tolist()
+                experiments_res += df.loc[(experiment, dataset)][to_process_columns].tolist()
             except KeyError:
-                experiments_res += [np.NaN, np.NaN]
+                experiments_res += [np.repeat(np.NaN, len(to_process_columns)).tolist()]
         res += [[dataset] + experiments_res]
 
-    new_table = pd.DataFrame(
-        res, columns=['dataset_name'] + list(reduce(op.add, [[x + '_last', x + '_overall'] for x in experiments_names]))
-    )
+    new_table = pd.DataFrame(res, columns=new_table_columns)
+
+
+    # new_table = pd.DataFrame(
+    #     res, columns=['dataset_name'] + list(reduce(op.add, [[x + '_last', x + '_overall'] for x in experiments_names]))
+    # )
 
     new_table.to_csv(
-        os.path.join(args.experiment_path, "for_comparison.csv")
+        os.path.join(args.experiment_path, "for_comparison.csv"), index=False
     )
 
     outer_hypers = []

@@ -1,6 +1,5 @@
 package ednel.eda.individual;
 
-import sun.reflect.annotation.ExceptionProxy;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
@@ -33,7 +32,7 @@ public class FitnessCalculator {
             Instances train_data, Instances test_data, AbstractClassifier clf) throws Exception {
         Evaluation evaluation = new Evaluation(train_data);
         evaluation.evaluateModel(clf, test_data);
-        return getUnweightedAreaUnderROC(evaluation);
+        return FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
     }
 
     public static double getUnweightedAreaUnderROC(Evaluation evaluation) throws Exception {
