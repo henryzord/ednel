@@ -14,27 +14,26 @@ import java.util.HashMap;
 import java.util.concurrent.Callable;
 
 public class RunTrainingPieceTask implements Runnable, Callable {
+    // hyper-parameters of ednel
+
     private String dataset_name;
+    private String datasets_path;
+
     private int n_sample;
     private int n_fold;
+    private boolean log_test;
+
     private Instances train_data;
     private Instances test_data;
     private EDNEL ednel;
+    private PBILLogger pbilLogger;
 
     private boolean log;
 
-    private boolean hasSetAnException = false;
-
+    private LocalDateTime start, end;
     private Exception except;
     private boolean hasCompleted = false;
-
-    private LocalDateTime start, end;
-
-    private boolean log_test;
-
-    private String datasets_path;
-
-    private PBILLogger pbilLogger;
+    private boolean hasSetAnException = false;
 
     /**
      * Runs a given fold of a 10-fold cross validation on EDNEL.
@@ -77,11 +76,12 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                 Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                 Integer.parseInt(commandLine.getOptionValue("n_generations")),
                 Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
-                Integer.parseInt(commandLine.getOptionValue("burn_in")),
-                Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
+                Integer.parseInt(commandLine.getOptionValue("timeout_individual", "60")),
+                Integer.parseInt(commandLine.getOptionValue("burn_in", "100")),
+                Integer.parseInt(commandLine.getOptionValue("thinning_factor", "0")),
                 commandLine.hasOption("no_cycles"),
                 Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
-                Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance")),
+                Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance", "0.001")),
                 Integer.parseInt(commandLine.getOptionValue("max_parents")),
                 Integer.parseInt(commandLine.getOptionValue("delay_structure_learning")),
                 pbilLogger,

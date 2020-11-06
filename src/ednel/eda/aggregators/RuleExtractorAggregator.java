@@ -20,16 +20,19 @@ import java.util.*;
 
 public class RuleExtractorAggregator extends Aggregator implements Serializable {
 
-    int n_classes;
+    private int n_classes;
 
-    ArrayList<ExtractedRule> unorderedRules;
-    ArrayList<Double> unorderedRulesQualities;
+    private int n_rules;
 
-    HashMap<String, ExtractedRule[]> orderedRules;
-    HashMap<String, Double[]> orderedRulesQualities;
+    private ArrayList<ExtractedRule> unorderedRules;
+    private ArrayList<Double> unorderedRulesQualities;
+
+    private HashMap<String, ExtractedRule[]> orderedRules;
+    private HashMap<String, Double[]> orderedRulesQualities;
 
     public RuleExtractorAggregator() {
         this.n_classes = 0;
+        this.n_rules = 0;
 
         this.unorderedRules = new ArrayList<>();
         this.unorderedRulesQualities = new ArrayList<>();
@@ -88,6 +91,7 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
             }
         }
         this.selectUnorderedRules(train_data, unordered_cand_rules, all_activated);
+        this.n_rules = this.orderedRules.size() + this.unorderedRules.size();
     }
 
     private void selectUnorderedRules(Instances train_data, HashSet<ExtractedRule> candidateRules, boolean[] all_activated) {
@@ -224,6 +228,10 @@ public class RuleExtractorAggregator extends Aggregator implements Serializable 
         }
 
         return res.toString();
+    }
+
+    public int getNumberOfRules() {
+        return this.n_rules;
     }
 
     public static void main(String[] args) {

@@ -4,6 +4,13 @@
 
 package ednel.eda.individual;
 
+import ednel.Main;
+import ednel.network.DependencyNetwork;
+import org.apache.commons.math3.random.MersenneTwister;
+import weka.core.Instances;
+
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 
@@ -72,5 +79,36 @@ public class BaselineIndividual extends Individual {
 
     public BaselineIndividual() throws Exception {
         super(BaselineIndividual.options, BaselineIndividual.baselineCharacteristics);
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        LocalDateTime start = LocalDateTime.now();
+
+        HashMap<String, Instances> sets = Main.loadDataset("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv", "artificialcharacters", 1);
+        Instances train_data = sets.get("train_data");
+        Instances test_data = sets.get("test_data");
+
+        final int n_individuals = 100;
+
+        DependencyNetwork dn = new DependencyNetwork(
+                new MersenneTwister(), 100, 0,
+                false, 0.5, 2, 1,
+                60
+        );
+
+        BaselineIndividual bi = new BaselineIndividual();
+        HashMap<String, String> lastStart = bi.getCharacteristics();
+
+        FitnessCalculator fc = new FitnessCalculator(5, train_data);
+
+        HashMap<String, Object[]> res = dn.gibbsSample(lastStart, n_individuals, fc, 1);
+
+        Double fitness = fc.evaluateEnsemble(1, bi);
+
+        LocalDateTime end = LocalDateTime.now();
+
+        System.out.println("Fitness: " + fitness);
+        System.out.println("Elapsed time: " + (int)start.until(end, ChronoUnit.SECONDS) + " seconds");
     }
 }

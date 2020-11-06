@@ -1,5 +1,6 @@
 package ednel.eda.individual;
 
+import ednel.RandomSearch;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
@@ -7,7 +8,17 @@ import weka.core.Instances;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
+import java.nio.file.NotLinkException;
+import java.security.InvalidParameterException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * A little demo java program for using WEKA.<br/>
@@ -39,37 +50,129 @@ public class FitnessCalculator {
         int n_classes = evaluation.confusionMatrix().length;
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
-            if(Utils.isMissingValue(evaluation.areaUnderROC(i))) {
-                throw new Exception("un-stratified code!");
+            try {
+                double auc = evaluation.areaUnderROC(i);
+                if(Utils.isMissingValue(auc)) {
+                    throw new Exception("un-stratified code!");
 //                unweighted += 0;
-            } else {
-              unweighted += evaluation.areaUnderROC(i);
+                } else {
+//              unweighted += evaluation.areaUnderROC(i);
+                    unweighted += auc;
+                }
+            } catch(NullPointerException npe) {
+                throw npe;
             }
         }
         return unweighted / n_classes;
     }
 
+    /**
+     * Evaluates ensemble -- that is, returns the fitness function for this individual.
+     *
+     * @param seed
+     * @param ind
+     * @return
+     * @throws Exception
+     */
     public Double evaluateEnsemble(int seed, Individual ind) throws Exception {
         Random random = new Random(seed);
-        Evaluation trainEval = new Evaluation(train_data);
-        return this.evaluateEnsemble(seed, ind, random, trainEval);
+        return this.evaluateEnsemble(random, ind, null);
     }
 
-    public Double evaluateEnsemble(int seed, Individual ind, Random random, Evaluation trainEval) throws Exception {
+    /**
+     * Evaluates ensemble -- that is, returns the fitness function for this individual.
+     *
+     * @param random
+     * @param ind
+     * @return
+     * @throws Exception
+     */
+    public Double evaluateEnsemble(Random random, Individual ind) throws Exception {
+        return this.evaluateEnsemble(random, ind, null);
+    }
+
+    /**
+     * Evaluates ensemble -- that is, returns the fitness function for this individual.
+     *
+     * @param seed
+     * @param ind
+     * @return
+     * @throws Exception
+     */
+    public Double evaluateEnsemble(int seed, Individual ind, Integer timeout_individual) throws Exception {
+        Random random = new Random(seed);
+        return this.evaluateEnsemble(random, ind, timeout_individual);
+    }
+
+    /**
+     * Evaluates ensemble -- that is, returns the fitness function for this individual.
+     *
+     * @param random
+     * @param ind
+     * @return
+     * @throws Exception
+     */
+    public Double evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws Exception {
         double trainEvaluation = 0.0;
 
-        for (int i = 0; i < n_folds; i++) {
-            Instances local_train = train_data.trainCV(n_folds, i, random);
-            Instances local_val = train_data.testCV(n_folds, i);
+        Object[] trainEvaluations = IntStream.range(0, n_folds).parallel().mapToObj(
+                i -> FitnessCalculator.parallelFoldEvaluation(ind, train_data, i, n_folds, random, timeout_individual)).toArray();
 
-            ind.buildClassifier(local_train);
-            trainEval.evaluateModel(ind, local_val);
-            trainEvaluation += getUnweightedAreaUnderROC(trainEval);
-
+        for(Object val : trainEvaluations) {
+            if(val instanceof Double) {
+                trainEvaluation += (Double)val;
+            } else {
+                throw (Exception)val;
+            }
         }
         trainEvaluation /= n_folds;
+
+        // TODO trying to implement complexity
+        trainEvaluation = trainEvaluation - (ind.getNumberOfRules() / (double)train_data.size());
+
+        // TODO traditional method - it works
+//        for (int i = 0; i < n_folds; i++) {
+//            Instances local_train = train_data.trainCV(n_folds, i, random);
+//            Instances local_val = train_data.testCV(n_folds, i);
+//
+//            ind.buildClassifier(local_train);
+//            trainEval.evaluateModel(ind, local_val);
+//            trainEvaluation += getUnweightedAreaUnderROC(trainEval);
+//
+//        }
+//        trainEvaluation /= n_folds;
+        // TODO traditional method - it works
+
         return trainEvaluation;
     }
+
+    public static Object parallelFoldEvaluation(
+            Individual ind, Instances train_data,
+            int n_fold, int n_folds, Random random, Integer timeout_individual) {
+        try {
+            LocalDateTime start = LocalDateTime.now();
+
+            Individual copy = new Individual(ind, timeout_individual);
+
+            Evaluation eval = new Evaluation(train_data);
+
+            Instances local_train = train_data.trainCV(n_folds, n_fold, random);
+            Instances local_val = train_data.testCV(n_folds, n_fold);
+
+            copy.buildClassifier(local_train);
+
+            if((timeout_individual != null) &&
+                    ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > timeout_individual)) {
+                throw new TimeoutException("Individual evaluation took longer than allowed time.");
+            }
+            // if it passes, then evaluates anyways
+            eval.evaluateModel(copy, local_val);
+            return getUnweightedAreaUnderROC(eval);
+        } catch(Exception e) {
+            return e;
+        }
+    }
+
 
     public static void main(String[] args) {
         try {

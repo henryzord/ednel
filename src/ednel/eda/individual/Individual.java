@@ -19,7 +19,10 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
 
@@ -29,6 +32,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected JRip jrip;
     protected DecisionTable decisionTable;
     protected Aggregator aggregator;
+
+    /** How many seconds it took to train this individual */
+    protected int timeToTrain;
+
+    /** How many rules this individual has. */
+    protected int n_rules;
 
     protected String aggregatorName;
 
@@ -41,6 +50,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     protected HashMap<String, AbstractClassifier> classifiers;
     protected AbstractClassifier[] orderedClassifiers = null;
+
+    protected HashMap<String, String> optionTable;
+
+    protected Integer timeout_individual;
 
     private static HashMap<String, Class<? extends Aggregator>> aggregatorClasses;
 
@@ -55,39 +68,12 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             this.characteristics.put(key, characteristics.get(key));
         }
 
-//        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
-//            this.decisionTable = new DecisionTable();
-//        } else {
-//            this.decisionTable = null;
-//        }
-//
-//        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
-//            this.j48 = new J48();
-//        } else {
-//            this.j48 = null;
-//        }
+        this.optionTable = new HashMap<>();
+        for(String key: optionTable.keySet()) {
+            this.optionTable.put(key, optionTable.get(key));
+        }
 
-//
-//        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
-//            this.simpleCart = new SimpleCart();
-//        } else {
-//            this.simpleCart = null;
-//        }
-
-//
-//        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
-//            this.part = new PART();
-//        } else {
-//            this.part = null;
-//        }
-
-//
-//        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
-//            this.jrip = new JRip();
-//        } else {
-//            this.jrip = null;
-//        }
-
+        this.timeout_individual = null;
 
         String[] options = new String [optionTable.size() * 2];
         HashSet<String> algNames = new HashSet<>(optionTable.keySet());
@@ -100,8 +86,22 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             counter += 2;
         }
 
-        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+//        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+        this.orderedClassifiers = new AbstractClassifier[]{jrip, decisionTable, j48, part, simpleCart};
         this.setOptions(options);
+    }
+
+    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics, Integer timeout_individual) throws Exception {
+        this(optionTable, characteristics);
+        this.timeout_individual = timeout_individual;
+    }
+
+    public Individual(Individual other) throws Exception {
+        this(other.getOptionTable(), other.getCharacteristics());
+    }
+
+    public Individual(Individual other, int timeout_individual) throws Exception {
+        this(other.getOptionTable(), other.getCharacteristics(), timeout_individual);
     }
 
     @Override
@@ -200,7 +200,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             decisionTable = null;
         }
 
-        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+//        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+        this.orderedClassifiers = new AbstractClassifier[]{jrip, decisionTable, j48, part, simpleCart};
         this.classifiers.put("J48", this.j48);
         this.classifiers.put("SimpleCart", this.simpleCart);
         this.classifiers.put("PART", this.part);
@@ -240,7 +241,9 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public void buildClassifier(Instances data) throws Exception {
-        train_data = data;
+        this.train_data = data;
+
+        LocalDateTime start = LocalDateTime.now();
 
         this.n_active_classifiers = 0;
         for(int i = 0; i < this.orderedClassifiers.length; i++) {
@@ -248,18 +251,52 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
                 try {
                     this.orderedClassifiers[i].buildClassifier(data);
                     n_active_classifiers += 1;
+                    this.checkTimeout(start);
                 }  catch(Exception e) {
                     this.orderedClassifiers[i] = null;
                 }
             }
         }
-        if(n_active_classifiers <= 0) {
+        if(this.n_active_classifiers <= 0) {
             throw new EmptyEnsembleException("Ensemble must contain at least one classifier!");
         }
         if(this.aggregator == null) {
             throw new NoAggregationPolicyException("Ensemble must have an aggregation policy!");
         }
         this.aggregator.setCompetences(this.orderedClassifiers, data);
+
+        this.timeToTrain = (int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS);
+        if(this.aggregator instanceof RuleExtractorAggregator) {
+            this.n_rules = ((RuleExtractorAggregator)this.aggregator).getNumberOfRules();
+        } else {
+            this.n_rules = 0;
+            if(this.j48 != null) {
+                String j48_summary = this.j48.toSummaryString();
+                this.n_rules += Integer.parseInt(j48_summary.substring(
+                    j48_summary.indexOf("Number of leaves: ") + "Number of leaves: ".length(),
+                    j48_summary.indexOf("Size of the tree: ")
+                ).replaceAll("\n", ""));
+            }
+            if(this.simpleCart != null) {
+                this.n_rules += this.simpleCart.numLeaves();
+            }
+            if(this.jrip != null) {
+                this.n_rules += this.jrip.getRuleset().size();
+            }
+            if(this.part != null) {
+                this.n_rules += (int)this.part.measureNumRules();
+            }
+            if(this.decisionTable != null) {
+                this.n_rules += (int)this.decisionTable.measureNumRules();
+            }
+        }
+    }
+
+    private void checkTimeout(LocalDateTime start) throws TimeoutException {
+        if((this.timeout_individual != null) &&
+            ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > this.timeout_individual)) {
+                throw new TimeoutException("Building of individual taking longer than allowed time.");
+        }
     }
 
     public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
@@ -537,6 +574,14 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     public TechnicalInformation getTechnicalInformation() {
         // TODO implement once published
         return null;
+    }
+
+    public HashMap<String, String> getOptionTable() {
+        return this.optionTable;
+    }
+
+    public int getNumberOfRules() {
+        return this.n_rules;
     }
 }
 

@@ -45,6 +45,7 @@ public class ProfilableMain {
                     Integer.parseInt(commandLine.getOptionValue("n_individuals")),
                     Integer.parseInt(commandLine.getOptionValue("n_generations")),
                     Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
+                    Integer.parseInt(commandLine.getOptionValue("timeout_individual", "60")),
                     Integer.parseInt(commandLine.getOptionValue("burn_in")),
                     Integer.parseInt(commandLine.getOptionValue("thinning_factor")),
                     commandLine.hasOption("no_cycles"),

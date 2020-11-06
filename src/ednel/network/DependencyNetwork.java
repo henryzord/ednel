@@ -10,7 +10,10 @@ import org.reflections.Reflections;
 import org.reflections.scanners.ResourcesScanner;
 
 import java.security.InvalidParameterException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 import static ednel.utils.MyMathUtils.lfactorial;
 import static java.lang.Math.exp;
@@ -50,10 +53,11 @@ public class DependencyNetwork {
 
     private boolean no_cycles;
     private OptionHandler optionHandler;
+    private final int timeout_individual;
 
     public DependencyNetwork(
             MersenneTwister mt, int burn_in, int thinning_factor, boolean no_cycles,
-            double learningRate, int max_parents, int delay_structure_learning
+            double learningRate, int max_parents, int delay_structure_learning, int timeout_individual
     ) throws Exception {
         this.mt = mt;
         this.variables = new HashMap<>();
@@ -70,6 +74,8 @@ public class DependencyNetwork {
         this.max_parents = max_parents;  // global max parents
 
         this.learningRate = learningRate;
+
+        this.timeout_individual = timeout_individual;
 
         this.currentGenEvals = 0;
         this.currentGenDiscardedIndividuals = 0;
@@ -395,7 +401,7 @@ public class DependencyNetwork {
             if(thinning_counter >= this.thinning_factor) {
                 try {
                     Individual individual = new Individual(optionTable, lastStart);
-                    fitnesses[individual_counter] = fc.evaluateEnsemble(seed, individual);
+                    fitnesses[individual_counter] = fc.evaluateEnsemble(seed, individual, this.timeout_individual);
                     individuals[individual_counter] = individual;
 
                     thinning_counter = 0;
@@ -405,7 +411,7 @@ public class DependencyNetwork {
                     outer_invalid_streak = 0;
 
                     this.currentGenEvals += 1;
-                } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException e) {
+                } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException | TimeoutException e) {
                     // generated invalid individual
                     this.currentGenDiscardedIndividuals += 1;
 

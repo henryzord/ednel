@@ -561,7 +561,7 @@ public class PBILLogger {
     public void print() {
         if(this.curGen == 1) {
             System.out.println(
-                    "Dataset\t\t\tGen\t\tnevals\t\tMin\t\t\tMedian\t\tMax\t\t\t" +
+                    "Dataset\t\t\t\t\tGen\t\tnevals\t\tMin\t\t\tMedian\t\tMax\t\t\t" +
                             (this.test_data != null? "currentGenBest\t" : "") + "Lap time (s)\t" +
                             "Discarded Individuals\tDN Connections"
             );
@@ -574,7 +574,7 @@ public class PBILLogger {
         }
 
         System.out.println(String.format(
-                "%s\t\t\t%d\t\t%d\t\t\t%.8f\t%.8f\t%.8f\t" + (this.test_data != null? "%.8f\t\t" : "%s") +
+                "%s\t\t\t\t\t%d\t\t%d\t\t\t%.8f\t%.8f\t%.8f\t" + (this.test_data != null? "%.8f\t\t" : "%s") +
                         "%04d\t\t\t%04d\t\t\t\t\t%04d",
                 this.dataset_name,
                 this.curGen - 1,

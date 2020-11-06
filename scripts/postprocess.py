@@ -287,20 +287,51 @@ def get_n_samples_n_folds(path):
     return outer_n_samples, outer_n_folds
 
 
-def recursive_experiment_process(this_path, n_samples, n_folds, write=True):
+def recursive_experiment_process(this_path, n_samples, n_folds, dict_means, write=True):
     if os.path.isdir(this_path):
         folders = [x for x in os.listdir(this_path) if os.path.isdir(os.path.join(this_path, x))]
 
         if 'overall' in folders:
+            experiment_name = this_path.split(os.sep)[-2]
+            dataset_name = this_path.split(os.sep)[-1]
+
             single_experiment_process(os.path.join(this_path, 'overall'), n_samples, n_folds, write=write)
+
+            single_experiment_folders = [x for x in folders if x != 'overall']
+            for folder in single_experiment_folders:
+                df = pd.read_csv(os.path.join(this_path, folder, 'loggerData.csv'))
+                numeric_columns = [x for x in df if pd.api.types.is_numeric_dtype(df[x])]
+                means = df[numeric_columns].mean(axis=0)
+                stds = df[numeric_columns].std(axis=0)
+                generations = len(df)
+
+                if experiment_name not in dict_means:
+                    dict_means[experiment_name] = dict()
+                if dataset_name not in dict_means[experiment_name]:
+                    dict_means[experiment_name][dataset_name] = dict()
+                if any([x not in dict_means[experiment_name][dataset_name] for x in ['means', 'number_generations']]):
+                    dict_means[experiment_name][dataset_name]['means'] = dict()
+                    dict_means[experiment_name][dataset_name]['number_generations'] = dict()
+
+                for data in means.index:
+                    try:
+                        dict_means[experiment_name][dataset_name]['means'][data] += [means[data]]
+                        dict_means[experiment_name][dataset_name]['number_generations'] += [generations]
+                    except:
+                        dict_means[experiment_name][dataset_name]['means'][data] = [means[data]]
+                        dict_means[experiment_name][dataset_name]['number_generations'] = [generations]
+
         else:
             for folder in folders:
-                recursive_experiment_process(
+                dict_means = recursive_experiment_process(
                     os.path.join(this_path, folder),
                     n_samples=n_samples,
                     n_folds=n_folds,
+                    dict_means=dict_means,
                     write=write
                 )
+
+    return dict_means
 
 
 def __find_which_level__(path):
@@ -363,25 +394,25 @@ def for_comparison(df, experiment_path):
     new_table_columns = ['dataset_name']
 
     res = []
-    for dataset in datasets_names:
-        experiments_res = []
-        for experiment in experiments_names:
-            to_process_columns = []
-            for column in df.columns:
-                splitted = column.split('-')  # type: list
-                index_mean = splitted.index('mean')
-                if index_mean - 1 == 0:
-                    to_process_columns += [column]
-                    new_table_columns += ['_'.join([experiment, splitted[0]])]
+    for experiment in experiments_names:
+        to_process_columns = []
+        for column in df.columns:
+            splitted = column.split('-')  # type: list
+            index_mean = splitted.index('mean')
+            if index_mean - 1 == 0:
+                to_process_columns += [column]
+                new_table_columns += ['_'.join([experiment, splitted[0]])]
 
+        for dataset in datasets_names:
+            experiments_res = []
             try:
                 experiments_res += df.loc[(experiment, dataset)][to_process_columns].tolist()
             except KeyError:
                 experiments_res += [np.repeat(np.NaN, len(to_process_columns)).tolist()]
-        res += [[dataset] + experiments_res]
+
+            res += [[dataset] + experiments_res]
 
     new_table = pd.DataFrame(res, columns=new_table_columns)
-
 
     # new_table = pd.DataFrame(
     #     res, columns=['dataset_name'] + list(reduce(op.add, [[x + '_last', x + '_overall'] for x in experiments_names]))
@@ -411,7 +442,45 @@ def for_comparison(df, experiment_path):
 
 def main(experiment_path, write=True):
     n_samples, n_folds = get_n_samples_n_folds(experiment_path)
-    recursive_experiment_process(experiment_path, n_samples=n_samples, n_folds=n_folds, write=write)
+    dict_means = recursive_experiment_process(
+        experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
+    )
+
+    column_names = None
+    datasets_names = set()
+    metadata_generations = dict()
+    for experiment in dict_means:
+        metadata_generations[experiment] = dict()
+        datasets_names = datasets_names.union(set(dict_means[experiment]))
+        for dataset in dict_means[experiment]:
+            metadata_generations[experiment][dataset] = dict()
+            if column_names is None:
+                column_names = list(dict_means[experiment][dataset]['means'].keys())
+            for name in dict_means[experiment][dataset]['means']:
+                metadata_generations[experiment][dataset][name] = {
+                    'mean': np.mean(dict_means[experiment][dataset]['means'][name]),
+                    'std': np.std(dict_means[experiment][dataset]['means'][name])
+                }
+
+            metadata_generations[experiment][dataset]['number_generations'] = {
+                'mean': np.mean(dict_means[experiment][dataset]['number_generations']),
+                'std': np.std(dict_means[experiment][dataset]['number_generations']),
+            }
+
+    # pd.DataFrame.from_records(
+    #     metadata_generations,
+    #     index=pd.MultiIndex.from_product([list(metadata_generations.keys()), list(datasets_names)]),
+    #     # columns=pd.MultiIndex.from_product([column_names, ['mean', 'std']])
+    # ).to_csv(os.path.join(experiment_path, 'metadata_generations.csv'))
+
+    json.dump(
+        metadata_generations,
+        open(
+            os.path.join(experiment_path, 'metadata_generations.json'), 'w'
+        ),
+        indent=2
+    )
+
     summary = summarize_all(experiment_path)
     for_comparison(df=summary, experiment_path=experiment_path)
 

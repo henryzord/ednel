@@ -118,25 +118,6 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
-                .longOpt("seed")
-                .required(false)
-                .type(Integer.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Seed used to initialize base eda.classifiers (i.e. Weka-related). It is not used to bias PBIL.")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("n_jobs")
-                .type(Integer.class)
-                .required(false)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Number of jobs to use. Will use one job per sample per fold. " +
-                        "If unspecified or set to 1, will run in a single core.")
-                .build());
-
-        options.addOption(Option.builder()
                 .longOpt("n_generations")
                 .type(Integer.class)
                 .required(true)
@@ -152,15 +133,6 @@ public class Main {
                 .hasArg()
                 .numberOfArgs(1)
                 .desc("Number of individuals in the population")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("n_samples")
-                .type(Integer.class)
-                .required(true)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Number of times to run the algorithm")
                 .build());
 
         options.addOption(Option.builder()
@@ -184,7 +156,7 @@ public class Main {
         options.addOption(Option.builder()
                 .longOpt("burn_in")
                 .type(Integer.class)
-                .required(true)
+                .required(false)
                 .hasArg()
                 .numberOfArgs(1)
                 .desc("Number of samples to discard at the start of the gibbs sampling process.")
@@ -193,29 +165,10 @@ public class Main {
         options.addOption(Option.builder()
                 .longOpt("thinning_factor")
                 .type(Integer.class)
-                .required(true)
+                .required(false)
                 .hasArg()
                 .numberOfArgs(1)
                 .desc("thinning factor used in the dependency network (i.e. interval to select samples)")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("early_stop_generations")
-                .type(Integer.class)
-                .required(true)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Number of generations tolerated to have an improvement less than early_stop_tolerance")
-                .build());
-
-        options.addOption(Option.builder()
-                .longOpt("early_stop_tolerance")
-                .type(Integer.class)
-                .required(true)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Maximum tolerance between two generations that do not improve in the best individual fitness. " +
-                        "Higher values are less tolerant.")
                 .build());
 
         options.addOption(Option.builder()
@@ -237,12 +190,58 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
-                .longOpt("n_jobs")
+                .longOpt("no_cycles")
+                .type(Boolean.class)
+                .required(false)
+                .hasArg(false)
+                .desc("Whether to allow cycles in dependency network.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("early_stop_generations")
                 .type(Integer.class)
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Maximum number of threads to run in parallel.")
+                .desc("Number of generations tolerated to have an improvement less than early_stop_tolerance")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("early_stop_tolerance")
+                .type(Integer.class)
+                .required(false)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Maximum tolerance between two generations that do not improve in the best individual fitness. " +
+                        "Higher values are less tolerant.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("seed")
+                .required(false)
+                .type(Integer.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Seed used to initialize base eda.classifiers (i.e. Weka-related). It is not used to bias PBIL.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("n_jobs")
+                .type(Integer.class)
+                .required(false)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of jobs to use. Will use one job per sample per fold. " +
+                        "If unspecified or set to 1, will run in a single core.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("n_samples")
+                .type(Integer.class)
+                .required(true)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of times to run the algorithm")
                 .build());
 
         options.addOption(Option.builder()
@@ -254,6 +253,16 @@ public class Main {
                 .desc("Maximum amount of time (in seconds) that EDA has to run, until being prematurely terminated. " +
                         "If the algorithm does not finish before timeout, then the best individual from the current " +
                         "generation will be reported as final solution.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("timeout_individual")
+                .type(Integer.class)
+                .required(false)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Maximum amount of time (in seconds) that EDA has to generate and fully evaluate an individual. " +
+                        "Will discard individual if building it exceeds this time limit, and generate a new individual.")
                 .build());
 
         options.addOption(Option.builder()
@@ -270,16 +279,6 @@ public class Main {
                 .required(false)
                 .hasArg(false)
                 .desc("Whether to log test set statistics.")
-                .build());
-
-//        options.addOption("t", false, "Whether to allow cycles in dependency network.");
-
-        options.addOption(Option.builder()
-                .longOpt("no_cycles")
-                .type(Boolean.class)
-                .required(false)
-                .hasArg(false)
-                .desc("Whether to allow cycles in dependency network.")
                 .build());
 
         CommandLineParser parser = new DefaultParser();

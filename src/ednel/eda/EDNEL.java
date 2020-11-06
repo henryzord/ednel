@@ -29,6 +29,7 @@ public class EDNEL extends AbstractClassifier {
 
     protected final int max_parents;
     private final int delay_structure_learning;
+    private final int timeout_individual;
 
     protected PBILLogger pbilLogger;
     protected final Integer seed;
@@ -49,7 +50,7 @@ public class EDNEL extends AbstractClassifier {
     protected EarlyStop earlyStop;
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
-                 int timeout, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
+                 int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
                  float early_stop_tolerance, int max_parents, int delay_structure_learning, PBILLogger pbilLogger,
                  Integer seed
     ) throws Exception {
@@ -59,6 +60,7 @@ public class EDNEL extends AbstractClassifier {
         this.n_individuals = n_individuals;
         this.n_generations = n_generations;
         this.timeout = timeout;
+        this.timeout_individual = timeout_individual;
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
         this.early_stop_generations = early_stop_generations;
@@ -86,8 +88,8 @@ public class EDNEL extends AbstractClassifier {
         }
 
         this.dn = new DependencyNetwork(
-            mt, this.burn_in, this.thinning_factor,
-                this.no_cycles, this.learning_rate, this.max_parents, this.delay_structure_learning
+                mt, this.burn_in, this.thinning_factor, this.no_cycles, this.learning_rate,
+                this.max_parents, this.delay_structure_learning, this.timeout_individual
         );
     }
 
