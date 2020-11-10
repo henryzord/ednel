@@ -767,6 +767,7 @@ public class DependencyNetwork {
             // probabilistic parent set starts empty
             HashSet<String> probParentSet = new HashSet<>();
 
+            // while there are still candidates, and space for probabilistic parents
             while((candSet.size() > 0) && (probParentSet.size() < this.max_parents)) {
                 double bestHeuristic = -1;
                 String bestCandidate = null;

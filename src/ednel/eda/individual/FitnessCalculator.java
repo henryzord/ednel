@@ -127,9 +127,6 @@ public class FitnessCalculator {
         }
         trainEvaluation /= n_folds;
 
-        // TODO trying to implement complexity
-        trainEvaluation = trainEvaluation - (ind.getNumberOfRules() / (double)train_data.size());
-
         // TODO traditional method - it works
 //        for (int i = 0; i < n_folds; i++) {
 //            Instances local_train = train_data.trainCV(n_folds, i, random);
@@ -161,13 +158,25 @@ public class FitnessCalculator {
 
             copy.buildClassifier(local_train);
 
-            if((timeout_individual != null) &&
-                    ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > timeout_individual)) {
-                throw new TimeoutException("Individual evaluation took longer than allowed time.");
-            }
-            // if it passes, then evaluates anyways
+//            if((timeout_individual != null) &&
+//                    ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > timeout_individual)) {
+//                throw new TimeoutException("Individual evaluation took longer than allowed time.");
+//            }
             eval.evaluateModel(copy, local_val);
-            return getUnweightedAreaUnderROC(eval);
+
+            // TODO trying to implement complexity
+//            double max_complexity = Math.ceil(
+//                    (Math.log(2 * train_data.size() - 1)/Math.log(2)) - 1
+//            );
+//            double this_solution_complexity = Math.min(Math.max(0, Math.ceil(
+//                    (Math.log(2 * copy.getNumberOfRules() - 1)/Math.log(2)) - 1
+//            )), max_complexity);
+
+            if(copy.n_rules == 0) {
+                return 0.0;
+            } else {
+                return getUnweightedAreaUnderROC(eval) - copy.n_rules / train_data.size();
+            }
         } catch(Exception e) {
             return e;
         }
