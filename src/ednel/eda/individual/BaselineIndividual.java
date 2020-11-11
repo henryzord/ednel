@@ -104,7 +104,7 @@ public class BaselineIndividual extends Individual {
 
         HashMap<String, Object[]> res = dn.gibbsSample(lastStart, n_individuals, fc, 1);
 
-        Double fitness = fc.evaluateEnsemble(1, bi);
+        Fitness fitness = fc.evaluateEnsemble(1, bi);
 
         LocalDateTime end = LocalDateTime.now();
 

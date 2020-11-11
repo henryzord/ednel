@@ -1,9 +1,6 @@
 package ednel.network;
 
-import ednel.eda.individual.EmptyEnsembleException;
-import ednel.eda.individual.FitnessCalculator;
-import ednel.eda.individual.Individual;
-import ednel.eda.individual.NoAggregationPolicyException;
+import ednel.eda.individual.*;
 import ednel.network.variables.AbstractVariable;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.reflections.Reflections;
@@ -370,8 +367,10 @@ public class DependencyNetwork {
             HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed
     ) throws Exception {
 
-        Double[] fitnesses = new Double[sampleSize];
         Individual[] individuals = new Individual[sampleSize];
+        Fitness[] fitnesses = new Fitness[sampleSize];
+        Double[] qualities = new Double[sampleSize];
+        Integer[] sizes = new Integer[sampleSize];
 
         this.currentGenEvals = 0;
 
@@ -401,8 +400,12 @@ public class DependencyNetwork {
             if(thinning_counter >= this.thinning_factor) {
                 try {
                     Individual individual = new Individual(optionTable, lastStart);
-                    fitnesses[individual_counter] = fc.evaluateEnsemble(seed, individual, this.timeout_individual);
+                    Fitness thisIndFitness = fc.evaluateEnsemble(seed, individual, this.timeout_individual);
+
                     individuals[individual_counter] = individual;
+                    fitnesses[individual_counter] = thisIndFitness;
+                    qualities[individual_counter] = thisIndFitness.getQuality();
+                    sizes[individual_counter] = thisIndFitness.getSize();
 
                     thinning_counter = 0;
                     individual_counter += 1;
@@ -431,7 +434,6 @@ public class DependencyNetwork {
                             outer_invalid_streak = 0;
                         }
                     }
-//                System.out.println(e.getMessage()); // TODO remove!
                 }
             } else {
                 this.currentGenDiscardedIndividuals += 1;
@@ -441,6 +443,8 @@ public class DependencyNetwork {
         return new HashMap<String, Object[]>(){{
             put("population", individuals);
             put("fitnesses", fitnesses);
+            put("qualities", qualities);
+            put("sizes", sizes);
         }};
     }
 

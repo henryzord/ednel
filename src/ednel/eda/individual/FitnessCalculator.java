@@ -1,6 +1,5 @@
 package ednel.eda.individual;
 
-import ednel.RandomSearch;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
@@ -8,17 +7,9 @@ import weka.core.Instances;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
-import java.nio.file.NotLinkException;
-import java.security.InvalidParameterException;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * A little demo java program for using WEKA.<br/>
@@ -74,7 +65,7 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Double evaluateEnsemble(int seed, Individual ind) throws Exception {
+    public Fitness evaluateEnsemble(int seed, Individual ind) throws Exception {
         Random random = new Random(seed);
         return this.evaluateEnsemble(random, ind, null);
     }
@@ -87,7 +78,7 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Double evaluateEnsemble(Random random, Individual ind) throws Exception {
+    public Fitness evaluateEnsemble(Random random, Individual ind) throws Exception {
         return this.evaluateEnsemble(random, ind, null);
     }
 
@@ -99,7 +90,7 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Double evaluateEnsemble(int seed, Individual ind, Integer timeout_individual) throws Exception {
+    public Fitness evaluateEnsemble(int seed, Individual ind, Integer timeout_individual) throws Exception {
         Random random = new Random(seed);
         return this.evaluateEnsemble(random, ind, timeout_individual);
     }
@@ -112,20 +103,23 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Double evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws Exception {
-        double trainEvaluation = 0.0;
+    public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws Exception {
+        double quality = 0.0;
+        int size = 0;
 
         Object[] trainEvaluations = IntStream.range(0, n_folds).parallel().mapToObj(
                 i -> FitnessCalculator.parallelFoldEvaluation(ind, train_data, i, n_folds, random, timeout_individual)).toArray();
 
         for(Object val : trainEvaluations) {
-            if(val instanceof Double) {
-                trainEvaluation += (Double)val;
+            if(val instanceof Fitness) {
+                quality += ((Fitness)val).getQuality();
+                size += ((Fitness)val).getSize();
             } else {
                 throw (Exception)val;
             }
         }
-        trainEvaluation /= n_folds;
+        quality /= n_folds;
+        size /= n_folds;
 
         // TODO traditional method - it works
 //        for (int i = 0; i < n_folds; i++) {
@@ -140,7 +134,7 @@ public class FitnessCalculator {
 //        trainEvaluation /= n_folds;
         // TODO traditional method - it works
 
-        return trainEvaluation;
+        return new Fitness(size, quality);
     }
 
     public static Object parallelFoldEvaluation(
@@ -164,7 +158,6 @@ public class FitnessCalculator {
 //            }
             eval.evaluateModel(copy, local_val);
 
-            // TODO trying to implement complexity
 //            double max_complexity = Math.ceil(
 //                    (Math.log(2 * train_data.size() - 1)/Math.log(2)) - 1
 //            );
@@ -172,11 +165,7 @@ public class FitnessCalculator {
 //                    (Math.log(2 * copy.getNumberOfRules() - 1)/Math.log(2)) - 1
 //            )), max_complexity);
 
-            if(copy.n_rules == 0) {
-                return 0.0;
-            } else {
-                return getUnweightedAreaUnderROC(eval) - copy.n_rules / train_data.size();
-            }
+            return new Fitness(copy.getNumberOfRules(), getUnweightedAreaUnderROC(eval));
         } catch(Exception e) {
             return e;
         }

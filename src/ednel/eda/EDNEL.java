@@ -1,5 +1,6 @@
 package ednel.eda;
 
+import ednel.eda.individual.Fitness;
 import ednel.network.DependencyNetwork;
 import ednel.eda.stoppers.EarlyStop;
 import ednel.eda.individual.BaselineIndividual;
@@ -7,12 +8,15 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.comparators.Argsorter;
 import ednel.utils.PBILLogger;
+import org.apache.commons.math3.random.AbstractRandomGenerator;
 import org.apache.commons.math3.random.MersenneTwister;
+import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class EDNEL extends AbstractClassifier {
@@ -93,6 +97,99 @@ public class EDNEL extends AbstractClassifier {
         );
     }
 
+    /**
+     * Checks whether a dominates b (i.e. a is a better solution, in all criteria, than b).
+     *
+     * @param a first solution
+     * @param b second solution
+     * @return -1 if b dominates a, +1 if a dominates b, and 0 if there is no dominance
+     */
+    private int a_dominates_b(Fitness a, Fitness b) {
+        boolean a_dominates = ((a.getQuality() >= b.getQuality()) && (a.getSize() <= b.getSize())) &&
+                ((a.getQuality() > b.getQuality()) || (a.getSize() < b.getSize()));
+        boolean b_dominates = ((b.getQuality() >= a.getQuality()) && (b.getSize() <= a.getSize())) &&
+                ((b.getQuality() > a.getQuality()) || (b.getSize() < a.getSize()));
+
+        if(a_dominates) {
+            if(b_dominates) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else if(b_dominates) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    private Integer[] paretoSort(Fitness[] fitnesses) {
+        HashMap<Integer, ArrayList<Integer>> dominates = new HashMap<>();
+        HashMap<Integer, Integer> dominated = new HashMap<>();
+
+        ArrayList<Integer> cur_front = new ArrayList<>();
+
+        Integer[] sortedIndices = new Integer[fitnesses.length];
+        int counter = 0;
+
+        ArrayList<ArrayList<Integer>> fronts = new ArrayList<>();
+
+        for(int i = 0; i < fitnesses.length; i++) {
+            dominated.put(i, 0);
+            dominates.put(i, new ArrayList<>());
+        }
+
+        for(int i = 0; i < fitnesses.length; i++) {
+            for(int j = i + 1; j < fitnesses.length; j++) {
+                int res = a_dominates_b(fitnesses[i], fitnesses[j]);
+                if(res == 1) {
+                    dominated.put(j, dominated.getOrDefault(j, 0) + 1);  // signals that j is dominated by one solution
+
+                    ArrayList<Integer> thisDominates = dominates.getOrDefault(i, new ArrayList<Integer>());
+                    thisDominates.add(j);
+                    dominates.put(i, thisDominates);  // add j to the list of dominated solutions by i
+                } else if(res == -1) {
+                    dominated.put(i, dominated.getOrDefault(i, 0) + 1);  // signals that i is dominated by one solution
+
+                    ArrayList<Integer> thisDominates = dominates.getOrDefault(j, new ArrayList<Integer>());
+                    thisDominates.add(i);
+                    dominates.put(j, thisDominates);  // add i to the list of dominated solutions by j
+                }
+            }
+            if(dominated.get(i) == 0) {
+                cur_front.add(i);
+            }
+        }
+
+        while(cur_front.size() != 0) {
+            ArrayList<Integer> some_set = new ArrayList<>();
+
+            for(Integer master : cur_front) {
+                for(Integer slave : dominates.get(master)) {
+                    dominated.put(slave, dominated.get(slave) - 1);
+                    if(dominated.get(slave) == 0) {
+                        some_set.add(slave);
+                    }
+                }
+            }
+            // TODO sort items based on fitness in cur_front!
+            Double[] cur_front_double = new Double[cur_front.size()];
+            for(int i = 0; i < cur_front.size(); i++) {
+                cur_front_double[i] = fitnesses[cur_front.get(i)].getQuality();
+            }
+            Integer[] local_indices = Argsorter.decrescent_argsort(cur_front_double);
+
+            for(Integer item : local_indices) {
+                sortedIndices[counter] = cur_front.get(item);
+                counter += 1;
+            }
+
+            fronts.add((ArrayList<Integer>)cur_front.clone());
+            cur_front = some_set;
+        }
+        return sortedIndices;
+    }
+
     @Override
     public void buildClassifier(Instances data) throws Exception {
         LocalDateTime start = LocalDateTime.now();
@@ -108,11 +205,16 @@ public class EDNEL extends AbstractClassifier {
                     this.currentGenBest.getCharacteristics(), this.n_individuals, fc, this.seed
             );
             Individual[] population = (Individual[])sampled.get("population");
-            Double[] fitnesses = (Double[])sampled.get("fitnesses");
-            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
+            Fitness[] fitnesses = (Fitness[])sampled.get("fitnesses");
+            Double[] qualities = (Double[])sampled.get("qualities");
+            Integer[] sizes = (Integer[])sampled.get("sizes");
+
+            Integer[] sortedIndices = paretoSort(fitnesses);
+
+//            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
 
             this.currentGenBest = population[sortedIndices[0]];
-            this.currentGenFitness = fitnesses[sortedIndices[0]];
+            this.currentGenFitness = fitnesses[sortedIndices[0]].getQuality();
 
             if(this.currentGenFitness > this.overallFitness) {
                 this.overallFitness = this.currentGenFitness;
@@ -122,7 +224,7 @@ public class EDNEL extends AbstractClassifier {
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {
                 this.pbilLogger.log_and_print(
-                        fitnesses, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
+                        qualities, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
                 );
             }
             t1 = t2;
