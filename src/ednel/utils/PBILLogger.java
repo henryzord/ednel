@@ -2,11 +2,11 @@ package ednel.utils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import ednel.eda.individual.Fitness;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
-import guru.nidi.graphviz.attribute.MapAttributes;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.ParseException;
@@ -58,9 +58,9 @@ public class PBILLogger {
 
     protected HashMap<String, String> pastPopulations = null;
 
-    private Instances train_data;
-    private Instances test_data;
-    private ArrayList<Double> currentGenBestTestFitness;
+    private Instances learn_data;
+    private Instances val_data;
+    private ArrayList<Double> currentGenBestValFitness;
 
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
@@ -123,9 +123,9 @@ public class PBILLogger {
         this.n_sample = n_sample;
         this.n_fold = n_fold;
 
-        this.train_data = null;
-        this.test_data = null;
-        this.currentGenBestTestFitness = null;
+        this.learn_data = null;
+        this.val_data = null;
+        this.currentGenBestValFitness = null;
 
         this.log = log;
         if(this.log) {
@@ -161,26 +161,29 @@ public class PBILLogger {
     public PBILLogger(
             String dataset_name, String dataset_metadata_path,
             int n_individuals, int n_generations, int n_sample, int n_fold, boolean log,
-            Instances train_data, Instances test_data
+            Instances learn_data, Instances val_data
     ) {
         this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log);
-        this.train_data = train_data;
-        this.test_data = test_data;
-        this.currentGenBestTestFitness = new ArrayList<>();
+        this.learn_data = learn_data;
+        this.val_data = val_data;
+        this.currentGenBestValFitness = new ArrayList<>();
     }
 
-    public static double getMedianFitness(Double[] fitnesses, Integer[] sortedIndices) {
+    public static double getMedianFitness(Individual[] population, Integer[] sortedIndices) {
         double medianFitness;
-        if((fitnesses.length % 2) == 0) {
-            int ind0 = (fitnesses.length / 2) - 1, ind1 = (fitnesses.length / 2);
-            medianFitness = (fitnesses[sortedIndices[ind0]] + fitnesses[sortedIndices[ind1]]) / 2;
+        if((population.length % 2) == 0) {
+            int ind0 = (population.length / 2) - 1, ind1 = (population.length / 2);
+            medianFitness = (
+                    population[sortedIndices[ind0]].getFitness().getLearnQuality() +
+                            population[sortedIndices[ind1]].getFitness().getLearnQuality())
+                    / 2;
         } else {
-            medianFitness = fitnesses[sortedIndices[fitnesses.length / 2]];
+            medianFitness = population[sortedIndices[population.length / 2]].getFitness().getLearnQuality();
         }
         return medianFitness;
     }
 
-    public void log(Double[] fitnesses, Integer[] sortedIndices,
+    public void log(Integer[] sortedIndices,
                     Individual[] population, Individual overall, Individual last,
                     DependencyNetwork dn, LocalDateTime t1, LocalDateTime t2
     ) throws Exception {
@@ -191,14 +194,11 @@ public class PBILLogger {
         this.dnConnections.add(dn.getCurrentGenConnections());
         this.dnMeanHeuristics.add(dn.getCurrentGenMeanHeuristic());
 
-        if(this.test_data != null) {
-            last.buildClassifier(train_data);
-            this.currentGenBestTestFitness.add(FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, last));
-        }
+        this.currentGenBestValFitness.add(last.getFitness().getValQuality());
 
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
-        this.logPopulation(fitnesses, sortedIndices, population);
+        this.logPopulation(sortedIndices, population);
         this.logDependencyNetworkStructureAndProbabilities(dn);
 
         ArrayList<String> samplingOrder = dn.getSamplingOrder();
@@ -216,7 +216,7 @@ public class PBILLogger {
 
     /**
      * Convenience method for log and print functions.
-     * @param fitnesses
+     *
      * @param sortedIndices
      * @param population
      * @param overall
@@ -226,16 +226,16 @@ public class PBILLogger {
      * @param t2
      * @throws Exception
      */
-    public void log_and_print(Double[] fitnesses, Integer[] sortedIndices,
+    public void log_and_print(Integer[] sortedIndices,
                     Individual[] population, Individual overall, Individual last,
                     DependencyNetwork dn, LocalDateTime t1, LocalDateTime t2
     ) throws Exception {
-        this.log(fitnesses, sortedIndices, population, overall, last, dn, t1, t2);
+        this.log(sortedIndices, population, overall, last, dn, t1, t2);
         this.print();
     }
 
 
-    private void logPopulation(Double[] fitnesses, Integer[] sortedIndices, Individual[] population) {
+    private void logPopulation(Integer[] sortedIndices, Individual[] population) {
         if(this.log) {
             for(int i = 0; i < population.length; i++) {
                 for(String characteristic : population[i].getCharacteristics().keySet()) {
@@ -245,13 +245,13 @@ public class PBILLogger {
                 }
                 this.pastPopulations.put(String.format(
                         "gen_%03d_ind_%03d_%s", this.curGen, i, "fitness"
-                ), String.valueOf(fitnesses[i]));
+                ), String.valueOf(population[i].getFitness().getLearnQuality()));
             }
         }
-        this.minFitness.add(fitnesses[sortedIndices[fitnesses.length - 1]]);
-        this.maxFitness.add(fitnesses[sortedIndices[0]]);
+        this.minFitness.add(population[sortedIndices[population.length - 1]].getFitness().getLearnQuality());
+        this.maxFitness.add(population[sortedIndices[0]].getFitness().getLearnQuality());
 
-        this.medianFitness.add(PBILLogger.getMedianFitness(fitnesses, sortedIndices));
+        this.medianFitness.add(PBILLogger.getMedianFitness(population, sortedIndices));
     }
 
     private void logDependencyNetworkStructureAndProbabilities(DependencyNetwork dn) {
@@ -389,21 +389,21 @@ public class PBILLogger {
 
             // writes header
             bw.write(
-                    "gen,nevals,min,median,max," + (this.test_data != null? "currentGenBestTestFitness," : "") +
+                    "gen,nevals,min,median,max," + (this.val_data != null? "currentGenBestValFitness," : "") +
                     "lap time (seconds),discarded individuals (including burn-in),GM connections,GM mean heuristic," +
                     "sampling order\n");
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
                         Locale.US,
-                        "%d,%d,%.8f,%.8f,%.8f,"  + (this.test_data != null? "%.8f," : "%s") +
+                        "%d,%d,%.8f,%.8f,%.8f,"  + (this.val_data != null? "%.8f," : "%s") +
                                 "%04d,%04d,%04d,%.8f,%s\n",
                         i,
                         this.nevals.get(i),
                         this.minFitness.get(i),
                         this.medianFitness.get(i),
                         this.maxFitness.get(i),
-                        this.test_data != null? this.currentGenBestTestFitness.get(i) : "",
+                        this.val_data != null? this.currentGenBestValFitness.get(i) : "",
                         this.lapTimes.get(i),
                         this.discardedIndividuals.get(i),
                         this.dnConnections.get(i),
@@ -560,21 +560,26 @@ public class PBILLogger {
 
     public void print() {
         if(this.curGen == 1) {
+            int first_column_width = this.dataset_name.length() + 4;
+            int n_padding = first_column_width - "dataset".length();
+            String header_padding = new String(new char[n_padding]).replace("\0", " ");
+
             System.out.println(
-                    "Dataset\t\t\tGen\t\tnevals\t\tMin\t\t\tMedian\t\tMax\t\t\t" +
-                            (this.test_data != null? "currentGenBest\t" : "") + "Lap time (s)\t" +
+                    String.format("Dataset%s", header_padding) +
+                    "Gen\t\tnevals\t\tMin\t\t\tMedian\t\tMax\t\t\t" +
+                            (this.val_data != null? "currentGenBest\t" : "") + "Lap time (s)\t" +
                             "Discarded Individuals\tDN Connections"
             );
             System.out.println(
                     (
-                            this.test_data != null? String.join("", Collections.nCopies(18, "\t")) +
-                                    "TestFitness" + String.join("", Collections.nCopies(6, "\t")) :
+                            this.val_data != null? String.join("", Collections.nCopies(18, "\t")) +
+                                    "ValFitness" + String.join("", Collections.nCopies(6, "\t")) :
                                     String.join("", Collections.nCopies(22, "\t"))
                     ) + "(w/ burn-in)");
         }
 
         System.out.println(String.format(
-                "%s\t\t\t%d\t\t%d\t\t\t%.8f\t%.8f\t%.8f\t" + (this.test_data != null? "%.8f\t\t" : "%s") +
+                "%s    %d\t\t%d\t\t\t%.8f\t%.8f\t%.8f\t" + (this.val_data != null? "%.8f\t\t" : "%s") +
                         "%04d\t\t\t%04d\t\t\t\t\t%04d",
                 this.dataset_name,
                 this.curGen - 1,
@@ -582,7 +587,7 @@ public class PBILLogger {
                 this.minFitness.get(this.curGen - 1),
                 this.medianFitness.get(this.curGen - 1),
                 this.maxFitness.get(this.curGen - 1),
-                this.test_data != null? this.currentGenBestTestFitness.get(this.curGen - 1) : "",
+                this.val_data != null? this.currentGenBestValFitness.get(this.curGen - 1) : "",
                 this.lapTimes.get(this.curGen - 1),
                 this.discardedIndividuals.get(this.curGen - 1),
                 this.dnConnections.get(this.curGen - 1)
@@ -590,9 +595,9 @@ public class PBILLogger {
     }
 
     public void setDatasets(Instances train_data, Instances test_data) {
-        this.train_data = train_data;
-        this.test_data = test_data;
-        this.currentGenBestTestFitness = new ArrayList<>();
+        this.learn_data = train_data;
+        this.val_data = test_data;
+        this.currentGenBestValFitness = new ArrayList<>();
     }
 }
 

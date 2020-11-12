@@ -15,7 +15,8 @@ public class EarlyStop {
     public EarlyStop(int windowSize, double tolerance, int startGen) {
         this.windowSize = windowSize;
         this.tolerance = tolerance;
-        this.startGen = Math.max(startGen, this.windowSize);
+//        this.startGen = Math.max(startGen, this.windowSize);
+        this.startGen = startGen;
 
         this.faultCounter = 0;
         this.bestFitness = -1.0;
@@ -29,21 +30,20 @@ public class EarlyStop {
     /**
      *
      * @param gen Current generation
-     * @param fitness Fitness of the best individual of the current generation
      * @param ind Current generation best individual
      */
-    public void update(int gen, double fitness, Individual ind) {
+    public void update(int gen, Individual ind) {
         if(gen > this.startGen) {
-            if((fitness - this.bestFitness) >= this.tolerance) {
+            if((ind.getFitness().getValQuality() - this.bestFitness) >= this.tolerance) {
                 this.faultCounter = 0;
-                this.bestFitness = fitness;
+                this.bestFitness = ind.getFitness().getValQuality();
                 this.bestIndividual = ind;
             } else {
                 this.faultCounter += 1;
             }
         } else {
             this.bestIndividual = ind;
-            this.bestFitness = fitness;
+            this.bestFitness = ind.getFitness().getValQuality();
         }
     }
 

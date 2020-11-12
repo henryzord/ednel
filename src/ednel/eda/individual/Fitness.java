@@ -8,36 +8,54 @@ package ednel.eda.individual;
  */
 public class Fitness {
     private int size;
-    private double quality;
+    private double learnQuality;
+    private double valQuality;
 
     Fitness() {
         this.size = 0;
-        this.quality = 0;
+        this.learnQuality = 0;
+        this.valQuality = 0;
     }
 
-    Fitness(int size, double quality) {
+    Fitness(int size, double learnQuality) {
+        this(size, learnQuality, 0);
+    }
+
+    Fitness(int size, double learnQuality, double valQuality) {
         this.size = size;
-        this.quality = quality;
+        this.learnQuality = learnQuality;
+        this.valQuality = valQuality;
     }
 
     public void setSize(int size) {
         this.size = size;
     }
 
-    public void setQuality(double quality) {
-        this.quality = quality;
+    public void setLearnQuality(double learnQuality) {
+        this.learnQuality = learnQuality;
+    }
+
+    public void setValQuality(double valQuality) {
+        this.valQuality = valQuality;
     }
 
     public int getSize() {
         return size;
     }
 
-    public double getQuality() {
-        return quality;
+    public double getLearnQuality() {
+        return learnQuality;
+    }
+
+    public double getValQuality() {
+        return valQuality;
     }
 
     @Override
     public String toString() {
-        return String.format("Quality: %01.4f Size: %03d", this.getQuality(), this.getSize());
+        return String.format(
+                "LearnQuality: %01.4f ValQuality: %01.4f Size: %03d",
+                this.getLearnQuality(), this.getValQuality(), this.getSize()
+        );
     }
 }

@@ -33,6 +33,9 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected DecisionTable decisionTable;
     protected Aggregator aggregator;
 
+    /** Fitness as measured when this individual was generated */
+    protected Fitness fitness;
+
     /** How many seconds it took to train this individual */
     protected int timeToTrain;
 
@@ -582,6 +585,14 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     public int getNumberOfRules() {
         return this.n_rules;
+    }
+
+    public Fitness getFitness() {
+        return fitness;
+    }
+
+    public void setFitness(Fitness fitness) {
+        this.fitness = fitness;
     }
 }
 

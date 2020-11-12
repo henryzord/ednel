@@ -102,7 +102,7 @@ public class BaselineIndividual extends Individual {
 
         FitnessCalculator fc = new FitnessCalculator(5, train_data);
 
-        HashMap<String, Object[]> res = dn.gibbsSample(lastStart, n_individuals, fc, 1);
+        Individual[] res = dn.gibbsSample(lastStart, n_individuals, fc, 1);
 
         Fitness fitness = fc.evaluateEnsemble(1, bi);
 

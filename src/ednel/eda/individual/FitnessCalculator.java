@@ -21,19 +21,26 @@ import java.util.stream.IntStream;
  */
 public class FitnessCalculator {
 
-    private Instances train_data;
+    private Instances learn_data;
+    private Instances val_data;
     private int n_folds;
 
-    public FitnessCalculator(int n_folds, Instances train_data) {
-        this.train_data = train_data;
+    public FitnessCalculator(int n_folds, Instances learn_data) {
+        this(n_folds, learn_data, null);
+    }
+
+    public FitnessCalculator(int n_folds, Instances learn_data, Instances val_data) {
+        this.learn_data = learn_data;
+        this.val_data = val_data;
+
         this.n_folds = n_folds;
-        this.train_data.stratify(this.n_folds);
+        this.learn_data.stratify(this.n_folds);
     }
 
     public static double getUnweightedAreaUnderROC(
-            Instances train_data, Instances test_data, AbstractClassifier clf) throws Exception {
+            Instances train_data, Instances val_data, AbstractClassifier clf) throws Exception {
         Evaluation evaluation = new Evaluation(train_data);
-        evaluation.evaluateModel(clf, test_data);
+        evaluation.evaluateModel(clf, val_data);
         return FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
     }
 
@@ -41,17 +48,11 @@ public class FitnessCalculator {
         int n_classes = evaluation.confusionMatrix().length;
         double unweighted = 0;
         for(int i = 0; i < n_classes; i++) {
-            try {
-                double auc = evaluation.areaUnderROC(i);
-                if(Utils.isMissingValue(auc)) {
-                    throw new Exception("un-stratified code!");
-//                unweighted += 0;
-                } else {
-//              unweighted += evaluation.areaUnderROC(i);
-                    unweighted += auc;
-                }
-            } catch(NullPointerException npe) {
-                throw npe;
+            double auc = evaluation.areaUnderROC(i);
+            if(Utils.isMissingValue(auc)) {
+                throw new Exception("un-stratified code!");
+            } else {
+                unweighted += auc;
             }
         }
         return unweighted / n_classes;
@@ -104,22 +105,29 @@ public class FitnessCalculator {
      * @throws Exception
      */
     public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws Exception {
-        double quality = 0.0;
+        double learnQuality = 0.0;
         int size = 0;
 
         Object[] trainEvaluations = IntStream.range(0, n_folds).parallel().mapToObj(
-                i -> FitnessCalculator.parallelFoldEvaluation(ind, train_data, i, n_folds, random, timeout_individual)).toArray();
+                i -> FitnessCalculator.parallelFoldEvaluation(ind, learn_data, i, n_folds, random, timeout_individual)).toArray();
 
         for(Object val : trainEvaluations) {
             if(val instanceof Fitness) {
-                quality += ((Fitness)val).getQuality();
+                learnQuality += ((Fitness)val).getLearnQuality();
                 size += ((Fitness)val).getSize();
             } else {
                 throw (Exception)val;
             }
         }
-        quality /= n_folds;
+        learnQuality /= n_folds;
         size /= n_folds;
+
+        // TODO parallelize this!
+        double valQuality = 0;
+        if(this.val_data != null) {
+            ind.buildClassifier(this.learn_data);
+             valQuality = FitnessCalculator.getUnweightedAreaUnderROC(this.learn_data, this.val_data, ind);
+        }
 
         // TODO traditional method - it works
 //        for (int i = 0; i < n_folds; i++) {
@@ -134,7 +142,7 @@ public class FitnessCalculator {
 //        trainEvaluation /= n_folds;
         // TODO traditional method - it works
 
-        return new Fitness(size, quality);
+        return new Fitness(size, learnQuality, valQuality);
     }
 
     public static Object parallelFoldEvaluation(

@@ -7,8 +7,6 @@ import org.reflections.Reflections;
 import org.reflections.scanners.ResourcesScanner;
 
 import java.security.InvalidParameterException;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
@@ -363,14 +361,14 @@ public class DependencyNetwork {
         return components;
     }
 
-    public HashMap<String, Object[]> gibbsSample(
+    public Individual[] gibbsSample(
             HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed
     ) throws Exception {
 
         Individual[] individuals = new Individual[sampleSize];
-        Fitness[] fitnesses = new Fitness[sampleSize];
-        Double[] qualities = new Double[sampleSize];
-        Integer[] sizes = new Integer[sampleSize];
+//        Fitness[] fitnesses = new Fitness[sampleSize];
+//        Double[] qualities = new Double[sampleSize];
+//        Integer[] sizes = new Integer[sampleSize];
 
         this.currentGenEvals = 0;
 
@@ -401,11 +399,12 @@ public class DependencyNetwork {
                 try {
                     Individual individual = new Individual(optionTable, lastStart);
                     Fitness thisIndFitness = fc.evaluateEnsemble(seed, individual, this.timeout_individual);
+                    individual.setFitness(thisIndFitness);
 
                     individuals[individual_counter] = individual;
-                    fitnesses[individual_counter] = thisIndFitness;
-                    qualities[individual_counter] = thisIndFitness.getQuality();
-                    sizes[individual_counter] = thisIndFitness.getSize();
+//                    fitnesses[individual_counter] = thisIndFitness;
+//                    qualities[individual_counter] = thisIndFitness.getLearnQuality();
+//                    sizes[individual_counter] = thisIndFitness.getSize();
 
                     thinning_counter = 0;
                     individual_counter += 1;
@@ -440,12 +439,14 @@ public class DependencyNetwork {
             }
         }
 
-        return new HashMap<String, Object[]>(){{
-            put("population", individuals);
-            put("fitnesses", fitnesses);
-            put("qualities", qualities);
-            put("sizes", sizes);
-        }};
+        return individuals;
+
+//        return new HashMap<String, Object[]>(){{
+//            put("population", individuals);
+//            put("fitnesses", fitnesses);
+//            put("qualities", qualities);
+//            put("sizes", sizes);
+//        }};
     }
 
     /**

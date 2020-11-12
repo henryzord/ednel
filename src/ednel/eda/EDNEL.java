@@ -1,16 +1,14 @@
 package ednel.eda;
 
-import ednel.eda.individual.Fitness;
-import ednel.network.DependencyNetwork;
-import ednel.eda.stoppers.EarlyStop;
 import ednel.eda.individual.BaselineIndividual;
+import ednel.eda.individual.Fitness;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
-import ednel.utils.comparators.Argsorter;
+import ednel.eda.stoppers.EarlyStop;
+import ednel.network.DependencyNetwork;
 import ednel.utils.PBILLogger;
-import org.apache.commons.math3.random.AbstractRandomGenerator;
+import ednel.utils.comparators.Argsorter;
 import org.apache.commons.math3.random.MersenneTwister;
-import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
@@ -44,10 +42,10 @@ public class EDNEL extends AbstractClassifier {
 
     protected DependencyNetwork dn;
 
+    protected Individual[] bestGenInd;
+
     protected Individual currentGenBest;
     protected Individual overallBest;
-    protected Double currentGenFitness;
-    protected Double overallFitness;
 
     protected boolean no_cycles;
 
@@ -76,10 +74,8 @@ public class EDNEL extends AbstractClassifier {
 
         this.pbilLogger = pbilLogger;
 
-        this.overallFitness = -1.0;
-
         // at least 10 generations
-        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance, 10);
+        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance, 5);
 
         this.fitted = false;
 
@@ -105,10 +101,10 @@ public class EDNEL extends AbstractClassifier {
      * @return -1 if b dominates a, +1 if a dominates b, and 0 if there is no dominance
      */
     private int a_dominates_b(Fitness a, Fitness b) {
-        boolean a_dominates = ((a.getQuality() >= b.getQuality()) && (a.getSize() <= b.getSize())) &&
-                ((a.getQuality() > b.getQuality()) || (a.getSize() < b.getSize()));
-        boolean b_dominates = ((b.getQuality() >= a.getQuality()) && (b.getSize() <= a.getSize())) &&
-                ((b.getQuality() > a.getQuality()) || (b.getSize() < a.getSize()));
+        boolean a_dominates = ((a.getLearnQuality() >= b.getLearnQuality()) && (a.getSize() <= b.getSize())) &&
+                ((a.getLearnQuality() > b.getLearnQuality()) || (a.getSize() < b.getSize()));
+        boolean b_dominates = ((b.getLearnQuality() >= a.getLearnQuality()) && (b.getSize() <= a.getSize())) &&
+                ((b.getLearnQuality() > a.getLearnQuality()) || (b.getSize() < a.getSize()));
 
         if(a_dominates) {
             if(b_dominates) {
@@ -123,25 +119,25 @@ public class EDNEL extends AbstractClassifier {
         }
     }
 
-    private Integer[] paretoSort(Fitness[] fitnesses) {
+    private Integer[] paretoSort(Individual[] population) {
         HashMap<Integer, ArrayList<Integer>> dominates = new HashMap<>();
         HashMap<Integer, Integer> dominated = new HashMap<>();
 
         ArrayList<Integer> cur_front = new ArrayList<>();
 
-        Integer[] sortedIndices = new Integer[fitnesses.length];
+        Integer[] sortedIndices = new Integer[population.length];
         int counter = 0;
 
-        ArrayList<ArrayList<Integer>> fronts = new ArrayList<>();
+//        ArrayList<ArrayList<Integer>> fronts = new ArrayList<>();
 
-        for(int i = 0; i < fitnesses.length; i++) {
+        for(int i = 0; i < population.length; i++) {
             dominated.put(i, 0);
             dominates.put(i, new ArrayList<>());
         }
 
-        for(int i = 0; i < fitnesses.length; i++) {
-            for(int j = i + 1; j < fitnesses.length; j++) {
-                int res = a_dominates_b(fitnesses[i], fitnesses[j]);
+        for(int i = 0; i < population.length; i++) {
+            for(int j = i + 1; j < population.length; j++) {
+                int res = a_dominates_b(population[i].getFitness(), population[j].getFitness());
                 if(res == 1) {
                     dominated.put(j, dominated.getOrDefault(j, 0) + 1);  // signals that j is dominated by one solution
 
@@ -172,10 +168,9 @@ public class EDNEL extends AbstractClassifier {
                     }
                 }
             }
-            // TODO sort items based on fitness in cur_front!
             Double[] cur_front_double = new Double[cur_front.size()];
             for(int i = 0; i < cur_front.size(); i++) {
-                cur_front_double[i] = fitnesses[cur_front.get(i)].getQuality();
+                cur_front_double[i] = population[cur_front.get(i)].getFitness().getLearnQuality();
             }
             Integer[] local_indices = Argsorter.decrescent_argsort(cur_front_double);
 
@@ -184,7 +179,7 @@ public class EDNEL extends AbstractClassifier {
                 counter += 1;
             }
 
-            fronts.add((ArrayList<Integer>)cur_front.clone());
+//            fronts.add((ArrayList<Integer>)cur_front.clone());
             cur_front = some_set;
         }
         return sortedIndices;
@@ -195,48 +190,71 @@ public class EDNEL extends AbstractClassifier {
         LocalDateTime start = LocalDateTime.now();
         LocalDateTime t1 = LocalDateTime.now(), t2;
 
-        FitnessCalculator fc = new FitnessCalculator(5, data);
+        this.bestGenInd = new Individual[this.n_generations];  // TODO new code!
+
+        data.stratify(6);  // 5 folds of interval CV + 1 for validation
+        Instances val_data = data.testCV(6, 1);
+        Instances learn_data = data.trainCV(6, 1);
+        learn_data.stratify(5);
+
+        pbilLogger.setDatasets(learn_data, val_data);
+
+        FitnessCalculator fc = new FitnessCalculator(5, learn_data, val_data);
 
         this.currentGenBest = new BaselineIndividual();
         this.overallBest = this.currentGenBest;
 
-        for(int c = 0; c < this.n_generations; c++) {
-            HashMap<String, Object[]> sampled = dn.gibbsSample(
-                    this.currentGenBest.getCharacteristics(), this.n_individuals, fc, this.seed
-            );
-            Individual[] population = (Individual[])sampled.get("population");
-            Fitness[] fitnesses = (Fitness[])sampled.get("fitnesses");
-            Double[] qualities = (Double[])sampled.get("qualities");
-            Integer[] sizes = (Integer[])sampled.get("sizes");
+        int to_sample = this.n_individuals;
+        int to_select = 0;
 
-            Integer[] sortedIndices = paretoSort(fitnesses);
+        Integer[] sortedIndices = new Integer[0];
+
+        Individual[] population = new Individual[this.n_individuals];
+
+        for(int g = 0; g < this.n_generations; g++) {
+            Individual[] sampled = dn.gibbsSample(
+                    this.currentGenBest.getCharacteristics(), to_sample, fc, this.seed
+            );
+            // removes old individuals
+            int counter = 0;
+            for(int i = 0; i < to_select; i++) {
+                population[counter] = population[sortedIndices[i]];
+                counter += 1;
+            }
+            // adds new population
+            for(int i = 0; i < to_sample; i++) {
+                population[counter] = sampled[i];
+                counter += 1;
+            }
+            to_sample = (int)(this.selection_share * this.n_individuals);
+            to_select = this.n_individuals - to_sample;
+
+            sortedIndices = paretoSort(population);
+
+            this.bestGenInd[g] = population[sortedIndices[0]];
 
 //            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
 
             this.currentGenBest = population[sortedIndices[0]];
-            this.currentGenFitness = fitnesses[sortedIndices[0]].getQuality();
-
-            if(this.currentGenFitness > this.overallFitness) {
-                this.overallFitness = this.currentGenFitness;
-                this.overallBest = this.currentGenBest;
-            }
 
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {
                 this.pbilLogger.log_and_print(
-                        qualities, sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
+                        sortedIndices, population, this.overallBest, this.currentGenBest, this.dn, t1, t2
                 );
             }
             t1 = t2;
 
-            this.earlyStop.update(c, this.currentGenFitness, this.currentGenBest);
+            this.earlyStop.update(g, this.currentGenBest);
 
             boolean overTime = (this.timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > this.timeout);
-            if(this.earlyStop.isStopping(c) || overTime) {
+
+            if(this.earlyStop.isStopping(g) || overTime) {
                 break;
             }
-            this.dn.update(population, sortedIndices, this.selection_share, c);
+            this.dn.update(population, sortedIndices, this.selection_share, g);
         }
+
         this.overallBest = this.earlyStop.getLastBestIndividual();  // TODO is this correct?
 
         this.overallBest.buildClassifier(data);

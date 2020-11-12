@@ -21,9 +21,10 @@ public class RunTrainingPieceTask implements Runnable, Callable {
 
     private int n_sample;
     private int n_fold;
-    private boolean log_test;
 
+    /** The whole training set: learning + validation */
     private Instances train_data;
+    /** Data to be used to evaluate quality of method */
     private Instances test_data;
     private EDNEL ednel;
     private PBILLogger pbilLogger;
@@ -58,7 +59,7 @@ public class RunTrainingPieceTask implements Runnable, Callable {
 
         this.datasets_path = commandLine.getOptionValue("datasets_path");
 
-        this.log_test = commandLine.hasOption("log_test");
+//        this.log_test = commandLine.hasOption("log_test");
 
         this.pbilLogger = new PBILLogger(
                 dataset_name,
@@ -92,6 +93,8 @@ public class RunTrainingPieceTask implements Runnable, Callable {
 
     private void core() {
         try {
+//            throw new Exception("use validation set!");
+
             HashMap<String, Instances> datasets = Main.loadDataset(
                     this.datasets_path,
                     this.dataset_name,
@@ -99,10 +102,6 @@ public class RunTrainingPieceTask implements Runnable, Callable {
             );
             this.train_data = datasets.get("train_data");
             this.test_data = datasets.get("test_data");
-
-            if(log_test) {
-                pbilLogger.setDatasets(train_data, test_data);
-            }
 
             this.ednel.buildClassifier(this.train_data);
 
