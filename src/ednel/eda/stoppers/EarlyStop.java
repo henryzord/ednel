@@ -34,7 +34,8 @@ public class EarlyStop {
      */
     public void update(int gen, Individual ind) {
         if(gen > this.startGen) {
-            if((ind.getFitness().getValQuality() - this.bestFitness) >= this.tolerance) {
+            if(ind.getFitness().getValQuality() >= this.bestFitness) {
+//            if((ind.getFitness().getValQuality() - this.bestFitness) >= this.tolerance) {
                 this.faultCounter = 0;
                 this.bestFitness = ind.getFitness().getValQuality();
                 this.bestIndividual = ind;
