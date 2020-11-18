@@ -74,8 +74,7 @@ public class EDNEL extends AbstractClassifier {
 
         this.pbilLogger = pbilLogger;
 
-        // at least 10 generations
-        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance, 5);
+        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance, 0);
 
         this.fitted = false;
 
@@ -128,7 +127,7 @@ public class EDNEL extends AbstractClassifier {
         Integer[] sortedIndices = new Integer[population.length];
         int counter = 0;
 
-//        ArrayList<ArrayList<Integer>> fronts = new ArrayList<>();
+        ArrayList<ArrayList<Integer>> fronts = new ArrayList<>();
 
         for(int i = 0; i < population.length; i++) {
             dominated.put(i, 0);
@@ -179,7 +178,7 @@ public class EDNEL extends AbstractClassifier {
                 counter += 1;
             }
 
-//            fronts.add((ArrayList<Integer>)cur_front.clone());
+            fronts.add((ArrayList<Integer>)cur_front.clone());
             cur_front = some_set;
         }
         return sortedIndices;
@@ -229,7 +228,8 @@ public class EDNEL extends AbstractClassifier {
             to_sample = (int)(this.selection_share * this.n_individuals);
             to_select = this.n_individuals - to_sample;
 
-            sortedIndices = paretoSort(population);
+            // sortedIndices = paretoSort(population);
+            sortedIndices = simpleSort(population);
 
             this.bestGenInd[g] = population[sortedIndices[0]];
 
@@ -261,6 +261,14 @@ public class EDNEL extends AbstractClassifier {
         this.currentGenBest.buildClassifier(data);
 
         this.fitted = true;
+    }
+
+    private Integer[] simpleSort(Individual[] population) {
+        Double[] cur_front_double = new Double[population.length];
+        for(int i = 0; i < population.length; i++) {
+            cur_front_double[i] = population[i].getFitness().getLearnQuality();
+        }
+        return Argsorter.decrescent_argsort(cur_front_double);
     }
 
     public PBILLogger getPbilLogger() {

@@ -11,6 +11,7 @@ import argparse
 import itertools as it
 import json
 import os
+import sys
 from functools import reduce
 
 import numpy as np
@@ -162,7 +163,10 @@ def single_experiment_process(this_path, n_samples, n_folds, write=True):
         n_samples=n_samples, n_folds=n_folds
     )
     if len(missing) > 0:
-        raise ValueError('Could not collapse metrics for dataset. Some runs are missing.')
+        dataset_name = this_path.split(os.sep)[-2]
+        experiment_name = this_path.split(os.sep)[-3]
+        print('Dataset %s for experiment %s is not complete and hence will not be written to files' % (dataset_name, experiment_name), file=sys.stderr)
+        return None
 
     samples_dicts = dict()
 
@@ -348,7 +352,7 @@ def __find_which_level__(path):
     return level
 
 
-def summarize_all(path):
+def generate_raw(path):
     level = __find_which_level__(path)
 
     lines = []
@@ -364,17 +368,20 @@ def summarize_all(path):
 
         datasets_names = [x for x in os.listdir(sub_path) if os.path.isdir(os.path.join(sub_path, x))]
         for dataset_name in datasets_names:
-            df = pd.read_csv(
-                os.path.join(sub_path, dataset_name, 'overall', 'summary.csv'),
-                header=[0, 1], index_col=0
-            )
-            line_selector = ['-mean-of-means' in x for x in df.index]
-            data = df.loc[line_selector, ('unweighted_area_under_roc', 'mean')]
+            try:
+                df = pd.read_csv(
+                    os.path.join(sub_path, dataset_name, 'overall', 'summary.csv'),
+                    header=[0, 1], index_col=0
+                )
+                line_selector = ['-mean-of-means' in x for x in df.index]
+                data = df.loc[line_selector, ('unweighted_area_under_roc', 'mean')]
 
-            if header is None:
-                header = ['experiment_name', 'dataset_name'] + data.index.tolist()
+                if header is None:
+                    header = ['experiment_name', 'dataset_name'] + data.index.tolist()
 
-            lines += [[folder, dataset_name] + data.values.tolist()]
+                lines += [[folder, dataset_name] + data.values.tolist()]
+            except FileNotFoundError:  # this dataset was not completed; just ignore it
+                pass
 
     last = pd.DataFrame(lines, columns=header)
     last.to_csv(os.path.join(path, 'final_summary.csv'), index=False)
@@ -439,13 +446,7 @@ def for_comparison(df, experiment_path):
         os.path.join(experiment_path, "hyperparameters.csv")
     )
 
-
-def main(experiment_path, write=True):
-    n_samples, n_folds = get_n_samples_n_folds(experiment_path)
-    dict_means = recursive_experiment_process(
-        experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
-    )
-
+def generate_mean_json(dict_means, experiment_path):
     column_names = None
     datasets_names = set()
     metadata_generations = dict()
@@ -481,8 +482,16 @@ def main(experiment_path, write=True):
         indent=2
     )
 
-    summary = summarize_all(experiment_path)
-    for_comparison(df=summary, experiment_path=experiment_path)
+
+def main(experiment_path, write=True):
+    n_samples, n_folds = get_n_samples_n_folds(experiment_path)
+    dict_means = recursive_experiment_process(
+        experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
+    )
+
+    generate_mean_json(dict_means=dict_means, experiment_path=experiment_path)
+    raw = generate_raw(experiment_path)
+    for_comparison(df=raw, experiment_path=experiment_path)
 
 
 if __name__ == '__main__':
