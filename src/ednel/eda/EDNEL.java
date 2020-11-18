@@ -191,10 +191,10 @@ public class EDNEL extends AbstractClassifier {
 
         this.bestGenInd = new Individual[this.n_generations];  // TODO new code!
 
-        data.stratify(6);  // 5 folds of interval CV + 1 for validation
+        data = FitnessCalculator.betterStratifier(data, 6);  // 5 folds of interval CV + 1 for validation
         Instances val_data = data.testCV(6, 1);
         Instances learn_data = data.trainCV(6, 1);
-        learn_data.stratify(5);
+        learn_data = FitnessCalculator.betterStratifier(learn_data, 5);
 
         pbilLogger.setDatasets(learn_data, val_data);
 

@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import operator as op
 
+from pandas.errors import EmptyDataError
+
 
 class EDAEvaluation(object):
     metrics = [
@@ -149,7 +151,13 @@ def check_missing_experiments(path, n_samples, n_folds):
     missing = []
     combs = it.product(samples, folds)
     for sample, fold in combs:
-        if 'test_sample-%02d_fold-%02d.csv' % (sample, fold) not in files:
+        file_name = 'test_sample-%02d_fold-%02d.csv' % (sample, fold)
+
+        try:
+            if file_name not in files:
+                raise FileNotFoundError('not found')
+            df = pd.read_csv(os.path.join(path, file_name))
+        except (FileNotFoundError, EmptyDataError) as e:
             missing += [(sample, fold)]
 
     return missing
@@ -177,7 +185,7 @@ def single_experiment_process(this_path, n_samples, n_folds, write=True):
         this_sample_relation = relation.loc[relation['sample'] == sample]
 
         rels = list(map(
-            lambda z: pd.read_csv('%s/%s.csv' % (this_path, '_'.join(z)), index_col=0),
+            lambda z: pd.read_csv('%s%s%s.csv' % (this_path, os.sep, '_'.join(z)), index_col=0),
             this_sample_relation.values
         ))
         ens_names = rels[0].index
@@ -271,20 +279,23 @@ def get_n_samples_n_folds(path):
 
         if 'overall' in folders:  # is within a single experiment folder
             relation = __get_relation__(os.path.join(path, 'overall'))
-            outer_n_samples = max(outer_n_samples, max([int(x.split('-')[-1]) for x in relation['sample'].unique()]))
-            outer_n_folds = max(outer_n_folds, max([int(x.split('-')[-1]) for x in relation['fold'].unique()]))
+            if len(relation) > 0:
+                outer_n_samples = max(outer_n_samples, max([int(x.split('-')[-1]) for x in relation['sample'].unique()]))
+                outer_n_folds = max(outer_n_folds, max([int(x.split('-')[-1]) for x in relation['fold'].unique()]))
         else:  # all experiment folders must have the same number of samples and folds
             for folder in folders:
                 n_samples, n_folds = get_n_samples_n_folds(os.path.join(path, folder))
-                if (outer_n_samples != -1) and (n_samples != outer_n_samples):
-                    raise Exception("experiments have different number of samples!")
-                else:
-                    outer_n_samples = n_samples
-
-                if (outer_n_folds != -1) and (n_folds != outer_n_folds):
-                    raise Exception("experiments have different number of folds!")
-                else:
-                    outer_n_folds = n_folds
+                outer_n_samples = max(outer_n_samples, n_samples)
+                outer_n_folds = max(outer_n_folds, n_folds)
+                # if (outer_n_samples != -1) and (n_samples != outer_n_samples):
+                #     raise Exception("experiments have different number of samples!")
+                # else:
+                #     outer_n_samples = n_samples
+                #
+                # if (outer_n_folds != -1) and (n_folds != outer_n_folds):
+                #     raise Exception("experiments have different number of folds!")
+                # else:
+                #     outer_n_folds = n_folds
     else:
         raise Exception("experiment path does not point to a valid experiment directory!")
 

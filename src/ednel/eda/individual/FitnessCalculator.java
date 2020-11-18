@@ -1,13 +1,21 @@
 package ednel.eda.individual;
 
+import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
+import org.apache.commons.math3.random.MersenneTwister;
+import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
+import weka.core.Attribute;
 import weka.core.Instances;
+import weka.core.UnassignedClassException;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.stream.IntStream;
 
@@ -34,7 +42,7 @@ public class FitnessCalculator {
         this.val_data = val_data;
 
         this.n_folds = n_folds;
-        this.learn_data.stratify(this.n_folds);
+//        this.learn_data.stratify(this.n_folds);
     }
 
     public static double getUnweightedAreaUnderROC(
@@ -56,6 +64,77 @@ public class FitnessCalculator {
             }
         }
         return unweighted / n_classes;
+    }
+
+    public static Instances betterStratifier(Instances data, int n_folds) {
+        if (n_folds <= 1) {
+            throw new IllegalArgumentException(
+                    "Number of folds must be greater than 1");
+        }
+        if (data.classIndex() < 0) {
+            throw new UnassignedClassException("Class index is negative (not set)!");
+        }
+        if (!data.attribute(data.classIndex()).isNominal()) {
+            throw new ValueException("only stratifies classification datasets!");
+        }
+
+        HashMap<Double, ArrayList<Integer>> mapping = new HashMap<>();
+
+        // collects indices of instances for classes
+        for(int i = 0; i < data.size(); i++) {
+            ArrayList<Integer> indices;
+            double index = data.instance(i).classValue();
+            if(mapping.getOrDefault(index, null) == null) {
+                indices = new ArrayList<>();
+            } else {
+                indices = mapping.get(index);
+            }
+            indices.add(i);
+            mapping.put(index, indices);
+        }
+
+        HashMap<Double, ArrayList<Integer>> copy = new HashMap<>();
+        // how many instances from each class to put at a given time in each fold
+        HashMap<Double, Integer> howManies = new HashMap<>();
+        // shuffles arrays
+        for(Double key : mapping.keySet()) {
+            Collections.shuffle(mapping.get(key));
+            copy.put(key, mapping.get(key));
+
+            int howMany = Math.round(copy.get(key).size() / (float)n_folds);
+            if(howMany <= 0) {
+                throw new ValueException(String.format(
+                    "class %s has %d instances, but number of folds is %d",
+                    data.classAttribute().value(key.intValue()),
+                    copy.get(key).size(),
+                    n_folds
+                ));
+            }
+            howManies.put(key, howMany);
+
+        }
+
+        // get attribute info
+        ArrayList<Attribute> attrInfo = new ArrayList<>();
+        for(int j = 0; j < data.numAttributes(); j++) {
+            attrInfo.add(data.attribute(j));
+        }
+        Instances container = new Instances(data.relationName(), attrInfo, data.size());
+        for(int f = 0; f < n_folds; f++) {
+            for(Double key : howManies.keySet()) {
+                for(int h = 0; h < howManies.get(key); h++) {
+                    try {
+                        int index = mapping.get(key).remove(0);
+                        container.add(data.get(index));
+                    } catch(IndexOutOfBoundsException iobe) {
+                        // Math.round can generate a number of instances above the available quantity; just ignore
+                        // and proceed, this exception happens at the last fold
+                    }
+                }
+            }
+        }
+        container.setClassIndex(data.classIndex());
+        return container;
     }
 
     /**
@@ -108,8 +187,20 @@ public class FitnessCalculator {
         double learnQuality = 0.0;
         int size = 0;
 
+        EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual);
+        t.start();
+
+//        if(this.val_data != null) {
+//            ind.buildClassifier(this.learn_data);
+//            valQuality = FitnessCalculator.getUnweightedAreaUnderROC(this.learn_data, this.val_data, ind);
+//        }
+
+
         Object[] trainEvaluations = IntStream.range(0, n_folds).parallel().mapToObj(
                 i -> FitnessCalculator.parallelFoldEvaluation(ind, learn_data, i, n_folds, random, timeout_individual)).toArray();
+
+        // waits for evaluation of validation set to finish
+        t.join();
 
         for(Object val : trainEvaluations) {
             if(val instanceof Fitness) {
@@ -121,13 +212,6 @@ public class FitnessCalculator {
         }
         learnQuality /= n_folds;
         size /= n_folds;
-
-        // TODO parallelize this!
-        double valQuality = 0;
-        if(this.val_data != null) {
-            ind.buildClassifier(this.learn_data);
-             valQuality = FitnessCalculator.getUnweightedAreaUnderROC(this.learn_data, this.val_data, ind);
-        }
 
         // TODO traditional method - it works
 //        for (int i = 0; i < n_folds; i++) {
@@ -142,7 +226,7 @@ public class FitnessCalculator {
 //        trainEvaluation /= n_folds;
         // TODO traditional method - it works
 
-        return new Fitness(size, learnQuality, valQuality);
+        return new Fitness(size, learnQuality, t.getValQuality());
     }
 
     public static Object parallelFoldEvaluation(
