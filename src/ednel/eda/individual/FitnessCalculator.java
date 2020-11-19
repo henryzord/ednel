@@ -190,12 +190,6 @@ public class FitnessCalculator {
         EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual);
         t.start();
 
-//        if(this.val_data != null) {
-//            ind.buildClassifier(this.learn_data);
-//            valQuality = FitnessCalculator.getUnweightedAreaUnderROC(this.learn_data, this.val_data, ind);
-//        }
-
-
         Object[] trainEvaluations = IntStream.range(0, n_folds).parallel().mapToObj(
                 i -> FitnessCalculator.parallelFoldEvaluation(ind, learn_data, i, n_folds, random, timeout_individual)).toArray();
 
@@ -213,19 +207,6 @@ public class FitnessCalculator {
         learnQuality /= n_folds;
         size /= n_folds;
 
-        // TODO traditional method - it works
-//        for (int i = 0; i < n_folds; i++) {
-//            Instances local_train = train_data.trainCV(n_folds, i, random);
-//            Instances local_val = train_data.testCV(n_folds, i);
-//
-//            ind.buildClassifier(local_train);
-//            trainEval.evaluateModel(ind, local_val);
-//            trainEvaluation += getUnweightedAreaUnderROC(trainEval);
-//
-//        }
-//        trainEvaluation /= n_folds;
-        // TODO traditional method - it works
-
         return new Fitness(size, learnQuality, t.getValQuality());
     }
 
@@ -236,7 +217,6 @@ public class FitnessCalculator {
             LocalDateTime start = LocalDateTime.now();
 
             Individual copy = new Individual(ind, timeout_individual);
-
             Evaluation eval = new Evaluation(train_data);
 
             Instances local_train = train_data.trainCV(n_folds, n_fold, random);
