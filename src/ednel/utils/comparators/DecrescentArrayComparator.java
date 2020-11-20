@@ -1,9 +1,8 @@
 package ednel.utils.comparators;
-import java.util.Comparator;
 
-public class DecrescentArrayComparator extends AbstractArrayComparator {
+public class DecrescentArrayComparator extends ArrayContainer {
 
-    public DecrescentArrayComparator(Double[] array) {
+    public DecrescentArrayComparator(Comparable[] array) {
         super(array);
     }
 

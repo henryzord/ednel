@@ -10,7 +10,7 @@
 package ednel;
 
 import ednel.eda.RunTrainingPieceTask;
-import ednel.utils.comparators.Argsorter;
+import ednel.utils.sorters.Argsorter;
 import org.apache.commons.cli.CommandLine;
 import weka.core.Instances;
 

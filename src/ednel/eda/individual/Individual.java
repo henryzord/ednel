@@ -24,7 +24,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
-public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler {
+public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler, Comparable<Individual> {
 
     protected J48 j48;
     protected SimpleCart simpleCart;
@@ -593,6 +593,18 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     public void setFitness(Fitness fitness) {
         this.fitness = fitness;
+    }
+
+    @Override
+    public int compareTo(Individual o) {
+        double a = Math.round(this.getFitness().getLearnQuality() * 100.0) / 100.0;
+        double b = Math.round(o.getFitness().getLearnQuality() * 100.0) / 100.0;
+
+        int res = Double.compare(a, b);
+        if(res == 0) {
+            return Integer.compare(o.getFitness().getSize(), this.getFitness().getSize());
+        }
+        return res;
     }
 }
 

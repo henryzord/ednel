@@ -1,8 +1,8 @@
 package ednel.utils.comparators;
 
-public class CrescentArrayComparator extends AbstractArrayComparator {
+public class CrescentArrayComparator extends ArrayContainer {
 
-    public CrescentArrayComparator(Double[] array) {
+    public CrescentArrayComparator(Comparable<Object>[] array) {
         super(array);
     }
 

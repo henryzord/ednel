@@ -1,21 +1,18 @@
 package ednel.eda;
 
 import ednel.eda.individual.BaselineIndividual;
-import ednel.eda.individual.Fitness;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.eda.stoppers.EarlyStop;
 import ednel.network.DependencyNetwork;
 import ednel.utils.PBILLogger;
-import ednel.utils.comparators.Argsorter;
+import ednel.utils.sorters.PopulationSorter;
 import org.apache.commons.math3.random.MersenneTwister;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 public class EDNEL extends AbstractClassifier {
 
@@ -41,8 +38,6 @@ public class EDNEL extends AbstractClassifier {
     protected MersenneTwister mt;
 
     protected DependencyNetwork dn;
-
-    protected Individual[] bestGenInd;
 
     protected Individual currentGenBest;
     protected Individual overallBest;
@@ -97,8 +92,6 @@ public class EDNEL extends AbstractClassifier {
         LocalDateTime start = LocalDateTime.now();
         LocalDateTime t1 = LocalDateTime.now(), t2;
 
-        this.bestGenInd = new Individual[this.n_generations];  // TODO new code!
-
         data = FitnessCalculator.betterStratifier(data, 6);  // 5 folds of interval CV + 1 for validation
         Instances val_data = data.testCV(6, 1);
         Instances learn_data = data.trainCV(6, 1);
@@ -136,12 +129,8 @@ public class EDNEL extends AbstractClassifier {
             to_sample = (int)(this.selection_share * this.n_individuals);
             to_select = this.n_individuals - to_sample;
 
-            // sortedIndices = paretoSort(population);
-            sortedIndices = simpleSort(population);
-
-            this.bestGenInd[g] = population[sortedIndices[0]];
-
-//            Integer[] sortedIndices = Argsorter.decrescent_argsort(fitnesses);
+//            sortedIndices = Sorter.simpleSort(population);
+            sortedIndices = PopulationSorter.lexicographicArgsort(population);
 
             this.currentGenBest = population[sortedIndices[0]];
 
@@ -169,14 +158,6 @@ public class EDNEL extends AbstractClassifier {
         this.currentGenBest.buildClassifier(data);
 
         this.fitted = true;
-    }
-
-    private Integer[] simpleSort(Individual[] population) {
-        Double[] cur_front_double = new Double[population.length];
-        for(int i = 0; i < population.length; i++) {
-            cur_front_double[i] = population[i].getFitness().getLearnQuality();
-        }
-        return Argsorter.decrescent_argsort(cur_front_double);
     }
 
     public PBILLogger getPbilLogger() {

@@ -1,4 +1,4 @@
-package ednel.utils.comparators;
+package ednel.utils.sorters;
 
 import ednel.eda.individual.Fitness;
 import ednel.eda.individual.Individual;
@@ -6,7 +6,7 @@ import ednel.eda.individual.Individual;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class ParetoComparator {
+public class PopulationSorter {
     /**
      * Checks whether a dominates b (i.e. a is a better solution, in all criteria, than b).
      *
@@ -14,7 +14,7 @@ public class ParetoComparator {
      * @param b second solution
      * @return -1 if b dominates a, +1 if a dominates b, and 0 if there is no dominance
      */
-    public static int a_dominates_b(Fitness a, Fitness b) {
+    private static int a_dominates_b(Fitness a, Fitness b) {
         boolean a_dominates = ((a.getLearnQuality() >= b.getLearnQuality()) && (a.getSize() <= b.getSize())) &&
                 ((a.getLearnQuality() > b.getLearnQuality()) || (a.getSize() < b.getSize()));
         boolean b_dominates = ((b.getLearnQuality() >= a.getLearnQuality()) && (b.getSize() <= a.getSize())) &&
@@ -33,7 +33,7 @@ public class ParetoComparator {
         }
     }
 
-    public static Integer[] paretoSort(Individual[] population) {
+    public static Integer[] paretoArgsort(Individual[] population) {
         HashMap<Integer, ArrayList<Integer>> dominates = new HashMap<>();
         HashMap<Integer, Integer> dominated = new HashMap<>();
 
@@ -97,5 +97,17 @@ public class ParetoComparator {
             cur_front = some_set;
         }
         return sortedIndices;
+    }
+
+    public static Integer[] simpleArgsort(Individual[] population) {
+        Double[] fitness_values = new Double[population.length];
+        for(int i = 0; i < population.length; i++) {
+            fitness_values[i] = population[i].getFitness().getLearnQuality();
+        }
+        return Argsorter.decrescent_argsort(fitness_values);
+    }
+
+    public static Integer[] lexicographicArgsort(Individual[] population) {
+        return Argsorter.decrescent_argsort(population);
     }
 }
