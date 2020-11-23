@@ -597,8 +597,8 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     @Override
     public int compareTo(Individual o) {
-        double a = Math.round(this.getFitness().getLearnQuality() * 100.0) / 100.0;
-        double b = Math.round(o.getFitness().getLearnQuality() * 100.0) / 100.0;
+        double a = Math.round(this.getFitness().getLearnQuality() * 1e4) / 1e4;
+        double b = Math.round(o.getFitness().getLearnQuality() * 1e4) / 1e4;
 
         int res = Double.compare(a, b);
         if(res == 0) {
