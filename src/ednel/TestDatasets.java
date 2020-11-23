@@ -10,13 +10,16 @@
 package ednel;
 
 import ednel.eda.RunTrainingPieceTask;
+import ednel.eda.individual.FitnessCalculator;
 import ednel.utils.sorters.Argsorter;
 import org.apache.commons.cli.CommandLine;
+import smile.neighbor.lsh.Hash;
 import weka.core.Instances;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.sql.SQLOutput;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -24,11 +27,15 @@ import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 public class TestDatasets {
 
-    private static Double[] getDatasetsSizes(String[] dataset_names, String datasets_path) {
+    private static HashMap<String, Double[]> getDatasetsSizes(String[] dataset_names, String datasets_path) {
         Double[] sizes = new Double[dataset_names.length];
+        Double[] n_instances = new Double[dataset_names.length];
+        Double[] n_attributes = new Double[dataset_names.length];
+        Double[] n_classes = new Double[dataset_names.length];
 
         int counter = 0;
 
@@ -39,13 +46,48 @@ public class TestDatasets {
                 Instances test_data = curDatasetFolds.get("test_data");
 
                 sizes[counter] = (double)((train_data.numInstances() + test_data.numInstances()) * train_data.numAttributes());
+                n_instances[counter] = (double)(train_data.numInstances() + test_data.numInstances());
+                n_attributes[counter] = (double)train_data.numAttributes();
+                n_classes[counter] = (double)train_data.numClasses();
+
             } catch(Exception e) {
                 sizes[counter] = Double.POSITIVE_INFINITY;
+                n_instances[counter] = Double.POSITIVE_INFINITY;
+                n_attributes[counter] = Double.POSITIVE_INFINITY;
+                n_classes[counter] = Double.POSITIVE_INFINITY;
             } finally {
                 counter += 1;
             }
         }
-        return sizes;
+        HashMap<String, Double[]> dict = new HashMap<>();
+        dict.put("sizes", sizes);
+        dict.put("n_instances", n_instances);
+        dict.put("n_attributes", n_attributes);
+        dict.put("n_classes", n_classes);
+
+        return dict;
+    }
+
+    public static RunTrainingPieceTask startAndRunTrainingTask(String dataset_name, String str_time, CommandLine cmd) {
+        RunTrainingPieceTask task = null;
+        try {
+            HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
+                    cmd.getOptionValue("datasets_path"),
+                    dataset_name,
+                    1
+            );
+//            Instances train_data = curDatasetFolds.get("train_data");
+//            Instances test_data = curDatasetFolds.get("test_data");
+
+            task = new RunTrainingPieceTask(
+                    dataset_name, 1, 1, cmd, str_time
+            );
+            task.run();
+        } catch(Exception e) {
+            System.err.println("Exception outside scope of EDA on dataset " + dataset_name + ": " + e.getMessage());
+        } finally {
+            return task;
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -58,50 +100,76 @@ public class TestDatasets {
         String str_time = dtf.format(now);
 
         File f = new File(commandLine.getOptionValue("datasets_path"));
-        String[] dataset_names = f.list();
+        String[] datasets_names = f.list();
 
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+        System.out.println(String.format(
+                "Will run %d experiments in %d cores",
+                datasets_names.length, Runtime.getRuntime().availableProcessors()
+        ));
 
-        long timeout_seconds = Long.parseLong(commandLine.getOptionValue("timeout"));
-        System.out.println("timeout seconds: " + timeout_seconds);
+//        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+//
+//        long timeout_seconds = Long.parseLong(commandLine.getOptionValue("timeout"));
+//        System.out.println("timeout seconds: " + timeout_seconds);
 
-        RunTrainingPieceTask[] tasks = new RunTrainingPieceTask [dataset_names.length];
-        int counter_task = 0;
+//        RunTrainingPieceTask[] tasks = new RunTrainingPieceTask [dataset_names.length];
+//        int counter_task = 0;
 
-        Double[] sizes = TestDatasets.getDatasetsSizes(dataset_names, commandLine.getOptionValue("datasets_path"));
-        Integer[] sortedIndices = Argsorter.crescent_argsort(sizes);
+        HashMap<String, Double[]> datasetsInfo = TestDatasets.getDatasetsSizes(datasets_names, commandLine.getOptionValue("datasets_path"));
 
-        for(int index : sortedIndices) {
-            try {
-                HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
-                        commandLine.getOptionValue("datasets_path"),
-                        dataset_names[index],
-                        1
-                );
-                Instances train_data = curDatasetFolds.get("train_data");
-                Instances test_data = curDatasetFolds.get("test_data");
-
-                RunTrainingPieceTask task = new RunTrainingPieceTask(
-                        dataset_names[index], 1, 1, commandLine, str_time
-                );
-                tasks[counter_task] = task;
-                counter_task += 1;
-                executor.execute(task);
-            } catch(Exception e) {
-                System.err.println("Exception outside scope of EDA on dataset " + dataset_names[index] + ": " + e.getMessage());
-            }
+        HashMap<String, HashMap<String, Double>> infoPerDataset = new HashMap();
+        for(int i = 0; i < datasets_names.length; i++) {
+            HashMap<String, Double> localInfo = new HashMap<>();
+            localInfo.put("n_instances", datasetsInfo.get("n_instances")[i]);
+            localInfo.put("n_attributes", datasetsInfo.get("n_attributes")[i]);
+            localInfo.put("n_classes", datasetsInfo.get("n_classes")[i]);
+            infoPerDataset.put(datasets_names[i], localInfo);
         }
-         executor.awaitTermination(timeout_seconds * dataset_names.length, TimeUnit.SECONDS);
+
+        Integer[] sortedIndices = Argsorter.crescent_argsort(datasetsInfo.get("sizes"));
+
+
+//        for(int index : sortedIndices) {
+//            try {
+//                HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
+//                        commandLine.getOptionValue("datasets_path"),
+//                        dataset_names[index],
+//                        1
+//                );
+//                Instances train_data = curDatasetFolds.get("train_data");
+//                Instances test_data = curDatasetFolds.get("test_data");
+//
+//                RunTrainingPieceTask task = new RunTrainingPieceTask(
+//                        dataset_names[index], 1, 1, commandLine, str_time
+//                );
+//                tasks[counter_task] = task;
+//                counter_task += 1;
+//                executor.execute(task);
+//            } catch(Exception e) {
+//                System.err.println("Exception outside scope of EDA on dataset " + dataset_names[index] + ": " + e.getMessage());
+//            }
+//        }
+//         executor.awaitTermination(timeout_seconds * dataset_names.length, TimeUnit.SECONDS);
+
+        Object[] tasks = IntStream.range(0, datasets_names.length).parallel().mapToObj(
+                i -> TestDatasets.startAndRunTrainingTask(datasets_names[sortedIndices[i]], str_time, commandLine)).toArray();
 
         BufferedWriter bfw = new BufferedWriter(new FileWriter(new File("datasets_results.csv")));
 
-        bfw.write("Dataset name,status,elapsed time (seconds),error message,test AUC (last),test AUC (overall)\n");
+        bfw.write("Dataset name,instances,attributes,classes,status,elapsed time (seconds),error message,test AUC (last),test AUC (overall)\n");
 
-        for(int i = 0; i < counter_task; i++) {
-            RunTrainingPieceTask task = tasks[i];
+        for(int i = 0; i < datasets_names.length; i++) {
+            RunTrainingPieceTask task = (RunTrainingPieceTask)tasks[i];
             if(task.hasCompleted()) {
                 if(task.hasSetAnException()) {
-                    bfw.write(String.format(Locale.US, "%s,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(), "error", task.getElapsedTimeInSeconds(), task.getSetException().getMessage(), -1.0, -1.0));
+                    bfw.write(String.format(Locale.US,
+                            "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
+                            infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
+                            infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
+                            infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
+                            "error",
+                            task.getElapsedTimeInSeconds(), task.getSetException().getMessage(), -1.0, -1.0
+                    ));
                 } else {
                     double last = -1, overall = -1;
                     try {
@@ -110,14 +178,27 @@ public class TestDatasets {
                     } catch(Exception e) {
 
                     }
-                    bfw.write(String.format(Locale.US, "%s,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(), "success", task.getElapsedTimeInSeconds(), "", last, overall));
+                    bfw.write(String.format(Locale.US,
+                            "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
+                            infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
+                            infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
+                            infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
+                            "success",
+                            task.getElapsedTimeInSeconds(), "", last, overall
+                    ));
                 }
             } else {
-                bfw.write(String.format(Locale.US, "%s,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(), "not finished", 0, "", -1.0, -1.0));
+                bfw.write(String.format(Locale.US,
+                        "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
+                        infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
+                        infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
+                        infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
+                        "not finished",
+                        0, "", -1.0, -1.0
+                ));
             }
         }
         bfw.close();
         System.out.println("finished!");
-        executor.shutdownNow();
     }
 }

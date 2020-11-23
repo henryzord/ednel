@@ -1,0 +1,5 @@
+Dataset name,instances,attributes,classes,status,elapsed time (seconds),error message,test AUC (last),test AUC (overall)
+iris,150,5,3,success,6,"",1.000000,1.000000
+appendicitis,106,8,2,success,6,"",0.666667,0.666667
+bupa,345,7,2,success,7,"",0.663333,0.728333
+sonar,208,61,2,success,12,"",0.890909,0.936364
