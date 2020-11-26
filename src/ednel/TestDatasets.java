@@ -91,7 +91,6 @@ public class TestDatasets {
     }
 
     public static void main(String[] args) throws Exception {
-
         CommandLine commandLine = Main.parseCommandLine(args);
 
         // writes metadata
@@ -102,18 +101,12 @@ public class TestDatasets {
         File f = new File(commandLine.getOptionValue("datasets_path"));
         String[] datasets_names = f.list();
 
+        int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
+        
         System.out.println(String.format(
-                "Will run %d experiments in %d cores",
-                datasets_names.length, Runtime.getRuntime().availableProcessors()
+                "Will run %d experiments in %d threads; has %d cores available",
+                datasets_names.length, n_jobs, Runtime.getRuntime().availableProcessors()
         ));
-
-//        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
-//
-//        long timeout_seconds = Long.parseLong(commandLine.getOptionValue("timeout"));
-//        System.out.println("timeout seconds: " + timeout_seconds);
-
-//        RunTrainingPieceTask[] tasks = new RunTrainingPieceTask [dataset_names.length];
-//        int counter_task = 0;
 
         HashMap<String, Double[]> datasetsInfo = TestDatasets.getDatasetsSizes(datasets_names, commandLine.getOptionValue("datasets_path"));
 
@@ -127,75 +120,55 @@ public class TestDatasets {
         }
 
         Integer[] sortedIndices = Argsorter.crescent_argsort(datasetsInfo.get("sizes"));
-
-
-//        for(int index : sortedIndices) {
-//            try {
-//                HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
-//                        commandLine.getOptionValue("datasets_path"),
-//                        dataset_names[index],
-//                        1
-//                );
-//                Instances train_data = curDatasetFolds.get("train_data");
-//                Instances test_data = curDatasetFolds.get("test_data");
-//
-//                RunTrainingPieceTask task = new RunTrainingPieceTask(
-//                        dataset_names[index], 1, 1, commandLine, str_time
-//                );
-//                tasks[counter_task] = task;
-//                counter_task += 1;
-//                executor.execute(task);
-//            } catch(Exception e) {
-//                System.err.println("Exception outside scope of EDA on dataset " + dataset_names[index] + ": " + e.getMessage());
-//            }
-//        }
-//         executor.awaitTermination(timeout_seconds * dataset_names.length, TimeUnit.SECONDS);
-
-        Object[] tasks = IntStream.range(0, datasets_names.length).parallel().mapToObj(
-                i -> TestDatasets.startAndRunTrainingTask(datasets_names[sortedIndices[i]], str_time, commandLine)).toArray();
-
+        
         BufferedWriter bfw = new BufferedWriter(new FileWriter(new File("datasets_results.csv")));
-
         bfw.write("Dataset name,instances,attributes,classes,status,elapsed time (seconds),error message,test AUC (last),test AUC (overall)\n");
 
-        for(int i = 0; i < datasets_names.length; i++) {
-            RunTrainingPieceTask task = (RunTrainingPieceTask)tasks[i];
-            if(task.hasCompleted()) {
-                if(task.hasSetAnException()) {
-                    bfw.write(String.format(Locale.US,
-                            "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
-                            infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
-                            infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
-                            infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
-                            "error",
-                            task.getElapsedTimeInSeconds(), task.getSetException().getMessage(), -1.0, -1.0
-                    ));
-                } else {
-                    double last = -1, overall = -1;
-                    try {
-                        last = task.lastIndividualPerformance();
-                        overall = task.overallIndividualPerformance();
-                    } catch(Exception e) {
+        for(int j = 0; j < datasets_names.length; j += n_jobs) {
+             Object[] localTasks = IntStream.range(j, Math.min(j + n_jobs, datasets_names.length)).parallel().mapToObj(
+                    i -> TestDatasets.startAndRunTrainingTask(datasets_names[sortedIndices[i]], str_time, commandLine)).toArray();
 
+            for(Object localTask : localTasks) {
+                RunTrainingPieceTask task = (RunTrainingPieceTask)localTask;
+
+                if(task.hasCompleted()) {
+                    if(task.hasSetAnException()) {
+                        bfw.write(String.format(Locale.US,
+                                "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
+                                infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
+                                infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
+                                infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
+                                "error",
+                                task.getElapsedTimeInSeconds(), task.getSetException().getMessage(), -1.0, -1.0
+                        ));
+                    } else {
+                        double last, overall;
+                        try {
+                            last = task.lastIndividualPerformance();
+                            overall = task.overallIndividualPerformance();
+                        } catch (Exception e) {
+                            last = -1;
+                            overall = -1;
+                        }
+                        bfw.write(String.format(Locale.US,
+                                "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
+                                infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
+                                infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
+                                infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
+                                "success",
+                                task.getElapsedTimeInSeconds(), "", last, overall
+                        ));
                     }
+                } else {
                     bfw.write(String.format(Locale.US,
                             "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
                             infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
                             infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
                             infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
-                            "success",
-                            task.getElapsedTimeInSeconds(), "", last, overall
+                            "not finished",
+                            0, "", -1.0, -1.0
                     ));
                 }
-            } else {
-                bfw.write(String.format(Locale.US,
-                        "%s,%d,%d,%d,%s,%d,\"%s\",%f,%f\n", task.getDatasetName(),
-                        infoPerDataset.get(task.getDatasetName()).get("n_instances").intValue(),
-                        infoPerDataset.get(task.getDatasetName()).get("n_attributes").intValue(),
-                        infoPerDataset.get(task.getDatasetName()).get("n_classes").intValue(),
-                        "not finished",
-                        0, "", -1.0, -1.0
-                ));
             }
         }
         bfw.close();
