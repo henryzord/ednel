@@ -457,6 +457,7 @@ def for_comparison(df, experiment_path):
         os.path.join(experiment_path, "hyperparameters.csv")
     )
 
+
 def generate_mean_json(dict_means, experiment_path):
     column_names = None
     datasets_names = set()
@@ -499,8 +500,11 @@ def main(experiment_path, write=True):
     dict_means = recursive_experiment_process(
         experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
     )
+    try:
+        generate_mean_json(dict_means=dict_means, experiment_path=experiment_path)
+    except:
+        pass
 
-    generate_mean_json(dict_means=dict_means, experiment_path=experiment_path)
     raw = generate_raw(experiment_path)
     for_comparison(df=raw, experiment_path=experiment_path)
 

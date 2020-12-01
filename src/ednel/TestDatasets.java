@@ -68,11 +68,11 @@ public class TestDatasets {
         return dict;
     }
 
-    public static RunTrainingPieceTask startAndRunTrainingTask(String dataset_name, String str_time, CommandLine cmd) {
+    public static RunTrainingPieceTask startAndRunTrainingTask(String dataset_name, String str_time, HashMap<String, String> cmd) {
         RunTrainingPieceTask task = null;
         try {
             HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
-                    cmd.getOptionValue("datasets_path"),
+                    cmd.get("datasets_path"),
                     dataset_name,
                     1
             );
@@ -91,24 +91,24 @@ public class TestDatasets {
     }
 
     public static void main(String[] args) throws Exception {
-        CommandLine commandLine = Main.parseCommandLine(args);
+        HashMap<String, String> commandLine = Main.parseCommandLine(args);
 
         // writes metadata
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
         LocalDateTime now = LocalDateTime.now();
         String str_time = dtf.format(now);
 
-        File f = new File(commandLine.getOptionValue("datasets_path"));
+        File f = new File(commandLine.get("datasets_path"));
         String[] datasets_names = f.list();
 
-        int n_jobs = Integer.parseInt(commandLine.getOptionValue("n_jobs"));
+        int n_jobs = Integer.parseInt(commandLine.get("n_jobs"));
         
         System.out.println(String.format(
                 "Will run %d experiments in %d threads; has %d cores available",
                 datasets_names.length, n_jobs, Runtime.getRuntime().availableProcessors()
         ));
 
-        HashMap<String, Double[]> datasetsInfo = TestDatasets.getDatasetsSizes(datasets_names, commandLine.getOptionValue("datasets_path"));
+        HashMap<String, Double[]> datasetsInfo = TestDatasets.getDatasetsSizes(datasets_names, commandLine.get("datasets_path"));
 
         HashMap<String, HashMap<String, Double>> infoPerDataset = new HashMap();
         for(int i = 0; i < datasets_names.length; i++) {
@@ -120,9 +120,10 @@ public class TestDatasets {
         }
 
         Integer[] sortedIndices = Argsorter.crescent_argsort(datasetsInfo.get("sizes"));
-        
+
         BufferedWriter bfw = new BufferedWriter(new FileWriter(new File("datasets_results.csv")));
         bfw.write("Dataset name,instances,attributes,classes,status,elapsed time (seconds),error message,test AUC (last),test AUC (overall)\n");
+        bfw.flush();
 
         for(int j = 0; j < datasets_names.length; j += n_jobs) {
              Object[] localTasks = IntStream.range(j, Math.min(j + n_jobs, datasets_names.length)).parallel().mapToObj(
@@ -170,6 +171,7 @@ public class TestDatasets {
                     ));
                 }
             }
+            bfw.flush();
         }
         bfw.close();
         System.out.println("finished!");

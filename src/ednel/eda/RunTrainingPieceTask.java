@@ -1,9 +1,11 @@
 package ednel.eda;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import ednel.Main;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
+import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.apache.commons.cli.CommandLine;
 import weka.core.Instances;
 
@@ -42,12 +44,12 @@ public class RunTrainingPieceTask implements Runnable, Callable {
      * @param dataset_name
      * @param n_sample
      * @param n_fold
-     * @param commandLine
+     * @param cmd
      * @param str_time
      * @throws Exception
      */
     public RunTrainingPieceTask(
-            String dataset_name, int n_sample, int n_fold, CommandLine commandLine, String str_time
+            String dataset_name, int n_sample, int n_fold, HashMap<String, String> cmd, String str_time
     ) throws Exception {
         start = LocalDateTime.now();
 
@@ -55,39 +57,37 @@ public class RunTrainingPieceTask implements Runnable, Callable {
         this.n_sample = n_sample;
         this.n_fold = n_fold;
 
-        this.log = commandLine.hasOption("log");
+        this.log = Boolean.parseBoolean(cmd.get("log"));
 
-        this.datasets_path = commandLine.getOptionValue("datasets_path");
-
-//        this.log_test = commandLine.hasOption("log_test");
+        this.datasets_path = cmd.get("datasets_path");
 
         this.pbilLogger = new PBILLogger(
                 dataset_name,
-                commandLine.getOptionValue("metadata_path") + File.separator +
+                cmd.get("metadata_path") + File.separator +
                         str_time + File.separator + dataset_name,
-                Integer.parseInt(commandLine.getOptionValue("n_individuals")),
-                Integer.parseInt(commandLine.getOptionValue("n_generations")),
+                Integer.parseInt(cmd.get("n_individuals")),
+                Integer.parseInt(cmd.get("n_generations")),
                 this.n_sample, this.n_fold,
-                commandLine.hasOption("log")
+                Boolean.parseBoolean(cmd.get("log"))
         );
 
         this.ednel = new EDNEL(
-                Double.parseDouble(commandLine.getOptionValue("learning_rate")),
-                Float.parseFloat(commandLine.getOptionValue("selection_share")),
-                Integer.parseInt(commandLine.getOptionValue("n_individuals")),
-                Integer.parseInt(commandLine.getOptionValue("n_generations")),
-                Integer.parseInt(commandLine.getOptionValue("timeout", "-1")),
-                Integer.parseInt(commandLine.getOptionValue("timeout_individual", "60")),
-                Integer.parseInt(commandLine.getOptionValue("burn_in", "100")),
-                Integer.parseInt(commandLine.getOptionValue("thinning_factor", "0")),
-                commandLine.hasOption("no_cycles"),
-                Integer.parseInt(commandLine.getOptionValue("early_stop_generations")),
-                Float.parseFloat(commandLine.getOptionValue("early_stop_tolerance", "0.001")),
-                Integer.parseInt(commandLine.getOptionValue("max_parents")),
-                Integer.parseInt(commandLine.getOptionValue("delay_structure_learning")),
+                Double.parseDouble(cmd.get("learning_rate")),
+                Float.parseFloat(cmd.get("selection_share")),
+                Integer.parseInt(cmd.get("n_individuals")),
+                Integer.parseInt(cmd.get("n_generations")),
+                Integer.parseInt(cmd.get("timeout")),
+                Integer.parseInt(cmd.get("timeout_individual")),
+                Integer.parseInt(cmd.get("burn_in")),
+                Integer.parseInt(cmd.get("thinning_factor")),
+                Boolean.parseBoolean(cmd.get("no_cycles")),
+                Integer.parseInt(cmd.get("early_stop_generations")),
+//                Float.parseFloat(commandLine.get("early_stop_tolerance", "0.001")),
+                Integer.parseInt(cmd.get("max_parents")),
+                Integer.parseInt(cmd.get("delay_structure_learning")),
                 pbilLogger,
-                commandLine.getOptionValue("seed") == null?
-                        null : Integer.parseInt(commandLine.getOptionValue("seed"))
+                cmd.get("seed") == null?
+                        null : Integer.parseInt(cmd.get("seed"))
         );
     }
 

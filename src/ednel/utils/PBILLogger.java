@@ -2,16 +2,13 @@ package ednel.utils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import ednel.eda.individual.Fitness;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.ParseException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.Sourcable;
 import weka.core.Instances;
 
 import javax.annotation.processing.FilerException;
@@ -61,6 +58,13 @@ public class PBILLogger {
     private Instances learn_data;
     private Instances val_data;
     private ArrayList<Double> currentGenBestValFitness;
+
+    /** Column names as displayed in stdout during evolution */
+    public static final String[] column_names = {"dataset", " gen", "nevals", "min", "median", "max",
+            "validation fitness", "lap time (s)", "discarded samples", "dn connections"};
+
+    /** Width of each column displayed in the console */
+    public static final int[] column_widths = {30, 4, 6, 10, 10, 10, 20, 12, 20, 14};
 
     protected static final String[] metricsToCollect = new String[]{
             "avgCost",
@@ -521,9 +525,9 @@ public class PBILLogger {
         bw.close();
     }
 
-    public static void metadata_path_start(String str_time, CommandLine commandLine) throws ParseException, IOException {
-        String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
-        String metadata_path = commandLine.getOptionValue("metadata_path");
+    public static void metadata_path_start(String str_time, HashMap<String, String> options) throws IOException {
+        String[] dataset_names = options.get("datasets_names").split(",");
+        String metadata_path = options.get("metadata_path");
 
         // create one folder for each dataset
         PBILLogger.createFolder(metadata_path + File.separator + str_time);
@@ -535,8 +539,8 @@ public class PBILLogger {
         }
 
         HashMap<String, String> obj = new HashMap<>();
-        for(Option parameter : commandLine.getOptions()) {
-            obj.put(parameter.getLongOpt(), parameter.getValue());
+        for(String parameter : options.keySet()) {
+            obj.put(parameter, options.get(parameter));
         }
 
         FileWriter fw = new FileWriter(
@@ -560,38 +564,32 @@ public class PBILLogger {
 
     public void print() {
         if(this.curGen == 1) {
-            int first_column_width = this.dataset_name.length() + 4;
-            int n_padding = first_column_width - "dataset".length();
-            String header_padding = new String(new char[n_padding]).replace("\0", " ");
+            for(int i = 0; i < PBILLogger.column_names.length; i++) {
+                int n_padding = PBILLogger.column_widths[i] - PBILLogger.column_names[i].length();
+                String padding = new String(new char[n_padding]).replace("\0", " ");
 
-            System.out.println(
-                    String.format("Dataset%s", header_padding) +
-                    "Gen\t\tnevals\t\tMin\t\t\tMedian\t\tMax\t\t\t" +
-                            (this.val_data != null? "currentGenBest\t" : "") + "Lap time (s)\t" +
-                            "Discarded Individuals\tDN Connections"
-            );
-            System.out.println(
-                    (
-                            this.val_data != null? String.join("", Collections.nCopies(18, "\t")) +
-                                    "ValFitness" + String.join("", Collections.nCopies(6, "\t")) :
-                                    String.join("", Collections.nCopies(22, "\t"))
-                    ) + "(w/ burn-in)");
+                System.out.print(String.format("%s%s  ", PBILLogger.column_names[i], padding));
+            }
+            System.out.println();
         }
-
-        System.out.println(String.format(
-                "%s    %d\t\t%d\t\t\t%.8f\t%.8f\t%.8f\t" + (this.val_data != null? "%.8f\t\t" : "%s") +
-                        "%04d\t\t\t%04d\t\t\t\t\t%04d",
+        String[] data = {
                 this.dataset_name,
-                this.curGen - 1,
-                this.nevals.get(this.curGen - 1),
-                this.minFitness.get(this.curGen - 1),
-                this.medianFitness.get(this.curGen - 1),
-                this.maxFitness.get(this.curGen - 1),
-                this.val_data != null? this.currentGenBestValFitness.get(this.curGen - 1) : "",
-                this.lapTimes.get(this.curGen - 1),
-                this.discardedIndividuals.get(this.curGen - 1),
-                this.dnConnections.get(this.curGen - 1)
-        ));
+                String.format("%4d", this.curGen - 1),
+                String.format("%4d", this.nevals.get(this.curGen - 1)),
+                String.format("%01.6f", this.minFitness.get(this.curGen - 1)),
+                String.format("%01.6f", this.medianFitness.get(this.curGen - 1)),
+                String.format("%01.6f", this.maxFitness.get(this.curGen - 1)),
+                String.format("%01.6f", this.currentGenBestValFitness.get(this.curGen - 1)),
+                String.format("%6d", this.lapTimes.get(this.curGen - 1)),
+                String.format("%6d", this.discardedIndividuals.get(this.curGen - 1)),
+                String.format("%3d", this.dnConnections.get(this.curGen - 1))
+        };
+        for(int i = 0; i < data.length; i++) {
+            int n_padding = PBILLogger.column_widths[i] - data[i].length();
+            String padding = new String(new char[n_padding]).replace("\0", " ");
+            System.out.print(String.format("%s%s  ", data[i], padding));
+        }
+        System.out.println();
     }
 
     public void setDatasets(Instances train_data, Instances test_data) {

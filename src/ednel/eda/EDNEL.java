@@ -1,6 +1,7 @@
 package ednel.eda;
 
 import ednel.eda.individual.BaselineIndividual;
+import ednel.eda.individual.Fitness;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.eda.stoppers.EarlyStop;
@@ -19,7 +20,7 @@ public class EDNEL extends AbstractClassifier {
     private final int timeout;
     protected final int burn_in;
     protected final int early_stop_generations;
-    protected final float early_stop_tolerance;
+//    protected final float early_stop_tolerance;
     protected final int thinning_factor;
     protected final double learning_rate;
     protected final float selection_share;
@@ -27,8 +28,8 @@ public class EDNEL extends AbstractClassifier {
     protected final int n_generations;
 
     protected final int max_parents;
-    private final int delay_structure_learning;
-    private final int timeout_individual;
+    protected final int delay_structure_learning;
+    protected final int timeout_individual;
 
     protected PBILLogger pbilLogger;
     protected final Integer seed;
@@ -48,7 +49,7 @@ public class EDNEL extends AbstractClassifier {
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
-                 float early_stop_tolerance, int max_parents, int delay_structure_learning, PBILLogger pbilLogger,
+                 int max_parents, int delay_structure_learning, PBILLogger pbilLogger,
                  Integer seed
     ) throws Exception {
 
@@ -61,15 +62,15 @@ public class EDNEL extends AbstractClassifier {
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
         this.early_stop_generations = early_stop_generations;
-        this.early_stop_tolerance = early_stop_tolerance;
+//        this.early_stop_tolerance = early_stop_tolerance;
         this.max_parents = max_parents;
         this.delay_structure_learning = delay_structure_learning;
+
+        this.earlyStop = null;
 
         this.no_cycles = no_cycles;
 
         this.pbilLogger = pbilLogger;
-
-        this.earlyStop = new EarlyStop(this.early_stop_generations, this.early_stop_tolerance, 0);
 
         this.fitted = false;
 
@@ -88,13 +89,13 @@ public class EDNEL extends AbstractClassifier {
     }
 
     @Override
-    public void buildClassifier(Instances data) throws Exception {
+    public void buildClassifier(Instances input_data) throws Exception {
         LocalDateTime start = LocalDateTime.now();
         LocalDateTime t1 = LocalDateTime.now(), t2;
 
-        data = FitnessCalculator.betterStratifier(data, 6);  // 5 folds of interval CV + 1 for validation
-        Instances val_data = data.testCV(6, 1);
-        Instances learn_data = data.trainCV(6, 1);
+        Instances train_data = FitnessCalculator.betterStratifier(input_data, 6);  // 5 folds of interval CV + 1 for validation
+        Instances val_data = train_data.testCV(6, 1);
+        Instances learn_data = train_data.trainCV(6, 1);
         learn_data = FitnessCalculator.betterStratifier(learn_data, 5);
 
         pbilLogger.setDatasets(learn_data, val_data);
@@ -103,6 +104,12 @@ public class EDNEL extends AbstractClassifier {
 
         this.currentGenBest = new BaselineIndividual();
         this.overallBest = this.currentGenBest;
+
+        this.earlyStop = new EarlyStop(this.early_stop_generations, 0);
+        Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, this.timeout_individual);
+        this.currentGenBest.setFitness(baselineFitness);
+
+        this.earlyStop.update(-1, this.currentGenBest);
 
         int to_sample = this.n_individuals;
         int to_select = 0;
@@ -152,12 +159,37 @@ public class EDNEL extends AbstractClassifier {
             this.dn.update(population, sortedIndices, this.selection_share, g);
         }
 
-        this.overallBest = this.earlyStop.getLastBestIndividual();  // TODO is this correct?
+        this.overallBest = this.earlyStop.getBestIndividual();
 
-        this.overallBest.buildClassifier(data);
-        this.currentGenBest.buildClassifier(data);
+        this.trainReturnIndividuals(train_data);
 
         this.fitted = true;
+    }
+
+    /**
+     * Trains overall best individual and last best individual on the whole training set.
+     * @param train_data Training data, as provided to EDNEL.
+     * @throws Exception If anything wrong happens.
+     */
+    protected void trainReturnIndividuals(final Instances train_data) throws Exception {
+        Thread buildCurrentGenBest = new Thread() {
+            @Override
+            public synchronized void start() {
+                try {
+                    currentGenBest.buildClassifier(train_data);
+                } catch(Exception e) {
+                    // does nothing
+                }
+
+            }
+        };
+        if(this.currentGenBest != this.overallBest) {
+            buildCurrentGenBest.start();
+        }
+
+        this.overallBest.buildClassifier(train_data);
+
+        buildCurrentGenBest.join();
     }
 
     public PBILLogger getPbilLogger() {

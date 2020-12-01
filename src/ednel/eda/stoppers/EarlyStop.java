@@ -5,16 +5,16 @@ import ednel.eda.individual.Individual;
 public class EarlyStop {
     private int windowSize;
     private int startGen;
-    private double tolerance;
+//    private double tolerance;
     private Double bestFitness;
     private Individual bestIndividual;
 
     private int faultCounter;
 
 
-    public EarlyStop(int windowSize, double tolerance, int startGen) {
+    public EarlyStop(int windowSize, int startGen) {
         this.windowSize = windowSize;
-        this.tolerance = tolerance;
+//        this.tolerance = tolerance;
 //        this.startGen = Math.max(startGen, this.windowSize);
         this.startGen = startGen;
 
@@ -52,11 +52,11 @@ public class EarlyStop {
         return windowSize;
     }
 
-    public double getTolerance() {
-        return tolerance;
-    }
+//    public double getTolerance() {
+//        return tolerance;
+//    }
 
-    public Individual getLastBestIndividual() {
+    public Individual getBestIndividual() {
         return this.bestIndividual;
     }
 

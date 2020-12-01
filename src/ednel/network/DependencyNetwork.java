@@ -366,9 +366,6 @@ public class DependencyNetwork {
     ) throws Exception {
 
         Individual[] individuals = new Individual[sampleSize];
-//        Fitness[] fitnesses = new Fitness[sampleSize];
-//        Double[] qualities = new Double[sampleSize];
-//        Integer[] sizes = new Integer[sampleSize];
 
         this.currentGenEvals = 0;
 
