@@ -1,15 +1,12 @@
 package ednel.eda;
 
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import ednel.Main;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
-import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
-import org.apache.commons.cli.CommandLine;
 import weka.core.Instances;
 
-import java.io.File;
+import java.io.*;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -63,8 +60,7 @@ public class RunTrainingPieceTask implements Runnable, Callable {
 
         this.pbilLogger = new PBILLogger(
                 dataset_name,
-                cmd.get("metadata_path") + File.separator +
-                        str_time + File.separator + dataset_name,
+                cmd.get("metadata_path") + File.separator + str_time + File.separator + dataset_name,
                 Integer.parseInt(cmd.get("n_individuals")),
                 Integer.parseInt(cmd.get("n_generations")),
                 this.n_sample, this.n_fold,
@@ -93,26 +89,21 @@ public class RunTrainingPieceTask implements Runnable, Callable {
 
     private void core() {
         try {
-//            throw new Exception("use validation set!");
-
-            HashMap<String, Instances> datasets = Main.loadDataset(
-                    this.datasets_path,
-                    this.dataset_name,
-                    this.n_fold
-            );
-            this.train_data = datasets.get("train_data");
-            this.test_data = datasets.get("test_data");
-
-            this.ednel.buildClassifier(this.train_data);
-
-            HashMap<String, Individual> toReport = new HashMap<>(2);
-            toReport.put("overall", this.ednel.getOverallBest());
-            toReport.put("last", this.ednel.getCurrentGenBest());
-
-            if(this.log) {
-                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
-            }
+cd 
         } catch(Exception e) {
+            if(this.log) {
+                try {
+                    File log_file = new File(String.format(
+                            this.pbilLogger.getDatasetMetadataPath() + File.separator + "error_sample_%02d_fold_%02d.txt",
+                            this.n_sample, this.n_fold
+                    ));
+                    PrintStream ps = new PrintStream(log_file);
+                    e.printStackTrace(ps);
+                    ps.close();
+                } catch (IOException ex) {
+                    // does nothing; too many exceptions to handle
+                }
+            }
             System.err.println("An error occurred, but could not be thrown:");
             System.err.println(e.getMessage());
             StackTraceElement[] track = e.getStackTrace();

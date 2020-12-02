@@ -8,7 +8,6 @@ import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
-import weka.classifiers.Sourcable;
 import weka.core.Instances;
 
 import javax.annotation.processing.FilerException;
@@ -17,7 +16,6 @@ import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
@@ -27,7 +25,9 @@ public class PBILLogger {
 
     private final String dataset_name;
     protected final String dataset_overall_path;
-    protected final String dataset_thisrun_path;
+    protected final String this_run_path;
+    protected final String dataset_metadata_path;
+
     protected HashMap<String,  // generation
             HashMap<String, // child variable
                     HashMap<String,  // parents (e.g. "PART=true,J48_pruning=J48_unpruned")
@@ -35,9 +35,10 @@ public class PBILLogger {
                     >
             >
     > pastDependencyStructures = null;
-    protected final String dataset_metadata_path;
-    protected Individual overall;
+
     protected Individual last;
+    protected Individual overall;
+
     protected final int n_sample;
     protected final int n_fold;
     protected final int n_individuals;
@@ -142,7 +143,7 @@ public class PBILLogger {
                 "%s%soverall%stest_sample-%02d_fold-%02d.csv",
                 dataset_metadata_path, File.separator, File.separator, n_sample, n_fold
         );
-        this.dataset_thisrun_path = String.format(
+        this.this_run_path = String.format(
                 "%s%ssample_%02d_fold_%02d",
                 this.dataset_metadata_path, File.separator, this.n_sample, this.n_fold
         );
@@ -378,7 +379,7 @@ public class PBILLogger {
     ) throws Exception {
 
         Double[] fitnesses = evaluationsToFile(individuals, train_data, test_data);
-        PBILLogger.createFolder(dataset_thisrun_path);
+        PBILLogger.createFolder(this_run_path);
         individualsCharacteristicsToFile(individuals, fitnesses);
         individualsClassifiersToFile(individuals);
         loggerDataToFile();
@@ -388,7 +389,7 @@ public class PBILLogger {
     private void loggerDataToFile() throws Exception {
         if(this.log) {
             BufferedWriter bw = new BufferedWriter(new FileWriter(
-                    dataset_thisrun_path + File.separator + "loggerData.csv"
+                    this_run_path + File.separator + "loggerData.csv"
             ));
 
             // writes header
@@ -423,7 +424,7 @@ public class PBILLogger {
         //BufferedWriter bw = new BufferedWriter();
         if(this.log) {
             // writes to file
-            String sourceFile = dataset_thisrun_path + File.separator + "dependency_network_structure.json";
+            String sourceFile = this_run_path + File.separator + "dependency_network_structure.json";
 
             File inFile = new File(sourceFile);
 
@@ -434,7 +435,7 @@ public class PBILLogger {
             fw.close();
 
             // now zips
-            this.zipFile(sourceFile, dataset_thisrun_path + File.separator + "dependency_network_structure.zip");
+            this.zipFile(sourceFile, this_run_path + File.separator + "dependency_network_structure.zip");
             inFile.delete();
         }
     }
@@ -465,7 +466,7 @@ public class PBILLogger {
 
     private void individualsClassifiersToFile(HashMap<String, Individual> individuals) throws Exception {
         for(String indName : individuals.keySet()) {
-            String destination_path = dataset_thisrun_path + File.separator + indName;
+            String destination_path = this_run_path + File.separator + indName;
 
             BufferedWriter bw = new BufferedWriter(new FileWriter(
                     destination_path + "_classifiers.md"
@@ -492,7 +493,7 @@ public class PBILLogger {
             HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
 
         BufferedWriter bw = new BufferedWriter(new FileWriter(
-                dataset_thisrun_path + File.separator + "characteristics.csv"
+                this_run_path + File.separator + "characteristics.csv"
         ));
 
         // writes header, saves order of columns
@@ -596,6 +597,14 @@ public class PBILLogger {
         this.learn_data = train_data;
         this.val_data = test_data;
         this.currentGenBestValFitness = new ArrayList<>();
+    }
+
+    public String getThisRunPath() {
+        return this_run_path;
+    }
+
+    public String getDatasetMetadataPath() {
+        return this.dataset_metadata_path;
     }
 }
 
