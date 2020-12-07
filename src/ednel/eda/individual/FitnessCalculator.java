@@ -42,7 +42,6 @@ public class FitnessCalculator {
         this.val_data = val_data;
 
         this.n_folds = n_folds;
-//        this.learn_data.stratify(this.n_folds);
     }
 
     public static double getUnweightedAreaUnderROC(

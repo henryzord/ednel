@@ -10,23 +10,16 @@
 package ednel;
 
 import ednel.eda.RunTrainingPieceTask;
-import ednel.eda.individual.FitnessCalculator;
 import ednel.utils.sorters.Argsorter;
-import org.apache.commons.cli.CommandLine;
-import smile.neighbor.lsh.Hash;
 import weka.core.Instances;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.sql.SQLOutput;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 public class TestDatasets {

@@ -898,5 +898,9 @@ public class DependencyNetwork {
     public Double getCurrentGenMeanHeuristic() {
         return this.currentGenMeanHeuristic;
     }
+
+    public OptionHandler getOptionHandler() {
+        return this.optionHandler;
+    }
 }
 

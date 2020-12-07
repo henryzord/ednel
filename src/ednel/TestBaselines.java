@@ -1,3 +1,9 @@
+/**
+ * Puts baseline algorithms to run on given datasets.
+ *
+ * Currently only supports Random Forest.
+ */
+
 package ednel;
 
 import ednel.eda.individual.FitnessCalculator;

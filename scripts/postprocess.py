@@ -364,6 +364,9 @@ def __find_which_level__(path):
 
 
 def generate_raw(path):
+    """
+    Generates a dataframe with more metadata than customary: includes how well each ensemble member performed.
+    """
     level = __find_which_level__(path)
 
     lines = []
@@ -385,17 +388,22 @@ def generate_raw(path):
                     header=[0, 1], index_col=0
                 )
                 line_selector = ['-mean-of-means' in x for x in df.index]
-                data = df.loc[line_selector, ('unweighted_area_under_roc', 'mean')]
+                data = df.loc[line_selector, ('unweighted_area_under_roc', slice(None))]
 
                 if header is None:
-                    header = ['experiment_name', 'dataset_name'] + data.index.tolist()
+                    header = ['experiment_name', 'dataset_name'] + \
+                             list(reduce(
+                                op.add,
+                                [[x.replace('mean-of-means', 'mean'), x.replace('mean-of-means', 'std')]
+                                for x in data.index.tolist()]
+                            ))
 
-                lines += [[folder, dataset_name] + data.values.tolist()]
+                lines += [[folder, dataset_name] + list(reduce(op.add, data.values.tolist()))]
             except FileNotFoundError:  # this dataset was not completed; just ignore it
                 pass
 
     last = pd.DataFrame(lines, columns=header)
-    last.to_csv(os.path.join(path, 'final_summary.csv'), index=False)
+    last.to_csv(os.path.join(path, 'raw.csv'), index=False)
     return last
 
 
@@ -416,10 +424,13 @@ def for_comparison(df, experiment_path):
         to_process_columns = []
         for column in df.columns:
             splitted = column.split('-')  # type: list
-            index_mean = splitted.index('mean')
-            if index_mean - 1 == 0:
-                to_process_columns += [column]
-                new_table_columns += ['_'.join([experiment, splitted[0]])]
+            try:
+                index_mean = splitted.index('mean')
+                if index_mean - 1 == 0:
+                    to_process_columns += [column]
+                    new_table_columns += ['_'.join([experiment, splitted[0]])]
+            except ValueError:
+                pass  # is treating a std column; just proceeds
 
         for dataset in datasets_names:
             experiments_res = []
@@ -497,10 +508,11 @@ def generate_mean_json(dict_means, experiment_path):
 
 def main(experiment_path, write=True):
     n_samples, n_folds = get_n_samples_n_folds(experiment_path)
-    dict_means = recursive_experiment_process(
-        experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
-    )
+
     try:
+        dict_means = recursive_experiment_process(
+            experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
+        )
         generate_mean_json(dict_means=dict_means, experiment_path=experiment_path)
     except:
         pass

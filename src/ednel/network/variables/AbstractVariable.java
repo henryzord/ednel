@@ -159,6 +159,48 @@ public class AbstractVariable {
     }
 
     /**
+     * Samples a value from this variables' unconditional distribution. Also modifies the distribution to be uniform
+     * @return A value sampled from this variable's unconditional uniform distribution
+     */
+    public String unconditionalUniformSampling(HashMap<String, String> lastStart) throws Exception {
+        for(String detParent : this.getDeterministicParents()) {
+            if(String.valueOf(lastStart.get(detParent)).equals("null")) {
+                return null;
+            }
+        }
+        // otherwise, samples value from probabilistic variables
+        int[] indices = this.getArrayOfIndices(
+                this.table, lastStart,null,false, this.getAllParents()
+        );
+
+        double[] localProbs = new double [indices.length];
+        double sum_probabilities = 0;
+        int n_values = 0;
+
+        for(int i = 0; i < localProbs.length; i++) {
+            localProbs[i] = this.probabilities.get(indices[i]);
+            if(localProbs[i] > 0) {
+                n_values += 1;
+            }
+            sum_probabilities += localProbs[i];
+        }
+
+        for(int i = 0; i < localProbs.length; i++) {
+            if(localProbs[i] > 0) {
+                localProbs[i] = sum_probabilities / n_values;
+            }
+        }
+        // samples values based on probabilities
+
+        EnumeratedIntegerDistribution localDist = new EnumeratedIntegerDistribution(mt, indices, localProbs);
+        String value = this.uniqueValues.get(this.indices.get(localDist.sample()));
+        if(!String.valueOf(value).equals("null")) {
+            return value;
+        }
+        return null;
+    }
+
+    /**
      * Given values for parent variables of the current variable, gets the indices
      * on the table that correspond to those values.
      * Already treats continuous variables (that may not have an exact value in the table entry).
