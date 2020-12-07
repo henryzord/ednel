@@ -102,10 +102,6 @@ public class RunTrainingPieceTask implements Runnable, Callable {
             HashMap<String, Individual> toReport = new HashMap<>(2);
             toReport.put("overall", this.ednel.getOverallBest());
             toReport.put("last", this.ednel.getCurrentGenBest());
-
-            if(this.log) {
-                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
-            }
         } catch(Exception e) {
             if(this.log) {
                 try {
