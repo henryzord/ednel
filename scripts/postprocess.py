@@ -302,39 +302,61 @@ def get_n_samples_n_folds(path):
     return outer_n_samples, outer_n_folds
 
 
+def process_average_dict_for_experiment(experiment_name, dataset_name, this_path, folders, dict_means):
+    single_experiment_folders = [x for x in folders if x != 'overall']
+    for folder in single_experiment_folders:
+        try:
+            df = pd.read_csv(os.path.join(this_path, folder, 'loggerData.csv'))
+            if len(df) == 0:
+                continue
+        except FileNotFoundError:
+            continue
+
+        numeric_columns = [x for x in df if pd.api.types.is_numeric_dtype(df[x])]
+        means = df[numeric_columns].mean(axis=0)
+        stds = df[numeric_columns].std(axis=0)
+        generations = len(df)
+
+        if experiment_name not in dict_means:
+            dict_means[experiment_name] = dict()
+        if dataset_name not in dict_means[experiment_name]:
+            dict_means[experiment_name][dataset_name] = dict()
+        if any([x not in dict_means[experiment_name][dataset_name] for x in ['means', 'number_generations']]):
+            dict_means[experiment_name][dataset_name]['means'] = dict()
+            dict_means[experiment_name][dataset_name]['number_generations'] = dict()
+
+        for data in means.index:
+            try:
+                dict_means[experiment_name][dataset_name]['means'][data] += [means[data]]
+                dict_means[experiment_name][dataset_name]['number_generations'] += [generations]
+            except:
+                dict_means[experiment_name][dataset_name]['means'][data] = [means[data]]
+                dict_means[experiment_name][dataset_name]['number_generations'] = [generations]
+
+    return dict_means
+
+
 def recursive_experiment_process(this_path, n_samples, n_folds, dict_means, write=True):
     if os.path.isdir(this_path):
+        # folders at current level
         folders = [x for x in os.listdir(this_path) if os.path.isdir(os.path.join(this_path, x))]
 
+        # if we are within
         if 'overall' in folders:
-            experiment_name = this_path.split(os.sep)[-2]
-            dataset_name = this_path.split(os.sep)[-1]
+            abs_path = os.path.abspath(this_path)
 
+            experiment_name = abs_path.split(os.sep)[-2]
+            dataset_name = abs_path.split(os.sep)[-1]
+
+            # process all data in overall path; generates a summary of raw data
             single_experiment_process(os.path.join(this_path, 'overall'), n_samples, n_folds, write=write)
 
-            single_experiment_folders = [x for x in folders if x != 'overall']
-            for folder in single_experiment_folders:
-                df = pd.read_csv(os.path.join(this_path, folder, 'loggerData.csv'))
-                numeric_columns = [x for x in df if pd.api.types.is_numeric_dtype(df[x])]
-                means = df[numeric_columns].mean(axis=0)
-                stds = df[numeric_columns].std(axis=0)
-                generations = len(df)
-
-                if experiment_name not in dict_means:
-                    dict_means[experiment_name] = dict()
-                if dataset_name not in dict_means[experiment_name]:
-                    dict_means[experiment_name][dataset_name] = dict()
-                if any([x not in dict_means[experiment_name][dataset_name] for x in ['means', 'number_generations']]):
-                    dict_means[experiment_name][dataset_name]['means'] = dict()
-                    dict_means[experiment_name][dataset_name]['number_generations'] = dict()
-
-                for data in means.index:
-                    try:
-                        dict_means[experiment_name][dataset_name]['means'][data] += [means[data]]
-                        dict_means[experiment_name][dataset_name]['number_generations'] += [generations]
-                    except:
-                        dict_means[experiment_name][dataset_name]['means'][data] = [means[data]]
-                        dict_means[experiment_name][dataset_name]['number_generations'] = [generations]
+            # process data in loggerData.csv files within single runs folders, if possible;
+            # otherwise does not modify dict_means
+            dict_means = process_average_dict_for_experiment(
+                experiment_name, dataset_name, this_path, folders, dict_means
+            )
+            print('Dataset %s for experiment %s processed' % (dataset_name, experiment_name))
 
         else:
             for folder in folders:
@@ -399,8 +421,8 @@ def generate_raw(path):
                             ))
 
                 lines += [[folder, dataset_name] + list(reduce(op.add, data.values.tolist()))]
-            except FileNotFoundError:  # this dataset was not completed; just ignore it
-                pass
+            except FileNotFoundError as fnfe:  # this dataset was not completed; just ignore it
+                print('error for dataset %s: %s' % (dataset_name, fnfe.args[0]), file=sys.stderr)
 
     last = pd.DataFrame(lines, columns=header)
     last.to_csv(os.path.join(path, 'raw.csv'), index=False)
@@ -469,7 +491,14 @@ def for_comparison(df, experiment_path):
     )
 
 
-def generate_mean_json(dict_means, experiment_path):
+def generate_average_json(dict_means: dict, experiment_path: str) -> None:
+    """
+    Generates a json with data regarding the evolutionary process: the average time taken to run a generation for a
+    given dataset; the average number of dependency network connections; etc.
+
+    :param dict_means: A dictionary with average data.
+    :param experiment_path: The path where to write a JSON with average data.
+    """
     column_names = None
     datasets_names = set()
     metadata_generations = dict()
@@ -507,18 +536,20 @@ def generate_mean_json(dict_means, experiment_path):
 
 
 def main(experiment_path, write=True):
+    # collects number of samples and folds of experimentos
     n_samples, n_folds = get_n_samples_n_folds(experiment_path)
 
+    dict_means = recursive_experiment_process(
+        experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
+    )
     try:
-        dict_means = recursive_experiment_process(
-            experiment_path, n_samples=n_samples, n_folds=n_folds, dict_means=dict(), write=write
-        )
-        generate_mean_json(dict_means=dict_means, experiment_path=experiment_path)
+        generate_average_json(dict_means=dict_means, experiment_path=experiment_path)
     except:
         pass
 
     raw = generate_raw(experiment_path)
-    for_comparison(df=raw, experiment_path=experiment_path)
+    if __find_which_level__(experiment_path) > 1:
+        for_comparison(df=raw, experiment_path=experiment_path)
 
 
 if __name__ == '__main__':
