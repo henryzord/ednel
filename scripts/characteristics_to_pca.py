@@ -1,19 +1,16 @@
-import argparse
-import copy
-
-import pandas as pd
-import numpy as np
-import os
-from sklearn.decomposition import PCA
-import plotly.graph_objects as go
-from plotly.offline import plot
-from copy import deepcopy
-
-from sklearn.neighbors import KNeighborsRegressor
-
 """
 Script for generating a visualization of individuals from a csv table.
 """
+import copy
+import os
+from copy import deepcopy
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.offline import plot
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KNeighborsRegressor
 
 
 def run_pca(df: pd.DataFrame):
