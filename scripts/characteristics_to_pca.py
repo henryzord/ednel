@@ -13,7 +13,7 @@ from sklearn.decomposition import PCA
 from sklearn.neighbors import KNeighborsRegressor
 
 
-def run_pca(df: pd.DataFrame):
+def run_pca(df: pd.DataFrame) -> pd.DataFrame:
     """
     Runs PCA on dataFrame of individual characteristics.
     DataFrame must be already transformed (e.g. categorical attributes to one-hot encoding).
@@ -68,10 +68,17 @@ def to_all_numeric_columns(df: pd.DataFrame):
     
     for column in new_df.columns:
         if new_df[column].dtype.name == 'category':
-            one_hot = pd.get_dummies(new_df[column])
-            new_df = new_df.drop(column, axis=1)
-            for subcolumn in one_hot.columns:
-                new_df.loc[:, column + '_' + str(subcolumn)] = one_hot[subcolumn]
+            unique_vals = list(map(lambda x: str(x).lower(), new_df[column].unique()))
+            if len(set(unique_vals).intersection({'true', 'false'})) == len(unique_vals):  # binary column
+                new_df[column] = new_df[column].apply(lambda x: str(x).lower())
+                new_df[column] = new_df[column].replace('true', 1)
+                new_df[column] = new_df[column].replace('false', 0)
+                new_df[column] = new_df[column].astype(np.int32)
+            else:
+                one_hot = pd.get_dummies(new_df[column])
+                new_df = new_df.drop(column, axis=1)
+                for subcolumn in one_hot.columns:
+                    new_df.loc[:, column + '_' + str(subcolumn)] = one_hot[subcolumn]
 
     # replaces nan values with -1
     new_df = new_df.fillna(value=-1)
