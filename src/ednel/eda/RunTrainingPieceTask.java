@@ -64,7 +64,7 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                 Integer.parseInt(cmd.get("n_individuals")),
                 Integer.parseInt(cmd.get("n_generations")),
                 this.n_sample, this.n_fold,
-                Boolean.parseBoolean(cmd.get("log"))
+                this.log
         );
 
         this.ednel = new EDNEL(
@@ -102,6 +102,10 @@ public class RunTrainingPieceTask implements Runnable, Callable {
             HashMap<String, Individual> toReport = new HashMap<>(2);
             toReport.put("overall", this.ednel.getOverallBest());
             toReport.put("last", this.ednel.getCurrentGenBest());
+
+            if(this.log) {
+                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
+            }
         } catch(Exception e) {
             if(this.log) {
                 try {
@@ -116,7 +120,10 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                     // does nothing; too many exceptions to handle
                 }
             }
-            System.err.println("An error occurred, but could not be thrown:");
+            System.err.println(String.format(
+                    "Error occurred in dataset %s sample %d fold %d:",
+                    this.dataset_name, this.n_sample, this.n_fold
+            ));
             System.err.println(e.getMessage());
             StackTraceElement[] track = e.getStackTrace();
             for(StackTraceElement trace : track) {

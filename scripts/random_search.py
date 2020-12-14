@@ -163,39 +163,54 @@ def plot_search_space(df, characteristics):
 
 
 def interpret_singles(results_path):
-    files = [x for x in os.listdir(results_path) if not os.path.isdir(os.path.join(results_path, x))]
-    for some_file in files:
-        df = pd.read_csv(os.path.join(results_path, some_file))
-        if len(df['classifier'].unique()) > 1:
-            raise ValueError('%s table must have at most one classifier!' % os.path.join(results_path, some_file))
+    files = [x for x in os.listdir(results_path) if (not os.path.isdir(os.path.join(results_path, x)) and x.split('.')[-1] == 'csv')]
 
-        clf_name = df['classifier'].unique()[0]
+    with open(os.path.join(results_path, 'script_experiments.sh'), 'w') as ff:
+        template = "java -classpath ednel.jar ednel.RandomSearchApply --datasets_path <datasets_path> " \
+                   "--datasets_names <datasets_names> " \
+                   "--metadata_path <metadata_path> --string_options \"<string_options>\" " \
+                   "--string_characteristics \"<string_characteristics>\" --n_samples <n_samples>"
 
-        gbo = df.groupby(by=['classifier', 'n_draw'])
-        proper = gbo.agg([np.mean, np.std])
+        for i, some_file in enumerate(files):
+            df = pd.read_csv(os.path.join(results_path, some_file))
+            if len(df['classifier'].unique()) > 1:
+                raise ValueError('%s table must have at most one classifier!' % os.path.join(results_path, some_file))
 
-        count = df.groupby(by=['n_draw', 'n_sample']).count()['n_fold']
+            clf_name = df['classifier'].unique()[0]
 
-        # gets name of draws that were complete
-        to_drop_draws = count.loc[count.values != count.max()].index.get_level_values(0).values.tolist()
+            gbo = df.groupby(by=['classifier', 'n_draw'])
+            proper = gbo.agg([np.mean, np.std])
 
-        if len(to_drop_draws) > 0:
-            zipped = list(it.product([clf_name], to_drop_draws))
-            # to_drop_indices = pd.MultiIndex.from_product([clf_name], to_drop_draws)
-            to_drop_indices = pd.MultiIndex.from_tuples(zipped)
-            proper = proper.drop(to_drop_indices)
-            print('removed %d draws in file %s for being incomplete' % (len(zipped), some_file), file=sys.stderr)
-            print('removed draws: [%s]' % ','.join(map(str, to_drop_draws)), file=sys.stderr)
+            count = df.groupby(by=['n_draw', 'n_sample']).count()['n_fold']
 
-        best_draw = proper['unweighted_area_under_roc']['mean'].idxmax()[1]
-        print('best draw: %d AUC: %f File: %s' % (
-                best_draw,
-                proper['unweighted_area_under_roc']['mean'].max(),
-                os.path.join(results_path, some_file)
+            # gets name of draws that were complete
+            to_drop_draws = count.loc[count.values != count.max()].index.get_level_values(0).values.tolist()
+
+            if len(to_drop_draws) > 0:
+                zipped = list(it.product([clf_name], to_drop_draws))
+                # to_drop_indices = pd.MultiIndex.from_product([clf_name], to_drop_draws)
+                to_drop_indices = pd.MultiIndex.from_tuples(zipped)
+                proper = proper.drop(to_drop_indices)
+                print('removed %d draws in file %s for being incomplete' % (len(zipped), some_file), file=sys.stderr)
+                print('removed draws: [%s]' % ','.join(map(str, to_drop_draws)), file=sys.stderr)
+
+            best_draw = proper['unweighted_area_under_roc']['mean'].idxmax()[1]
+            print('best draw: %d AUC: %f File: %s' % (
+                    best_draw,
+                    proper['unweighted_area_under_roc']['mean'].max(),
+                    os.path.join(results_path, some_file)
+                )
             )
-        )
 
-        plot_search_space(proper, characteristics=df[['n_draw', 'characteristics']].drop_duplicates())
+            tt = deepcopy(template)
+            tt = tt.replace('<string_options>', '-%s %s' % (clf_name, df.loc[df['n_draw'] == best_draw].iloc[0]['options']))
+            tt = tt.replace('<string_characteristics>', df.loc[df['n_draw'] == best_draw].iloc[0]['characteristics'])
+            tt = tt.replace('<datasets_names>', 'NOT_%s' % ','.join(df['dataset_name'].unique().tolist()))
+            tt = tt.replace('<datasets_names>', '<datasets_names_%d>' % i)
+
+            ff.write(tt + '\n')
+
+            plot_search_space(proper, characteristics=df[['n_draw', 'characteristics']].drop_duplicates())
 
 
 if __name__ == '__main__':

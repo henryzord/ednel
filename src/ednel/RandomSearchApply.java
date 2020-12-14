@@ -205,7 +205,7 @@ public class RandomSearchApply {
                             ));
                             System.out.println(String.format("Done: %s,%d,%d", dataset_name, n_sample, n_fold));
                         } catch(Exception e) {
-                            System.err.println(String.format("Error: %s,%d,%d", dataset_name, n_sample, n_fold));
+                            System.err.println(String.format("Error: %s,%d,%d,%s", dataset_name, n_sample, n_fold, e.getMessage()));
                         }
                     }
                 }

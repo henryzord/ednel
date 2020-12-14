@@ -3,7 +3,6 @@ package ednel.eda.individual;
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.aggregators.Aggregator;
 import ednel.eda.aggregators.RuleExtractorAggregator;
-import ednel.utils.PBILLogger;
 import guru.nidi.graphviz.engine.Format;
 import guru.nidi.graphviz.engine.Graphviz;
 import org.reflections.Reflections;
@@ -15,7 +14,6 @@ import weka.classifiers.trees.J48;
 import weka.core.*;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
@@ -108,31 +106,54 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     }
 
     @Override
-    public void setOptions(String[] options) throws Exception {
+    public void setOptions(String[] options) throws EmptyEnsembleException, InvalidParameterException,
+            NoAggregationPolicyException {
         String[] debug = options.clone();
 
-        String[] j48Parameters = Utils.getOption("J48", options).split(" ");
-        String[] simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
-        String[] partParameters = Utils.getOption("PART", options).split(" ");
-        String[] jripParameters = Utils.getOption("JRip", options).split(" ");
-        String[] decisionTableParameters = Utils.getOption("DecisionTable", options).split(" ");
-        String[] bestFirstParameters = Utils.getOption("BestFirst", options).split(" ");
-        String[] greedyStepwise = Utils.getOption("GreedyStepwise", options).split(" ");
-        String[] aggregatorParameters = Utils.getOption("Aggregator", options).split(" ");
+        String[] j48Parameters;
+        String[] simpleCartParameters;
+        String[] partParameters;
+        String[] jripParameters;
+        String[] decisionTableParameters;
+        String[] bestFirstParameters;
+        String[] greedyStepwise;
+        String[] aggregatorParameters;
+
+        try {
+            j48Parameters = Utils.getOption("J48", options).split(" ");
+            simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
+            partParameters = Utils.getOption("PART", options).split(" ");
+            jripParameters = Utils.getOption("JRip", options).split(" ");
+            decisionTableParameters = Utils.getOption("DecisionTable", options).split(" ");
+            bestFirstParameters = Utils.getOption("BestFirst", options).split(" ");
+            greedyStepwise = Utils.getOption("GreedyStepwise", options).split(" ");
+            aggregatorParameters = Utils.getOption("Aggregator", options).split(" ");
+        } catch(Exception e) {
+            throw new InvalidParameterException("error while processing hyper-parameters for ensemble classifiers.");
+        }
+
+        int n_queried_classifiers = 0;
 
         this.aggregatorName = aggregatorParameters[0];
         Class<? extends Aggregator> cls = Individual.aggregatorClasses.getOrDefault(aggregatorName, null);
 
-        if(cls != null) {
-            this.aggregator = (Aggregator)cls.getConstructor().newInstance();
-        } else {
-            throw new InvalidParameterException("Aggregator " + aggregatorParameters[0] + " not currently supported!");
+        try {
+            if(cls != null) {
+                this.aggregator = (Aggregator)cls.getConstructor().newInstance();
+            } else {
+                throw new InvalidParameterException("Aggregator " + aggregatorParameters[0] + " not currently supported!");
+            }
+        } catch(NoSuchMethodException e) {
+            throw new NoAggregationPolicyException("Aggregator " + aggregatorParameters[0] + " not currently supported!");
+        } catch (IllegalAccessException | InstantiationException | InvocationTargetException e){
+            throw new InvalidParameterException("An error occurred while trying to instantiate an aggregator for this ensemble.");
         }
 
         if(j48Parameters.length > 1) {
             try {
                 j48 = new J48();
                 j48.setOptions(j48Parameters);
+                n_queried_classifiers += 1;
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier J48: " + e.getMessage());
             }
@@ -143,6 +164,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 simpleCart = new SimpleCart();
                 simpleCart.setOptions(simpleCartParameters);
+                n_queried_classifiers += 1;
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier SimpleCart: " + e.getMessage());
             }
@@ -153,6 +175,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 part = new PART();
                 part.setOptions(partParameters);
+                n_queried_classifiers += 1;
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier PART: " + e.getMessage());
             }
@@ -163,47 +186,58 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             try {
                 jrip = new JRip();
                 jrip.setOptions(jripParameters);
+                n_queried_classifiers += 1;
             } catch(Exception e) {
                 throw new InvalidParameterException("Exception found in Classifier JRip: " + e.getMessage());
             }
         } else {
             jrip = null;
         }
-        if(decisionTableParameters.length > 1) {
-            String dtSearch = Utils.getOption("S", decisionTableParameters);
-            String dtSearchName = dtSearch.substring(dtSearch.lastIndexOf(".") + 1);
-            String[] selectedSubParams = null;
-            if(dtSearchName.equals("BestFirst")) {
-                selectedSubParams = bestFirstParameters;
-            } else if(dtSearchName.equals("GreedyStepwise")) { ;
-                selectedSubParams = greedyStepwise;
-            } else {
-                throw new InvalidParameterException("Search procedure for DecisionTable not found!");
-            }
-            String[] newDtParams = new String [decisionTableParameters.length + 2];
-            int counter = 0;
-            for(int i = 0; i < decisionTableParameters.length; i++) {
-                newDtParams[counter] = decisionTableParameters[i];
+        try {
+            if(decisionTableParameters.length > 1) {
+                String dtSearch = Utils.getOption("S", decisionTableParameters);
+                String dtSearchName = dtSearch.substring(dtSearch.lastIndexOf(".") + 1);
+                String[] selectedSubParams = null;
+                if(dtSearchName.equals("BestFirst")) {
+                    selectedSubParams = bestFirstParameters;
+                } else if(dtSearchName.equals("GreedyStepwise")) { ;
+                    selectedSubParams = greedyStepwise;
+                } else {
+                    throw new InvalidParameterException("Search procedure for DecisionTable not found!");
+                }
+                String[] newDtParams = new String [decisionTableParameters.length + 2];
+                int counter = 0;
+                for(int i = 0; i < decisionTableParameters.length; i++) {
+                    newDtParams[counter] = decisionTableParameters[i];
+                    counter += 1;
+                }
+                newDtParams[counter] = "-S";
+                newDtParams[counter + 1] = dtSearch;
                 counter += 1;
-            }
-            newDtParams[counter] = "-S";
-            newDtParams[counter + 1] = dtSearch;
-            counter += 1;
-            for(int i = 0; i < selectedSubParams.length; i++) {
-                newDtParams[counter] += " " + selectedSubParams[i];
-            }
+                for(int i = 0; i < selectedSubParams.length; i++) {
+                    newDtParams[counter] += " " + selectedSubParams[i];
+                }
 
-            try {
-                decisionTable = new DecisionTable();
-                decisionTable.setOptions(newDtParams);
-            } catch(Exception e) {
-                throw new InvalidParameterException("Exception found in Classifier DecisionTable: " + e.getMessage());
+                try {
+                    decisionTable = new DecisionTable();
+                    decisionTable.setOptions(newDtParams);
+                    n_queried_classifiers += 1;
+                } catch(Exception e) {
+                    throw new InvalidParameterException("Exception found in Classifier DecisionTable: " + e.getMessage());
+                }
+            } else {
+                decisionTable = null;
             }
-        } else {
-            decisionTable = null;
+        } catch(Exception e) {
+            throw new InvalidParameterException("an error occurred while trying to capture hyper-parameters for the " +
+                    "Decision Table classifier of this ensemble.");
         }
 
-//        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+
+        if(n_queried_classifiers == 0) {
+            throw new EmptyEnsembleException("no classifier was set to true for this ensemble!");
+        }
+
         this.orderedClassifiers = new AbstractClassifier[]{jrip, decisionTable, j48, part, simpleCart};
         this.classifiers.put("J48", this.j48);
         this.classifiers.put("SimpleCart", this.simpleCart);
@@ -243,7 +277,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 //    }
 
     @Override
-    public void buildClassifier(Instances data) throws Exception {
+    public void buildClassifier(Instances data) throws EmptyEnsembleException, NoAggregationPolicyException, TimeoutException {
         this.train_data = data;
 
         LocalDateTime start = LocalDateTime.now();
@@ -254,9 +288,11 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
                 try {
                     this.orderedClassifiers[i].buildClassifier(data);
                     n_active_classifiers += 1;
-                    this.checkTimeout(start);
-                }  catch(Exception e) {
+                } catch(Exception e) {
                     this.orderedClassifiers[i] = null;
+                }
+                if(this.isOvertime(start)) {
+                    throw new TimeoutException("individual building is taking more than allowed time.");
                 }
             }
         }
@@ -266,7 +302,11 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         if(this.aggregator == null) {
             throw new NoAggregationPolicyException("Ensemble must have an aggregation policy!");
         }
-        this.aggregator.setCompetences(this.orderedClassifiers, data);
+        try {
+            this.aggregator.setCompetences(this.orderedClassifiers, data);
+        } catch(Exception e) {
+            throw new NoAggregationPolicyException("Error while setting competences for aggregator.");
+        }
 
         this.timeToTrain = (int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS);
         if(this.aggregator instanceof RuleExtractorAggregator) {
@@ -295,11 +335,9 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
     }
 
-    private void checkTimeout(LocalDateTime start) throws TimeoutException {
-        if((this.timeout_individual != null) &&
-            ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > this.timeout_individual)) {
-                throw new TimeoutException("Building of individual taking longer than allowed time.");
-        }
+    private boolean isOvertime(LocalDateTime start) {
+        return (this.timeout_individual != null) &&
+                ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > this.timeout_individual);
     }
 
     public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
