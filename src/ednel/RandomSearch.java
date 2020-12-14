@@ -1,5 +1,22 @@
-/**
- * Randomly search hyper-parameters for a given classifier. Outputs results to file.
+/*
+  Randomly samples hyper-parameters for one of the following classifiers: J48, SimpleCart, PART, JRip, DecisionTable,
+  RandomForest. Performs a 10-fold cross validation on the provided datasets with the sampled hyper-parameters. Outputs
+  a csv to a specified folder with the results of the experiments.
+
+  J48, SimpleCart, PART, JRip, and DecisionTable have all their hyper-parameters uniformly sampled from the Dependency
+  Network used by EDNEL; that is to say that only variables specified in the probability tables of EDNEL are considered
+  as hyper-parameters of this class.
+
+  RandomForest is not a part of EDNEL, and hence the following hyper-parameters are sampled:
+
+  * bagSizePercent - % of training instances considered for each decision tree
+  * breakTiesRandomly - on the occurrence of two attributes being equally good for splitting data in a given node in a
+    decision tree, should we break the tie simply using the first (alphabetically sorted) variable, or randomly decide?
+  * maxDepth - maximum depth allowed for ensemble trees (0 = unlimited)
+  * numFeatures -- Sets the number of randomly chosen attributes. If 0, int(log_2(predictive_attrs) + 1) is used.
+
+  NOTE: numIterations (i.e. the number of trees in the ensemble) is not randomly optimized. Instead, a high number (1000)
+  is used, because more trees in the ensemble always equal to better results.
  */
 
 package ednel;
@@ -8,9 +25,11 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
 import org.apache.commons.cli.*;
+import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
 import java.io.BufferedWriter;
@@ -89,6 +108,12 @@ public class RandomSearch {
         return parser.parse(options, args);
     }
 
+    /**
+     * Given the simple name of a classifier, gets the whole path to it, for reflection use.
+     * @param name The simple name of the classifier (e.g. J48, PART)
+     * @return A path to the class (e.g. weka.classifiers.trees.J48, weka.classifiers.rules.PART)
+     * @throws Exception if is not possible to find the required class
+     */
     public static AbstractClassifier getClassifier(String name) throws Exception {
         String header;
         if(name.equals("J48")) {
@@ -107,13 +132,9 @@ public class RandomSearch {
         return clf;
     }
 
-    public static void main(String[] args) throws Exception {
-        CommandLine commandLine = RandomSearch.parseCommandLine(args);
-
-        String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
-        String clfSimpleName = commandLine.getOptionValue("classifier");
-        int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
-        int n_draws = Integer.parseInt(commandLine.getOptionValue("n_draws"));
+    private static void EDNELClassifierOptimization(int n_samples, int n_draws, String clfSimpleName,
+                                                    String[] datasets_names, String datasets_path, String metadata_path
+    ) throws Exception {
 
         DependencyNetwork dn = new DependencyNetwork(
                 new MersenneTwister(), 0, 0, false, 0.0,
@@ -172,7 +193,7 @@ public class RandomSearch {
         String str_time = dtf.format(now);
 
         BufferedWriter bfw = new BufferedWriter(new FileWriter(new File(
-                commandLine.getOptionValue("metadata_path") + File.separator + str_time + "_" + clfSimpleName + "_randomOptimization.csv")
+                metadata_path + File.separator + str_time + "_" + clfSimpleName + "_randomOptimization.csv")
         ));
 
         Exception except = null;
@@ -181,10 +202,10 @@ public class RandomSearch {
             bfw.write("classifier,dataset_name,n_sample,n_fold,n_draw,unweighted_area_under_roc," +
                     "elapsed time (seconds),characteristics,options\n");
 
-            for(String dataset_name : dataset_names) {
+            for(String dataset_name : datasets_names) {
                 for(int n_fold = 1; n_fold <= 10; n_fold++) {  // 10 folds
                     HashMap<String, Instances> datasets = Main.loadDataset(
-                            commandLine.getOptionValue("datasets_path"),
+                            datasets_path,
                             dataset_name,
                             n_fold
                     );
@@ -229,6 +250,153 @@ public class RandomSearch {
         }
         if(except != null) {
             throw except;
+        }
+    }
+
+    private static void randomForestOptimization(int n_samples, int n_draws, String[] datasets_names,
+                                                 String datasets_path, String metadata_path
+    ) throws Exception {
+
+        MersenneTwister mt = new MersenneTwister();
+
+        String[] samplingOrder = new String[]{"bagSizePercent", "breakTiesRandomly", "maxDepth", "numFeatures", "numIterations"};
+        String[] optionNames = new String[]{"-P", ";-B", "-depth", "-K", "-I"};
+        int[][] ranges = new int[][]{{10, 100}, {0, 1}, {0, 7}, {2, 15}, {1000, 1000}};
+
+        HashMap<String, Integer[]> variables = new HashMap<>();
+        for(int i = 0; i < samplingOrder.length; i++) {
+            String var = samplingOrder[i];
+            int low = ranges[i][0];
+            int high = ranges[i][1] + 1;
+
+            Integer[] values = new Integer[high - low];
+            int counter = 0;
+            for(int j = low; j < high; j++) {
+                values[counter] = j;
+                counter += 1;
+            }
+            variables.put(var, values);
+        }
+
+        ArrayList<HashMap<String, String>> draws = new ArrayList<>();
+        ArrayList<String> optionTables = new ArrayList<>();
+        ArrayList<String> characteristicsString = new ArrayList<>();
+
+        while(draws.size() < n_draws) {
+            HashMap<String, String> thisDraw = new HashMap<>();
+            StringBuilder strChar = new StringBuilder();
+            StringBuilder strOpt = new StringBuilder();
+
+            for(int j = 0; j < samplingOrder.length; j++) {
+                String var = samplingOrder[j];
+
+                Integer[] values = variables.get(var);
+                int index = mt.nextInt(values.length);
+                String sampled = String.valueOf(values[index]);
+
+                if(var.equals("breakTiesRandomly")) {
+                    strOpt.append(sampled.equals("1")? "-B " : "");
+                } else if (var.equals("maxDepth") && sampled.equals("0")) {
+                    // if maxDepth is unlimited (i.e. 0), should not set flag
+                } else {
+                    strOpt.append(optionNames[j]).append(" ").append(sampled).append(" ");
+                }
+                strChar.append(String.format("%s=%s;", var, sampled));
+                thisDraw.put(var, sampled);
+            }
+
+            try {
+                RandomForest rf = new RandomForest();
+                rf.setOptions(strOpt.toString().split(" "));
+                // succeeded; registers option table and characteristics of this sample
+                optionTables.add(strOpt.toString());
+                draws.add(thisDraw);
+                characteristicsString.add(strChar.toString());
+            } catch(Exception e) {
+                // does nothing
+            }
+        }
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+        LocalDateTime now = LocalDateTime.now();
+        String str_time = dtf.format(now);
+
+        BufferedWriter bfw = new BufferedWriter(new FileWriter(new File(
+                metadata_path + File.separator + str_time + "_RandomForest_randomOptimization.csv")
+        ));
+
+        Exception except = null;
+
+        try {
+            bfw.write("classifier,dataset_name,n_sample,n_fold,n_draw,unweighted_area_under_roc," +
+                    "elapsed time (seconds),characteristics,options\n");
+
+            for(String dataset_name : datasets_names) {
+                for(int n_fold = 1; n_fold <= 10; n_fold++) {  // 10 folds
+                    HashMap<String, Instances> datasets = Main.loadDataset(
+                            datasets_path,
+                            dataset_name,
+                            n_fold
+                    );
+                    Instances train_data = datasets.get("train_data");
+                    Instances test_data = datasets.get("test_data");
+
+                    for(int n_draw = 1; n_draw <= n_draws; n_draw++) {
+                        for(int n_sample = 1; n_sample <= n_samples; n_sample++) {
+                            try {
+                                LocalDateTime t1 = LocalDateTime.now();
+
+                                Evaluation ev = new Evaluation(train_data);
+
+                                RandomForest rf = new RandomForest();
+                                rf.setOptions(optionTables.get(n_draw - 1).split(" "));
+                                rf.buildClassifier(train_data);
+                                ev.evaluateModel(rf, test_data);
+
+                                double unweightedAuc = FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, rf);
+                                LocalDateTime t2 = LocalDateTime.now();
+
+                                long seconds = t1.until(t2, ChronoUnit.SECONDS);
+
+                                bfw.write(String.format(
+                                        Locale.US,
+                                        "%s,%s,%d,%d,%d,%f,%d,\"%s\",\"%s\"\n",
+                                        "RandomForest", dataset_name, n_sample, n_fold, n_draw, unweightedAuc, seconds, characteristicsString.get(n_draw - 1),
+                                        optionTables.get(n_draw - 1)
+                                ));
+                                System.out.println(String.format("Done: %s,%03d,%03d,%03d", dataset_name, n_fold, n_draw, n_sample));
+                            } catch(Exception e) {
+                                System.err.println(String.format("Error: %s,%03d,%03d,%03d", dataset_name, n_fold, n_draw, n_sample));
+                            }
+                        }
+                    }
+                }
+            }
+        } catch(Exception e) {
+            except = e;
+        } finally {
+            bfw.close();
+        }
+        if(except != null) {
+            throw except;
+        }
+    }
+
+
+    public static void main(String[] args) throws Exception {
+        CommandLine commandLine = RandomSearch.parseCommandLine(args);
+
+        String[] datasets_names = commandLine.getOptionValue("datasets_names").split(",");
+        int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
+        int n_draws = Integer.parseInt(commandLine.getOptionValue("n_draws"));
+        String clfSimpleName = commandLine.getOptionValue("classifier");
+        String metadata_path = commandLine.getOptionValue("metadata_path");
+        String datasets_path = commandLine.getOptionValue("datasets_path");
+
+        if(clfSimpleName.equals("RandomForest")) {
+            RandomSearch.randomForestOptimization(n_samples, n_draws, datasets_names, datasets_path, metadata_path);
+        } else {
+            RandomSearch.EDNELClassifierOptimization(n_samples, n_draws, clfSimpleName, datasets_names, datasets_path, metadata_path);
         }
     }
 }
