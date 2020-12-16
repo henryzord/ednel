@@ -8,7 +8,9 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.sorters.Argsorter;
 import org.apache.commons.cli.*;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
 import java.io.BufferedWriter;
@@ -98,18 +100,14 @@ public class RandomSearchApply {
             }
         }
 
-        if(!characteristics.containsKey("Aggregator")) {
+        if(!characteristics.containsKey("Aggregator") && characteristics.containsKey("RandomForest")) {
             characteristics.put("Aggregator", "MajorityVotingAggregator");
         }
 
         return characteristics;
     }
 
-    public static HashMap<String, String> fromOptionsStringToHashMap(String c) {
-        // test string:
-        // -J48 -C 0.25 -M 2 -SimpleCart -M 2 -N 5 -C 1 -S 1 -PART -M 2 -C 0.25 -Q 1 -JRip -F 3 -N 2.0 -O 2 -S 1
-        // -DecisionTable -R -X 1 -S weka.attributeSelection.BestFirst -D 1 -N 5
-
+    private static HashMap<String, String> captureEDNELClassifierOptions(String c) {
         String[] tokens = {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
         HashMap<String, String> optionsTable = new HashMap<>();
         Integer[] indices = new Integer [tokens.length];
@@ -142,15 +140,26 @@ public class RandomSearchApply {
         }
 
         return optionsTable;
+    }
 
-//        String[] j48Parameters = Utils.getOption("J48", options).split(" ");
-//        String[] simpleCartParameters = Utils.getOption("SimpleCart", options).split(" ");
-//        String[] partParameters = Utils.getOption("PART", options).split(" ");
-//        String[] jripParameters = Utils.getOption("JRip", options).split(" ");
-//        String[] decisionTableParameters = Utils.getOption("DecisionTable", options).split(" ");
-//        String[] bestFirstParameters = Utils.getOption("BestFirst", options).split(" ");
-//        String[] greedyStepwise = Utils.getOption("GreedyStepwise", options).split(" ");
-//        String[] aggregatorParameters = Utils.getOption("Aggregator", options).split(" ");
+    public static HashMap<String, String> fromOptionsStringToHashMap(String c) {
+        // test string (equals to default classifiers hyper-parameters):
+        // -J48 -C 0.25 -M 2 -SimpleCart -M 2 -N 5 -C 1 -S 1 -PART -M 2 -C 0.25 -Q 1 -JRip -F 3 -N 2.0 -O 2 -S 1
+        // -DecisionTable -R -X 1 -S weka.attributeSelection.BestFirst -D 1 -N 5
+
+        if(!c.contains("RandomForest")) {
+            return captureEDNELClassifierOptions(c);
+        } else {
+            return captureRandomForestOptions(c);
+        }
+
+
+    }
+
+    private static HashMap<String, String> captureRandomForestOptions(String c) {
+        HashMap<String, String> optionsTable = new HashMap<>();
+        optionsTable.put("RandomForest", c.substring(c.indexOf("RandomForest") + "RandomForest".length()).trim());
+        return optionsTable;
     }
 
     public static void main(String[] args) throws Exception {
@@ -160,8 +169,10 @@ public class RandomSearchApply {
         int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
         String characteristics_str = commandLine.getOptionValue("string_characteristics");
         String options_str = commandLine.getOptionValue("string_options");
-        HashMap<String, String> characteristics = RandomSearchApply.fromCharacteristicsStringToHashMap(characteristics_str);
         HashMap<String, String> optionTable = RandomSearchApply.fromOptionsStringToHashMap(options_str);
+        HashMap<String, String> characteristics = RandomSearchApply.fromCharacteristicsStringToHashMap(characteristics_str);
+
+        boolean isRF = optionTable.containsKey("RandomForest");
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
         LocalDateTime now = LocalDateTime.now();
@@ -188,7 +199,17 @@ public class RandomSearchApply {
                     for(int n_sample = 1; n_sample <= n_samples; n_sample++) {
                         try {
                             LocalDateTime t1 = LocalDateTime.now();
-                            Individual ind = new Individual(optionTable, characteristics);
+                            AbstractClassifier ind;
+                            if(isRF) {
+                                ind = new RandomForest();
+                                String treatedOptions = optionTable.get("RandomForest");
+                                treatedOptions = RandomSearch.replaceNumFeaturesParameterRandomForest(
+                                        treatedOptions, train_data.numAttributes() - 1
+                                );
+                                ind.setOptions(treatedOptions.split(" "));
+                            } else {
+                                ind = new Individual(optionTable, characteristics);
+                            }
                             ind.buildClassifier(train_data);
                             Evaluation ev = new Evaluation(train_data);
 
@@ -201,7 +222,7 @@ public class RandomSearchApply {
                             bfw.write(String.format(
                                     Locale.US,
                                     "%s,%d,%d,%f,%d,%d,\"%s\",\"%s\"\n",
-                                    dataset_name, n_sample, n_fold, unweightedAuc, ind.getNumberOfRules(), elapsed_time, characteristics_str, options_str
+                                    dataset_name, n_sample, n_fold, unweightedAuc, ind instanceof Individual? ((Individual)ind).getNumberOfRules() : -1, elapsed_time, characteristics_str, options_str
                             ));
                             System.out.println(String.format("Done: %s,%d,%d", dataset_name, n_sample, n_fold));
                         } catch(Exception e) {

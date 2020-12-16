@@ -9,7 +9,8 @@
 
   RandomForest is not a part of EDNEL, and hence the following hyper-parameters are sampled:
 
-  * bagSizePercent - % of training instances considered for each decision tree
+  * bagSizePercent - % of training instances considered for each decision tree. Same range of values used in
+  "Hyperparameters and tuning strategies for random forest".
   * breakTiesRandomly - on the occurrence of two attributes being equally good for splitting data in a given node in a
     decision tree, should we break the tie simply using the first (alphabetically sorted) variable, or randomly decide?
   * maxDepth - maximum depth allowed for ensemble trees (0 = unlimited)
@@ -253,6 +254,19 @@ public class RandomSearch {
         }
     }
 
+    public static String replaceNumFeaturesParameterRandomForest(String treatedOptions, int numPredictiveAttr) {
+        String numFeaturesMultiplier = treatedOptions.substring(
+                treatedOptions.indexOf("<numFeaturesMultiplier>") + "<numFeaturesMultiplier>".length(),
+                treatedOptions.indexOf("</numFeaturesMultiplier>")
+        );
+        int numFeatures = (int)Math.ceil(Float.parseFloat(numFeaturesMultiplier) * numPredictiveAttr);
+        treatedOptions = treatedOptions.replace(
+                String.format("<numFeaturesMultiplier>%s</numFeaturesMultiplier>", numFeaturesMultiplier),
+                String.valueOf(numFeatures)
+        );
+        return treatedOptions;
+    }
+
     private static void randomForestOptimization(int n_samples, int n_draws, String[] datasets_names,
                                                  String datasets_path, String metadata_path
     ) throws Exception {
@@ -261,7 +275,7 @@ public class RandomSearch {
 
         String[] samplingOrder = new String[]{"bagSizePercent", "breakTiesRandomly", "maxDepth", "numFeatures", "numIterations"};
         String[] optionNames = new String[]{"-P", ";-B", "-depth", "-K", "-I"};
-        int[][] ranges = new int[][]{{10, 100}, {0, 1}, {0, 7}, {2, 15}, {1000, 1000}};
+        int[][] ranges = new int[][]{{20, 90}, {0, 1}, {0, 10}, {1, 100}, {1000, 1000}};
 
         HashMap<String, Integer[]> variables = new HashMap<>();
         for(int i = 0; i < samplingOrder.length; i++) {
@@ -296,25 +310,24 @@ public class RandomSearch {
 
                 if(var.equals("breakTiesRandomly")) {
                     strOpt.append(sampled.equals("1")? "-B " : "");
+                    strChar.append(String.format("%s=%s;", var, sampled.equals("1")? "true" : "false"));
                 } else if (var.equals("maxDepth") && sampled.equals("0")) {
                     // if maxDepth is unlimited (i.e. 0), should not set flag
+                    strChar.append(String.format("%s=%s;", var, sampled));
+                } else if(var.equals("numFeatures")) {
+                    strOpt.append(optionNames[j]).append(" ").append(String.format(
+                            "<numFeaturesMultiplier>0.%s</numFeaturesMultiplier>", sampled)).append(" ");
+                    strChar.append(String.format("%s=%s * predictiveAttributes;", var, Integer.parseInt(sampled)/100.));
                 } else {
                     strOpt.append(optionNames[j]).append(" ").append(sampled).append(" ");
+                    strChar.append(String.format("%s=%s;", var, sampled));
                 }
-                strChar.append(String.format("%s=%s;", var, sampled));
                 thisDraw.put(var, sampled);
             }
 
-            try {
-                RandomForest rf = new RandomForest();
-                rf.setOptions(strOpt.toString().split(" "));
-                // succeeded; registers option table and characteristics of this sample
-                optionTables.add(strOpt.toString());
-                draws.add(thisDraw);
-                characteristicsString.add(strChar.toString());
-            } catch(Exception e) {
-                // does nothing
-            }
+            optionTables.add(strOpt.toString());
+            draws.add(thisDraw);
+            characteristicsString.add(strChar.toString());
         }
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
@@ -349,7 +362,12 @@ public class RandomSearch {
                                 Evaluation ev = new Evaluation(train_data);
 
                                 RandomForest rf = new RandomForest();
-                                rf.setOptions(optionTables.get(n_draw - 1).split(" "));
+                                String treatedOptions = optionTables.get(n_draw - 1);
+                                treatedOptions = RandomSearch.replaceNumFeaturesParameterRandomForest(
+                                        treatedOptions, train_data.numAttributes() - 1
+                                );
+
+                                rf.setOptions(treatedOptions.split(" "));
                                 rf.buildClassifier(train_data);
                                 ev.evaluateModel(rf, test_data);
 

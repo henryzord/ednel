@@ -173,7 +173,12 @@ def single_experiment_process(this_path, n_samples, n_folds, write=True):
     if len(missing) > 0:
         dataset_name = this_path.split(os.sep)[-2]
         experiment_name = this_path.split(os.sep)[-3]
-        print('Dataset %s for experiment %s is not complete and hence will not be written to files' % (dataset_name, experiment_name), file=sys.stderr)
+        print(
+            'Dataset %s for experiment %s is not complete and hence will not be written to files' % (
+                dataset_name, experiment_name
+            ),
+            file=sys.stderr
+        )
         return None
 
     samples_dicts = dict()

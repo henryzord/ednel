@@ -16,7 +16,7 @@ from sklearn.feature_selection import mutual_info_regression
 from characteristics_to_pca import to_all_numeric_columns
 
 
-def generate_ednel(output_path):
+def generate_ednel_search(output_path):
     a_sets = ['hayes-roth', 'tae', 'haberman', 'newthyroid', 'bupa', 'wine', 'balancescale', 'bloodtransfusion',
               'heart', 'cleveland', 'mammographic', 'banknotes', 'pima', 'tictactoe', 'australian', 'spectfheart',
               'car', 'vowel', 'contraceptive', 'diabetic', 'soybean', 'syntheticcontrol', 'segment',
@@ -162,7 +162,7 @@ def plot_search_space(df, characteristics):
     # plt.show()
 
 
-def interpret_singles(results_path):
+def interpret_search(results_path):
     files = [x for x in os.listdir(results_path) if (not os.path.isdir(os.path.join(results_path, x)) and x.split('.')[-1] == 'csv')]
 
     with open(os.path.join(results_path, 'script_experiments.sh'), 'w') as ff:
@@ -213,6 +213,21 @@ def interpret_singles(results_path):
             plot_search_space(proper, characteristics=df[['n_draw', 'characteristics']].drop_duplicates())
 
 
+def interpret_apply(results_path):
+    files = [x for x in os.listdir(results_path) if
+             (not os.path.isdir(os.path.join(results_path, x)) and x.split('.')[-1] == 'csv')]
+
+    for some_file in files:
+        df = pd.read_csv(os.path.join(results_path, some_file))
+
+        characteristics = [x for x in df['characteristics'].iloc[0].split(';') if len(x) > 0]
+        alg_names = np.unique(list(map(lambda x: x.split('=')[0].split('_')[0], characteristics)))
+
+        grouped = df.groupby(by=['dataset_name']).agg([np.mean, np.std])
+        print('activated classifiers: %s file: %s' % (','.join(alg_names), some_file))
+        print(grouped[['unweighted_area_under_roc']])
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Script for either generating or interpreting trials of random search procedure for hyper-parameter'
@@ -220,8 +235,13 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--results-path', action='store', required=False,
+        '--search-results-path', action='store', required=False,
         help='A path to where results of random search trials are stored as .csv files.'
+    )
+
+    parser.add_argument(
+        '--apply-results-path', action='store', required=False,
+        help='Path to where results of already-applied best hyper-parameters are stored, as .csv files.'
     )
 
     parser.add_argument(
@@ -231,9 +251,11 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.results_path is not None:
-        interpret_singles(results_path=args.results_path)
+    if args.search_results_path is not None:
+        interpret_search(results_path=args.search_results_path)
+    elif args.apply_results_path is not None:
+        interpret_apply(results_path=args.apply_results_path)
     elif args.output_path is not None:
-        generate_ednel(output_path=args.output_path)
+        generate_ednel_search(output_path=args.output_path)
     else:
         raise Exception('should either generate hyper-parameters or interpret them!')
