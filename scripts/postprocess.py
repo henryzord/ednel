@@ -444,37 +444,46 @@ def for_comparison(df, experiment_path):
     datasets_names = df.index.get_level_values('dataset_name').unique().sort_values().tolist()
     experiments_names = df.index.get_level_values('experiment_name').unique().sort_values().tolist()
 
-    new_table_columns = ['dataset_name']
+    dict_experiment_read = dict()
+    dict_experiment_write = dict()
 
-    res = []
+    new_table_columns = []
+
     for experiment in experiments_names:
-        to_process_columns = []
+        to_read_columns = []
         for column in df.columns:
             splitted = column.split('-')  # type: list
             try:
                 index_mean = splitted.index('mean')
                 if index_mean - 1 == 0:
-                    to_process_columns += [column]
-                    new_table_columns += ['_'.join([experiment, splitted[0]])]
+                    to_read_columns += [column]
             except ValueError:
                 pass  # is treating a std column; just proceeds
 
+        dict_experiment_read[experiment] = to_read_columns
+        dict_experiment_write[experiment] = list(map(lambda x: '_'.join(x), it.product([experiment], map(lambda x: x.replace('-mean', ''), to_read_columns))))
+        new_table_columns.extend(dict_experiment_write[experiment])
+
+    raw_table = np.empty((len(datasets_names), len(new_table_columns)), dtype=np.float)
+    raw_table[:] = np.nan
+
+    new_table = pd.DataFrame(
+        data=raw_table,
+        index=datasets_names,
+        columns=new_table_columns
+    )
+
+    for experiment in experiments_names:
         for dataset in datasets_names:
             experiments_res = []
             try:
-                experiments_res += df.loc[(experiment, dataset)][to_process_columns].tolist()
+                experiments_res += df.loc[(experiment, dataset)][dict_experiment_read[experiment]].tolist()
             except KeyError:
-                experiments_res += [np.repeat(np.NaN, len(to_process_columns)).tolist()]
+                experiments_res += np.repeat(np.NaN, len(dict_experiment_read[experiment])).tolist()
 
-            res += [[dataset] + experiments_res]
+            new_table.loc[dataset, dict_experiment_write[experiment]] = experiments_res
 
-    new_table = pd.DataFrame(res, columns=new_table_columns)
-
-    # new_table = pd.DataFrame(
-    #     res, columns=['dataset_name'] + list(reduce(op.add, [[x + '_last', x + '_overall'] for x in experiments_names]))
-    # )
-
-    new_table.to_csv(
+    new_table.reset_index().to_csv(
         os.path.join(args.experiment_path, "for_comparison.csv"), index=False
     )
 
@@ -553,6 +562,7 @@ def main(experiment_path, write=True):
         pass
 
     raw = generate_raw(experiment_path)
+
     if __find_which_level__(experiment_path) > 1:
         for_comparison(df=raw, experiment_path=experiment_path)
 
