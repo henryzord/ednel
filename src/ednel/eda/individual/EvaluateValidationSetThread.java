@@ -9,7 +9,8 @@ public class EvaluateValidationSetThread extends Thread {
     Exception myExcept;
     double valQuality;
 
-    public EvaluateValidationSetThread(Instances learn_data, Instances val_data, Individual ind, Integer timeout_individual) throws Exception {
+    public EvaluateValidationSetThread(Instances learn_data, Instances val_data, Individual ind, Integer timeout_individual)
+            throws EmptyEnsembleException, NoAggregationPolicyException {
         this.myExcept = null;
         this.valQuality = 0;
         this.learn_data = learn_data;

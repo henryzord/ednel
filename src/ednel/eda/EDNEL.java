@@ -106,7 +106,7 @@ public class EDNEL extends AbstractClassifier {
         this.overallBest = this.currentGenBest;
 
         this.earlyStop = new EarlyStop(this.early_stop_generations, 0);
-        Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, this.timeout_individual);
+        Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, null);
         this.currentGenBest.setFitness(baselineFitness);
 
         this.earlyStop.update(-1, this.currentGenBest);
@@ -176,6 +176,7 @@ public class EDNEL extends AbstractClassifier {
             @Override
             public synchronized void start() {
                 try {
+                    currentGenBest.setTimeoutIndividual(null);
                     currentGenBest.buildClassifier(train_data);
                 } catch(Exception e) {
                     // does nothing
@@ -187,6 +188,7 @@ public class EDNEL extends AbstractClassifier {
             buildCurrentGenBest.start();
         }
 
+        this.overallBest.setTimeoutIndividual(null);
         this.overallBest.buildClassifier(train_data);
 
         buildCurrentGenBest.join();

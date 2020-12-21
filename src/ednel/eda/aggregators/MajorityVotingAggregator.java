@@ -1,5 +1,6 @@
 package ednel.eda.aggregators;
 
+import ednel.eda.individual.EmptyEnsembleException;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instance;
 import weka.core.Instances;
@@ -93,6 +94,10 @@ public class MajorityVotingAggregator extends Aggregator implements Serializable
     public double[] aggregateProba(AbstractClassifier[] clfs, Instance instance) throws Exception {
         int n_active_classifiers = this.getActiveClassifiersCount(clfs);
 
+        if(n_active_classifiers == 0) {
+            throw new EmptyEnsembleException("ensemble is empty.");
+        }
+
         double[][] dists = new double[n_active_classifiers][];
         int cc = 0, counter = 0;
         while(counter < n_active_classifiers) {
@@ -103,7 +108,7 @@ public class MajorityVotingAggregator extends Aggregator implements Serializable
             cc += 1;
         }
 
-        int n_classes = dists[0].length;
+        int n_classes = instance.attribute(instance.classIndex()).numValues();
 
         double[] finalDistribution = new double [n_classes];
 

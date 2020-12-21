@@ -2,6 +2,7 @@ package ednel.eda.individual;
 
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.apache.commons.math3.random.MersenneTwister;
+import org.omg.CORBA.portable.UnknownException;
 import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 
 /**
@@ -144,7 +146,8 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(int seed, Individual ind) throws Exception {
+    public Fitness evaluateEnsemble(int seed, Individual ind) throws
+            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
         Random random = new Random(seed);
         return this.evaluateEnsemble(random, ind, null);
     }
@@ -157,7 +160,8 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(Random random, Individual ind) throws Exception {
+    public Fitness evaluateEnsemble(Random random, Individual ind) throws
+            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
         return this.evaluateEnsemble(random, ind, null);
     }
 
@@ -169,7 +173,8 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(int seed, Individual ind, Integer timeout_individual) throws Exception {
+    public Fitness evaluateEnsemble(int seed, Individual ind, Integer timeout_individual) throws
+            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
         Random random = new Random(seed);
         return this.evaluateEnsemble(random, ind, timeout_individual);
     }
@@ -182,7 +187,8 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws Exception {
+    public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws
+            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
         double learnQuality = 0.0;
         int size = 0;
 
@@ -199,8 +205,14 @@ public class FitnessCalculator {
             if(val instanceof Fitness) {
                 learnQuality += ((Fitness)val).getLearnQuality();
                 size += ((Fitness)val).getSize();
+            } else if(val instanceof EmptyEnsembleException) {
+                throw (EmptyEnsembleException)val;
+            } else if(val instanceof NoAggregationPolicyException) {
+                throw (NoAggregationPolicyException)val;
+            } else if(val instanceof TimeoutException) {
+                throw (TimeoutException)val;
             } else {
-                throw (Exception)val;
+                throw new UnknownException(((Exception)val));
             }
         }
         learnQuality /= n_folds;

@@ -17,19 +17,10 @@ from characteristics_to_pca import to_all_numeric_columns
 
 
 def generate_ednel_search(output_path):
-    a_sets = ['hayes-roth', 'tae', 'haberman', 'newthyroid', 'bupa', 'wine', 'balancescale', 'bloodtransfusion',
-              'heart', 'cleveland', 'mammographic', 'banknotes', 'pima', 'tictactoe', 'australian', 'spectfheart',
-              'car', 'vowel', 'contraceptive', 'diabetic', 'soybean', 'syntheticcontrol', 'segment',
-              'artificialcharacters', 'chess', 'thyroid', 'turkiye', 'waveform', 'magic']
-    b_sets = ['iris', 'breast', 'monk-2', 'led7digit', 'saheart', 'wisconsin', 'titanic', 'crx', 'creditapproval',
-              'ionosphere', 'sonar', 'flare', 'dermatology', 'banana', 'vehicle', 'wdbc', 'german', 'phoneme',
-              'seismicbumps', 'drugconsumption', 'page-blocks', 'steelfaults', 'krvskp', 'ring', 'twonorm', 'penbased',
-              'splice', 'texture', 'spambase']
-
     template = 'java -Xmx6G -jar ednel.jar --datasets_path keel_datasets_10fcv ' \
                '--metadata_path /A/henry/ednel/metadata/<experiment_set> --n_samples 1 --thinning_factor 0 ' \
                '--timeout 3600 --timeout_individual 60 --log ' \
-               '--n_jobs 5 --n_generations <n_generations> --n_individuals <n_individuals> --selection_share ' \
+               '--n_jobs 10 --n_generations 30 --n_individuals 100 --selection_share ' \
                '<selection_share> --burn_in <burn_in> --max_parents <max_parents> --early_stop_generations ' \
                '<early_stop_generations> --delay_structure_learning <delay_structure_learning> --learning_rate ' \
                '<learning_rate> --datasets_names <datasets_names>\n'
@@ -37,8 +28,6 @@ def generate_ednel_search(output_path):
     n_samples = 25
 
     parameters = {
-        "n_individuals": [25, 201],
-        "n_generations": [25, 201],
         "selection_share": [0.1, 0.9],
         "learning_rate": [0.1, 1],
         "burn_in": [0, 101],
@@ -47,42 +36,27 @@ def generate_ednel_search(output_path):
         "early_stop_generations": [5, 26]
     }
 
-    sampled = []
+    with open(os.path.join(output_path, 'ednel_experiments.sh'), 'w') as write_file:
+        write_file.write('#!/bin/bash\n')
 
-    for i in range(n_samples):
-        this_sample = dict()
-        for parameter, range_vals in parameters.items():
-            if isinstance(range_vals, list):
-                if isinstance(range_vals[0], float):  # floating point
-                    this_sample[parameter] = np.random.choice(np.linspace(range_vals[0], range_vals[1]))
-                else:  # integer
-                    this_sample[parameter] = np.random.choice(np.arange(range_vals[0], range_vals[1]))
-            else:
-                this_sample[parameter] = range_vals
+        for i in range(n_samples * 2):
+            cpy = deepcopy(template)
 
-        sampled += [this_sample]
+            this_sample = dict()
+            for parameter, range_vals in parameters.items():
+                if isinstance(range_vals, list):
+                    if isinstance(range_vals[0], float):  # floating point
+                        this_sample[parameter] = np.random.choice(np.linspace(range_vals[0], range_vals[1]))
+                    else:  # integer
+                        this_sample[parameter] = np.random.choice(np.arange(range_vals[0], range_vals[1]))
+                else:
+                    this_sample[parameter] = range_vals
 
-    with open(os.path.join(output_path, 'a_sets_experiments.sh'), 'w') as a_file, \
-            open(os.path.join(output_path, 'b_sets_experiments.sh'), 'w') as b_file:
+                cpy = cpy.replace('<' + parameter + '>', str(this_sample[parameter]))
 
-        a_file.write('#!/bin/bash\n')
-        b_file.write('#!/bin/bash\n')
-
-        for i in range(len(sampled)):
-            a_cpy = deepcopy(template)
-            b_cpy = deepcopy(template)
-            for param in sampled[i].keys():
-                a_cpy = a_cpy.replace('<' + param + '>', str(sampled[i][param]))
-                b_cpy = b_cpy.replace('<' + param + '>', str(sampled[i][param]))
-
-            a_cpy = a_cpy.replace('<datasets_names>', ','.join(a_sets))
-            b_cpy = b_cpy.replace('<datasets_names>', ','.join(b_sets))
-
-            a_cpy = a_cpy.replace('<experiment_set>', 'a_experiments')
-            b_cpy = b_cpy.replace('<experiment_set>', 'b_experiments')
-
-            a_file.write(a_cpy)
-            b_file.write(b_cpy)
+            cpy = cpy.replace('<experiment_set>', 'a_group' if ((i % 2) == 0) else 'b_group')
+            cpy = cpy.replace('<datasets_names>', '<a_datasets>' if ((i % 2) == 0) else '<b_datasets>')
+            write_file.write(cpy)
 
 
 def plot_search_space(df, characteristics):
@@ -245,7 +219,7 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--output-path', action='store', required=False,
+        '--ednel-search-output', action='store', required=False,
         help='Path to where hyper-parametrizations for EDNEL will be written.'
     )
 
@@ -255,7 +229,7 @@ if __name__ == '__main__':
         interpret_search(results_path=args.search_results_path)
     elif args.apply_results_path is not None:
         interpret_apply(results_path=args.apply_results_path)
-    elif args.output_path is not None:
-        generate_ednel_search(output_path=args.output_path)
+    elif args.ednel_search_output is not None:
+        generate_ednel_search(output_path=args.ednel_search_output)
     else:
         raise Exception('should either generate hyper-parameters or interpret them!')

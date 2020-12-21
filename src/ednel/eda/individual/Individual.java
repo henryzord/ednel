@@ -62,7 +62,10 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         aggregatorClasses = Individual.getAggregatorClasses();
     }
 
-    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics) throws Exception {
+    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics) throws
+            EmptyEnsembleException, InvalidParameterException, NoAggregationPolicyException
+    {
+
         this.classifiers = new HashMap<>(6);
         this.characteristics = new HashMap<>();
         for(String key : characteristics.keySet()) {
@@ -92,16 +95,19 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this.setOptions(options);
     }
 
-    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics, Integer timeout_individual) throws Exception {
+    public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics, Integer timeout_individual) throws
+            EmptyEnsembleException, InvalidParameterException, NoAggregationPolicyException {
         this(optionTable, characteristics);
         this.timeout_individual = timeout_individual;
     }
 
-    public Individual(Individual other) throws Exception {
+    public Individual(Individual other) throws
+            EmptyEnsembleException, InvalidParameterException, NoAggregationPolicyException {
         this(other.getOptionTable(), other.getCharacteristics());
     }
 
-    public Individual(Individual other, int timeout_individual) throws Exception {
+    public Individual(Individual other, int timeout_individual) throws
+            EmptyEnsembleException, InvalidParameterException, NoAggregationPolicyException {
         this(other.getOptionTable(), other.getCharacteristics(), timeout_individual);
     }
 
@@ -235,7 +241,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
 
         if(n_queried_classifiers == 0) {
-            throw new EmptyEnsembleException("no classifier was set to true for this ensemble!");
+            throw new EmptyEnsembleException("no classifier present in this ensemble!");
         }
 
         this.orderedClassifiers = new AbstractClassifier[]{jrip, decisionTable, j48, part, simpleCart};
@@ -247,34 +253,6 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
         this.n_active_classifiers = 0;
     }
-
-//    public Individual(String[] options, HashMap<String, String> characteristics, Instances train_data) throws Exception {
-//        this();
-//
-//        this.characteristics = (HashMap<String, String>)characteristics.clone();  // approximate number of variables in the GM
-//        if(Boolean.parseBoolean(this.characteristics.get("DecisionTable"))) {
-//            this.decisionTable = new DecisionTable();
-//            this.classifiers.put("DecisionTable", this.decisionTable);
-//        }
-//        if(Boolean.parseBoolean(this.characteristics.get("J48"))) {
-//            this.j48 = new J48();
-//            this.classifiers.put("J48", this.j48);
-//        }
-//        if(Boolean.parseBoolean(this.characteristics.get("SimpleCart"))) {
-//            this.simpleCart = new SimpleCart();
-//            this.classifiers.put("SimpleCart", this.simpleCart);
-//        }
-//        if(Boolean.parseBoolean(this.characteristics.get("PART"))) {
-//            this.part = new PART();
-//            this.classifiers.put("PART", this.part);
-//        }
-//        if(Boolean.parseBoolean(this.characteristics.get("JRip"))) {
-//            this.jrip = new JRip();
-//            this.classifiers.put("JRip", this.jrip);
-//        }
-//        this.setOptions(options);
-//        this.buildClassifier(train_data);
-//    }
 
     @Override
     public void buildClassifier(Instances data) throws EmptyEnsembleException, NoAggregationPolicyException, TimeoutException {
@@ -334,6 +312,24 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             }
         }
     }
+
+    /**
+     * Defines how many seconds an individual has to train all its base classifiers, or set to NULL to allow infinite
+     * time.
+     * @param seconds Either a valid Natural number (> 0) or NULL for unlimited time.
+     */
+    public void setTimeoutIndividual(Integer seconds) {
+        if(seconds != null && seconds > 0) {
+            this.timeout_individual = seconds;
+        } else {
+            this.timeout_individual = null;
+        }
+    }
+
+    public Integer getTimeoutIndividual() {
+        return this.timeout_individual;
+    }
+
 
     private boolean isOvertime(LocalDateTime start) {
         return (this.timeout_individual != null) &&
