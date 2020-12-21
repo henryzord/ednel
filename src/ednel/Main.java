@@ -313,7 +313,7 @@ public class Main {
         Double[] lower_limits = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 60.0, 60.0};
         Double[] upper_limits = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 1.0, 1.0, Double.POSITIVE_INFINITY,
                 Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                (double)Runtime.getRuntime().availableProcessors(), 30.0, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
+                Double.POSITIVE_INFINITY, 30.0, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         AbstractOperator[] lower_operators = {new GreaterThan(), new GreaterThanOrEqualTo(), new GreaterThan(),
                 new GreaterThan(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(),
                 new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(),

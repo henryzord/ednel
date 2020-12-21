@@ -49,8 +49,7 @@ public class EDNEL extends AbstractClassifier {
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
-                 int max_parents, int delay_structure_learning, PBILLogger pbilLogger,
-                 Integer seed
+                 int max_parents, int delay_structure_learning, PBILLogger pbilLogger, Integer seed
     ) throws Exception {
 
         this.learning_rate = learning_rate;
@@ -99,7 +98,6 @@ public class EDNEL extends AbstractClassifier {
         learn_data = FitnessCalculator.betterStratifier(learn_data, 5);
 
         pbilLogger.setDatasets(learn_data, val_data);
-
         FitnessCalculator fc = new FitnessCalculator(5, learn_data, val_data);
 
         this.currentGenBest = new BaselineIndividual();
@@ -208,6 +206,10 @@ public class EDNEL extends AbstractClassifier {
 
     public DependencyNetwork getDependencyNetwork() {
         return this.dn;
+    }
+
+    public boolean isLogging() {
+        return this.pbilLogger != null;
     }
 }
 

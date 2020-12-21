@@ -67,7 +67,8 @@ public class FitnessCalculator {
         return unweighted / n_classes;
     }
 
-    public static Instances betterStratifier(Instances data, int n_folds) {
+    public static Instances betterStratifier(Instances data, int n_folds)
+            throws IllegalArgumentException, UnassignedClassException, ValueException {
         if (n_folds <= 1) {
             throw new IllegalArgumentException(
                     "Number of folds must be greater than 1");

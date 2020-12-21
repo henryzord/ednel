@@ -106,7 +106,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         this(other.getOptionTable(), other.getCharacteristics());
     }
 
-    public Individual(Individual other, int timeout_individual) throws
+    public Individual(Individual other, Integer timeout_individual) throws
             EmptyEnsembleException, InvalidParameterException, NoAggregationPolicyException {
         this(other.getOptionTable(), other.getCharacteristics(), timeout_individual);
     }

@@ -107,19 +107,6 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                 this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
             }
         } catch(Exception e) {
-            if(this.log) {
-                try {
-                    File log_file = new File(String.format(
-                            this.pbilLogger.getDatasetMetadataPath() + File.separator + "error_sample_%02d_fold_%02d.txt",
-                            this.n_sample, this.n_fold
-                    ));
-                    PrintStream ps = new PrintStream(log_file);
-                    e.printStackTrace(ps);
-                    ps.close();
-                } catch (IOException ex) {
-                    // does nothing; too many exceptions to handle
-                }
-            }
             System.err.println(String.format(
                     "Error occurred in dataset %s sample %d fold %d:",
                     this.dataset_name, this.n_sample, this.n_fold
@@ -131,6 +118,20 @@ public class RunTrainingPieceTask implements Runnable, Callable {
             }
             this.hasSetAnException = true;
             this.except = e;
+
+            if(this.log) {
+                try {
+                    File log_file = new File(String.format(
+                            this.pbilLogger.getDatasetMetadataPath() + File.separator + "error_sample_%02d_fold_%02d.txt",
+                            this.n_sample, this.n_fold
+                    ));
+                    PrintStream ps = new PrintStream(log_file);
+                    e.printStackTrace(ps);
+                    ps.close();
+                } catch (Exception ex) {
+                    // does nothing; too many exceptions to handle
+                }
+            }
         } finally {
             this.hasCompleted = true;
             this.end = LocalDateTime.now();
