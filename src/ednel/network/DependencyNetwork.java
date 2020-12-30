@@ -7,6 +7,8 @@ import org.reflections.Reflections;
 import org.reflections.scanners.ResourcesScanner;
 
 import java.security.InvalidParameterException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
@@ -362,7 +364,8 @@ public class DependencyNetwork {
     }
 
     public Individual[] gibbsSample(
-            HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed
+            HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed,
+            LocalDateTime start, Integer timeout
     ) throws Exception {
 
         Individual[] individuals = new Individual[sampleSize];
@@ -385,6 +388,12 @@ public class DependencyNetwork {
         int outer_invalid_streak = 0;
 
         while(individual_counter < sampleSize) {  // while there are still individuals to sample
+            LocalDateTime t1 = LocalDateTime.now();
+            boolean overTime = (timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > timeout);
+            if(overTime) {
+                break;
+            }
+
             HashMap<String, HashMap<String, String>> components = this.sampleIndividual(lastStart);
             HashMap<String, String> optionTable = components.get("optionTable");
             lastStart = components.get("lastStart");
@@ -395,7 +404,7 @@ public class DependencyNetwork {
             if(thinning_counter >= this.thinning_factor) {
                 try {
                     Individual individual = new Individual(optionTable, lastStart);
-                    Fitness thisIndFitness = fc.evaluateEnsemble(seed, individual, this.timeout_individual);
+                    Fitness thisIndFitness = fc.evaluateEnsemble(seed, individual, this.timeout_individual, false);
                     individual.setFitness(thisIndFitness);
 
                     individuals[individual_counter] = individual;
@@ -436,14 +445,12 @@ public class DependencyNetwork {
             }
         }
 
-        return individuals;
-
-//        return new HashMap<String, Object[]>(){{
-//            put("population", individuals);
-//            put("fitnesses", fitnesses);
-//            put("qualities", qualities);
-//            put("sizes", sizes);
-//        }};
+        // copies sampled individuals
+        Individual[] to_return =  new Individual [individual_counter];
+        for(int i = 0; i < individual_counter; i++) {
+            to_return[i] = individuals[i];
+        }
+        return to_return;
     }
 
     /**
@@ -798,7 +805,7 @@ public class DependencyNetwork {
                 }
                 candSet.removeAll(toRemove);
 
-                if(bestHeuristic >= 0.1) {  // TODO increased from 0 to 0.1!
+                if(bestHeuristic >= 0.1) {
                     this.currentGenMeanHeuristic = this.currentGenMeanHeuristic + bestHeuristic;
                     n_computed_amis = n_computed_amis + 1.0;
 

@@ -104,7 +104,7 @@ public class EDNEL extends AbstractClassifier {
         this.overallBest = this.currentGenBest;
 
         this.earlyStop = new EarlyStop(this.early_stop_generations, 0);
-        Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, null);
+        Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, null, true);
         this.currentGenBest.setFitness(baselineFitness);
 
         this.earlyStop.update(-1, this.currentGenBest);
@@ -118,19 +118,41 @@ public class EDNEL extends AbstractClassifier {
 
         for(int g = 0; g < this.n_generations; g++) {
             Individual[] sampled = dn.gibbsSample(
-                    this.currentGenBest.getCharacteristics(), to_sample, fc, this.seed
+                    this.currentGenBest.getCharacteristics(), to_sample, fc, this.seed, start, this.timeout
             );
             // removes old individuals
             int counter = 0;
-            for(int i = 0; i < to_select; i++) {
+
+            int carry_over = to_select;  // to select starts at zero and is updated later
+
+            // gibbs sampler didn't have time to finish running;
+            // probably means it is time to finish the process
+            if(sampled.length < to_sample) {
+                if(sampled.length == 0) {
+                    if(g == 0) {
+                        // don't have a previous generation nor a current one; time to say goodbye
+                        break;
+                    } else {
+                        // carries all individuals from last generation
+                        carry_over = population.length;
+                    }
+                } else {
+                    // carries more individuals from last generation to current
+                    carry_over = population.length - sampled.length;   // TODO untested!
+                }
+            }
+
+            for(int i = 0; i < carry_over; i++) {
                 population[counter] = population[sortedIndices[i]];
                 counter += 1;
             }
+
             // adds new population
-            for(int i = 0; i < to_sample; i++) {
+            for(int i = 0; i < sampled.length; i++) {
                 population[counter] = sampled[i];
                 counter += 1;
             }
+
             to_sample = (int)(this.selection_share * this.n_individuals);
             to_select = this.n_individuals - to_sample;
 
@@ -138,6 +160,8 @@ public class EDNEL extends AbstractClassifier {
             sortedIndices = PopulationSorter.lexicographicArgsort(population);
 
             this.currentGenBest = population[sortedIndices[0]];
+            Fitness currentGenBestFit = fc.getEnsembleValidationFitness(this.currentGenBest);
+            this.currentGenBest.setFitness(currentGenBestFit);
 
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {

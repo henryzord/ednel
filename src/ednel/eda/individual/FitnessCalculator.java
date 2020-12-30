@@ -147,11 +147,11 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(int seed, Individual ind) throws
-            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-        Random random = new Random(seed);
-        return this.evaluateEnsemble(random, ind, null);
-    }
+//    public Fitness evaluateEnsemble(int seed, Individual ind) throws
+//            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
+//        Random random = new Random(seed);
+//        return this.evaluateEnsemble(random, ind, null, false);
+//    }
 
     /**
      * Evaluates ensemble -- that is, returns the fitness function for this individual.
@@ -161,10 +161,10 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(Random random, Individual ind) throws
-            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-        return this.evaluateEnsemble(random, ind, null);
-    }
+//    public Fitness evaluateEnsemble(Random random, Individual ind) throws
+//            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
+//        return this.evaluateEnsemble(random, ind, null, false);
+//    }
 
     /**
      * Evaluates ensemble -- that is, returns the fitness function for this individual.
@@ -174,10 +174,10 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(int seed, Individual ind, Integer timeout_individual) throws
+    public Fitness evaluateEnsemble(int seed, Individual ind, Integer timeout_individual, boolean get_validation_fitness) throws
             EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
         Random random = new Random(seed);
-        return this.evaluateEnsemble(random, ind, timeout_individual);
+        return this.evaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
     }
 
     /**
@@ -188,19 +188,24 @@ public class FitnessCalculator {
      * @return
      * @throws Exception
      */
-    public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual) throws
+    public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual, boolean get_validation_fitness) throws
             EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
         double learnQuality = 0.0;
         int size = 0;
 
-        EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual);
-        t.start();
+        EvaluateValidationSetThread t = null;
+        if(get_validation_fitness) {
+            t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual);
+            t.start();
+        }
 
         Object[] trainEvaluations = IntStream.range(0, n_folds).parallel().mapToObj(
                 i -> FitnessCalculator.parallelFoldEvaluation(ind, learn_data, i, n_folds, random, timeout_individual)).toArray();
 
         // waits for evaluation of validation set to finish
-        t.join();
+        if(get_validation_fitness) {
+            t.join();
+        }
 
         for(Object val : trainEvaluations) {
             if(val instanceof Fitness) {
@@ -219,7 +224,11 @@ public class FitnessCalculator {
         learnQuality /= n_folds;
         size /= n_folds;
 
-        return new Fitness(size, learnQuality, t.getValQuality());
+        if(get_validation_fitness) {
+            return new Fitness(size, learnQuality, t.getValQuality());
+        } else {
+            return new Fitness(size, learnQuality);
+        }
     }
 
     public static Object parallelFoldEvaluation(
@@ -280,5 +289,12 @@ public class FitnessCalculator {
             System.err.println(e.getMessage());
         }
 
+    }
+
+    public Fitness getEnsembleValidationFitness(Individual ind) throws EmptyEnsembleException, NoAggregationPolicyException {
+        EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, null);
+        t.run();
+        Fitness fit = new Fitness(ind.getFitness().getSize(), ind.getFitness().getLearnQuality(), t.getValQuality());
+        return fit;
     }
 }

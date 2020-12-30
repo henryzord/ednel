@@ -8,8 +8,10 @@ import weka.core.Instances;
 
 import java.io.*;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 
 public class RunTrainingPieceTask implements Runnable, Callable {
@@ -89,6 +91,15 @@ public class RunTrainingPieceTask implements Runnable, Callable {
 
     private void core() {
         try {
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+            LocalDateTime now = LocalDateTime.now();
+            String str_time = dtf.format(now);
+
+            System.out.println(String.format(
+                    Locale.US,
+                    "%s: %s, %d, %d", str_time, this.dataset_name, this.n_sample, this.n_fold
+            ));
+
             HashMap<String, Instances> datasets = Main.loadDataset(
                     this.datasets_path,
                     this.dataset_name,
