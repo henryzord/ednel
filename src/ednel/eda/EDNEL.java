@@ -123,26 +123,11 @@ public class EDNEL extends AbstractClassifier {
             // removes old individuals
             int counter = 0;
 
-            int carry_over = to_select;  // to select starts at zero and is updated later
-
-            // gibbs sampler didn't have time to finish running;
-            // probably means it is time to finish the process
-            if(sampled.length < to_sample) {
-                if(sampled.length == 0) {
-                    if(g == 0) {
-                        // don't have a previous generation nor a current one; time to say goodbye
-                        break;
-                    } else {
-                        // carries all individuals from last generation
-                        carry_over = population.length;
-                    }
-                } else {
-                    // carries more individuals from last generation to current
-                    carry_over = population.length - sampled.length;   // TODO untested!
-                }
+            if((sampled.length < to_sample)) {
+                break;
             }
 
-            for(int i = 0; i < carry_over; i++) {
+            for(int i = 0; i < to_select; i++) {
                 population[counter] = population[sortedIndices[i]];
                 counter += 1;
             }

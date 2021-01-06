@@ -367,7 +367,6 @@ public class DependencyNetwork {
             HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed,
             LocalDateTime start, Integer timeout
     ) throws Exception {
-
         Individual[] individuals = new Individual[sampleSize];
 
         this.currentGenEvals = 0;
