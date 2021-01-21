@@ -1,9 +1,7 @@
 package ednel.eda.individual;
 
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
-import org.apache.commons.math3.random.MersenneTwister;
 import org.omg.CORBA.portable.UnknownException;
-import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;

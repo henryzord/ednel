@@ -7,7 +7,6 @@ import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.exception.MathArithmeticException;
 import org.apache.commons.math3.exception.NotANumberException;
 import org.apache.commons.math3.random.MersenneTwister;
-import smile.neighbor.lsh.Hash;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
