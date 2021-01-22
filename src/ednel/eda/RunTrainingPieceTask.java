@@ -37,6 +37,8 @@ public class RunTrainingPieceTask implements Runnable, Callable {
     private boolean hasCompleted = false;
     private boolean hasSetAnException = false;
 
+    private boolean logTest = false;
+
     /**
      * Runs a given fold of a 10-fold cross validation on EDNEL.
      *
@@ -57,6 +59,7 @@ public class RunTrainingPieceTask implements Runnable, Callable {
         this.n_fold = n_fold;
 
         this.log = Boolean.parseBoolean(cmd.get("log"));
+        this.logTest = Boolean.parseBoolean(cmd.get("log_test"));
 
         this.datasets_path = cmd.get("datasets_path");
 
@@ -66,7 +69,8 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                 Integer.parseInt(cmd.get("n_individuals")),
                 Integer.parseInt(cmd.get("n_generations")),
                 this.n_sample, this.n_fold,
-                this.log
+                this.log,
+                this.logTest
         );
 
         this.ednel = new EDNEL(
@@ -80,7 +84,6 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                 Integer.parseInt(cmd.get("thinning_factor")),
                 Boolean.parseBoolean(cmd.get("no_cycles")),
                 Integer.parseInt(cmd.get("early_stop_generations")),
-//                Float.parseFloat(commandLine.get("early_stop_tolerance", "0.001")),
                 Integer.parseInt(cmd.get("max_parents")),
                 Integer.parseInt(cmd.get("delay_structure_learning")),
                 pbilLogger,
@@ -95,10 +98,10 @@ public class RunTrainingPieceTask implements Runnable, Callable {
             LocalDateTime now = LocalDateTime.now();
             String str_time = dtf.format(now);
 
-            System.out.println(String.format(
+            System.out.printf(
                     Locale.US,
-                    "%s: %s, %d, %d", str_time, this.dataset_name, this.n_sample, this.n_fold
-            ));
+                    "%s: %s, %d, %d%n", str_time, this.dataset_name, this.n_sample, this.n_fold
+            );
 
             HashMap<String, Instances> datasets = Main.loadDataset(
                     this.datasets_path,
@@ -107,6 +110,10 @@ public class RunTrainingPieceTask implements Runnable, Callable {
             );
             this.train_data = datasets.get("train_data");
             this.test_data = datasets.get("test_data");
+
+            if(this.logTest) {
+                this.pbilLogger.setDatasets(train_data, null, null, test_data);
+            }
 
             this.ednel.buildClassifier(this.train_data);
 

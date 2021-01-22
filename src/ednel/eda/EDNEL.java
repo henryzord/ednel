@@ -97,7 +97,7 @@ public class EDNEL extends AbstractClassifier {
         Instances learn_data = train_data.trainCV(6, 1);
         learn_data = FitnessCalculator.betterStratifier(learn_data, 5);
 
-        pbilLogger.setDatasets(learn_data, val_data);
+        pbilLogger.setDatasets(null, learn_data, val_data, null);
         FitnessCalculator fc = new FitnessCalculator(5, learn_data, val_data);
 
         this.currentGenBest = new BaselineIndividual();
@@ -138,7 +138,7 @@ public class EDNEL extends AbstractClassifier {
                 counter += 1;
             }
 
-            to_sample = (int)(this.selection_share * this.n_individuals);
+            to_sample = (int)(this.n_individuals - (this.selection_share * this.n_individuals));
             to_select = this.n_individuals - to_sample;
 
 //            sortedIndices = Sorter.simpleSort(population);

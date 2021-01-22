@@ -1,4 +1,4 @@
-/**
+/*
  * Puts baseline algorithms to run on given datasets.
  *
  * Currently only supports Random Forest.

@@ -1,4 +1,4 @@
-/**
+/*
  * Tests whether EDNEL will run on a given list of datasets.
  *
  * To test datasets use the following instruction:

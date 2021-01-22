@@ -1,4 +1,4 @@
-/**
+/*
  * Randomly search hyper-parameters for a given classifier. Outputs results to file.
  */
 
