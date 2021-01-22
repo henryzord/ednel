@@ -207,8 +207,10 @@ public class PBILLogger {
         this.currentGenBestValFitness.add(last.getFitness().getValQuality());
 
         if(this.logTest) {
+            Individual copy = new Individual(this.last);
+            copy.buildClassifier(this.learn_data);
             Evaluation tEv = new Evaluation(this.learn_data);
-            tEv.evaluateModel(this.last, this.test_data);
+            tEv.evaluateModel(copy, this.test_data);
             this.testFitness.add(FitnessCalculator.getUnweightedAreaUnderROC(tEv));
         }
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
@@ -404,8 +406,9 @@ public class PBILLogger {
 
             // writes header
             bw.write(
-                    "gen,nevals,min,median,max," + (this.val_data != null? "currentGenBestValFitness," : "") +
-                            (this.logTest? "currentGenBestTestFitness" : "") +
+                    "gen,nevals,min,median,max," +
+                            (this.val_data != null? "currentGenBestValFitness," : "") +
+                            (this.logTest? "currentGenBestTestFitness," : "") +
                     "lap time (seconds),discarded individuals (including burn-in),GM connections,GM mean heuristic," +
                     "sampling order\n");
 
