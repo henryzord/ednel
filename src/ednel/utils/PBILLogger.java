@@ -2,12 +2,15 @@ package ednel.utils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import ednel.eda.individual.EmptyEnsembleException;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
+import ednel.eda.individual.NoAggregationPolicyException;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.core.Instance;
 import weka.core.Instances;
 
 import javax.annotation.processing.FilerException;
@@ -18,6 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -383,7 +387,43 @@ public class PBILLogger {
             }
         }
         bw.close();
+
+        this.predictions_to_file(individuals, train_data, test_data);
+
+
+
+
         return fitnesses;
+    }
+
+    private void predictions_to_file(
+            HashMap<String, Individual> individuals, Instances train_data, Instances test_data
+    ) throws Exception {
+        // TODO send matrix of predictions!
+        // test_data.instance(0).hashCode();
+
+        for(String indName : individuals.keySet()) {
+            String template = dataset_overall_path;
+            template = template.replace(".csv", String.format("_%s.json", indName));
+
+            FileWriter fw = new FileWriter(template);
+
+            Gson converter = new GsonBuilder().setPrettyPrinting().create();
+
+            HashMap<Integer, double[]> predictions = new HashMap<>();
+
+            Individual copy = new Individual(individuals.get(indName));
+            copy.buildClassifier(train_data);
+            for(int i = 0; i < test_data.size(); i++) {
+                Instance inst = test_data.instance(i);
+                double[] dist = copy.distributionForInstance(inst);
+                predictions.put(inst.hashCode(), dist);
+            }
+
+            fw.write(converter.toJson(predictions));
+            fw.flush();
+            fw.close();
+        }
     }
 
     public void toFile(
@@ -415,7 +455,8 @@ public class PBILLogger {
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
                         Locale.US,
-                        "%d,%d,%.8f,%.8f,%.8f,"  + (this.val_data != null? "%.8f," : "%s") +
+                        "%d,%d,%.8f,%.8f,%.8f,"  +
+                                (this.val_data != null? "%.8f," : "%s") +
                                 (this.logTest? "%.8f," : "%s") +
                                 "%04d,%04d,%04d,%.8f,%s\n",
                         i,
@@ -424,7 +465,7 @@ public class PBILLogger {
                         this.medianFitness.get(i),
                         this.maxFitness.get(i),
                         this.val_data != null? this.currentGenBestValFitness.get(i) : "",
-                        this.logTest? this.currentGenBestValFitness.get(i) : "",
+                        this.logTest? this.testFitness.get(i) : "",
                         this.lapTimes.get(i),
                         this.discardedIndividuals.get(i),
                         this.dnConnections.get(i),

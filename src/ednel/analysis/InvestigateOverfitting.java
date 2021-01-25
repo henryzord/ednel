@@ -6,7 +6,7 @@
 
   Usage:
 
-  java -classpath ednel.jar ednel.InvestigateOverfitting --datasets_path <datasets_path>
+  java -classpath ednel.jar ednel.analysis.InvestigateOverfitting --datasets_path <datasets_path>
   --datasets_names <datasets_name> --metadata_path <metadata_path> --n_generations <n_generations>
   --n_individuals <n_individuals> --n_samples <n_samples> --learning_rate <learning_rate>
   --selection_share <selection_share> --burn_in <burn_in> --thinning_factor <thinning_factor>
@@ -16,8 +16,9 @@
 
  */
 
-package ednel;
+package ednel.analysis;
 
+import ednel.Main;
 import ednel.eda.RunTrainingPieceTask;
 import ednel.utils.PBILLogger;
 import ednel.utils.operators.*;
