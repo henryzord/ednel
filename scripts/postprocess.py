@@ -121,7 +121,7 @@ def __get_relation__(path):
     :param path: Path pointing to folder with experiment results as a series of csv files.
     :return: A dataframe with the relation of experiment results as a dataframe.
     """
-    files = os.listdir(path)
+    files = [x for x in os.listdir(path) if '.csv' in x]
     df = pd.DataFrame(list(map(lambda x: x[:-len('.txt')].split('_'), files)),
                       columns=['dataset', 'sample', 'fold']).dropna()
     return df
