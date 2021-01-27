@@ -243,18 +243,9 @@ public class FitnessCalculator {
 
             copy.buildClassifier(local_train);
 
-//            if((timeout_individual != null) &&
-//                    ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > timeout_individual)) {
-//                throw new TimeoutException("Individual evaluation took longer than allowed time.");
-//            }
+            // TODO instead of returning an evaluation, return matrix of predictions!
+            // copy.distributionsForInstances(local_val);
             eval.evaluateModel(copy, local_val);
-
-//            double max_complexity = Math.ceil(
-//                    (Math.log(2 * train_data.size() - 1)/Math.log(2)) - 1
-//            );
-//            double this_solution_complexity = Math.min(Math.max(0, Math.ceil(
-//                    (Math.log(2 * copy.getNumberOfRules() - 1)/Math.log(2)) - 1
-//            )), max_complexity);
 
             return new Fitness(copy.getNumberOfRules(), getUnweightedAreaUnderROC(eval));
         } catch(Exception e) {
