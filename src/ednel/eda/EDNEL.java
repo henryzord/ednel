@@ -141,7 +141,6 @@ public class EDNEL extends AbstractClassifier {
             to_sample = (int)(this.n_individuals - (this.selection_share * this.n_individuals));
             to_select = this.n_individuals - to_sample;
 
-//            sortedIndices = Sorter.simpleSort(population);
             sortedIndices = PopulationSorter.lexicographicArgsort(population);
 
             this.currentGenBest = population[sortedIndices[0]];

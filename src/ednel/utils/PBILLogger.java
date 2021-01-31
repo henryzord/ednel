@@ -404,14 +404,8 @@ public class PBILLogger {
                 Instance inst = test_data.instance(i);
                 double[] dist = copy.distributionForInstance(inst);
 
-                bw.write(inst.classValue() + ";");
-                for(int j = 0; j < dist.length; j++) {
-                    bw.write(String.valueOf(dist[j]));
-                    if((j + 1) < dist.length) {
-                        bw.write(",");
-                    }
-                }
-                bw.write("\n");
+                String line = FitnessCalculator.writeLineProbabilities(inst.classValue(), dist);
+                bw.write(line);
             }
             bw.flush();
             bw.close();
