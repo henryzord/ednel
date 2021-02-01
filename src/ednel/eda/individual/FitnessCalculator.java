@@ -1,9 +1,8 @@
 package ednel.eda.individual;
 
+import ednel.analysis.FoldJoiner;
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
-import org.apache.commons.math3.random.MersenneTwister;
 import org.omg.CORBA.portable.UnknownException;
-import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.J48;
@@ -139,6 +138,20 @@ public class FitnessCalculator {
         return container;
     }
 
+    public static String writeLineProbabilities(double classValue, double[] dist) {
+        StringBuilder sb = new StringBuilder("");
+
+        sb.append(classValue).append(";");
+        for(int j = 0; j < dist.length; j++) {
+            sb.append(dist[j]);
+            if((j + 1) < dist.length) {
+                sb.append(",");
+            }
+        }
+        sb.append("\n");
+        return sb.toString();
+    }
+
     /**
      * Evaluates ensemble -- that is, returns the fitness function for this individual.
      *
@@ -190,9 +203,6 @@ public class FitnessCalculator {
      */
     public Fitness evaluateEnsemble(Random random, Individual ind, Integer timeout_individual, boolean get_validation_fitness) throws
             EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-        double learnQuality = 0.0;
-        int size = 0;
-
         EvaluateValidationSetThread t = null;
         if(get_validation_fitness) {
             t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual);
@@ -207,10 +217,13 @@ public class FitnessCalculator {
             t.join();
         }
 
+        ArrayList<String> all_lines = new ArrayList<>();
+        int size = 0;
+
         for(Object val : trainEvaluations) {
-            if(val instanceof Fitness) {
-                learnQuality += ((Fitness)val).getLearnQuality();
-                size += ((Fitness)val).getSize();
+            if(val instanceof PredictionsSizeContainer) {
+                all_lines.addAll(((PredictionsSizeContainer)val).getLines());
+                size += ((PredictionsSizeContainer)val).getNumberOfRules();
             } else if(val instanceof EmptyEnsembleException) {
                 throw (EmptyEnsembleException)val;
             } else if(val instanceof NoAggregationPolicyException) {
@@ -221,8 +234,14 @@ public class FitnessCalculator {
                 throw new UnknownException(((Exception)val));
             }
         }
-        learnQuality /= n_folds;
         size /= n_folds;
+        double learnQuality;
+        try {
+            FoldJoiner fj = new FoldJoiner(all_lines);
+            learnQuality = fj.getAUC();
+        } catch(Exception e) {
+            learnQuality = 0;
+        }
 
         if(get_validation_fitness) {
             return new Fitness(size, learnQuality, t.getValQuality());
@@ -235,30 +254,24 @@ public class FitnessCalculator {
             Individual ind, Instances train_data,
             int n_fold, int n_folds, Random random, Integer timeout_individual) {
         try {
-            LocalDateTime start = LocalDateTime.now();
+            // LocalDateTime start = LocalDateTime.now();
 
             Individual copy = new Individual(ind, timeout_individual);
-            Evaluation eval = new Evaluation(train_data);
+            // Evaluation eval = new Evaluation(train_data);
 
             Instances local_train = train_data.trainCV(n_folds, n_fold, random);
             Instances local_val = train_data.testCV(n_folds, n_fold);
 
             copy.buildClassifier(local_train);
 
-//            if((timeout_individual != null) &&
-//                    ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > timeout_individual)) {
-//                throw new TimeoutException("Individual evaluation took longer than allowed time.");
-//            }
-            eval.evaluateModel(copy, local_val);
-
-//            double max_complexity = Math.ceil(
-//                    (Math.log(2 * train_data.size() - 1)/Math.log(2)) - 1
-//            );
-//            double this_solution_complexity = Math.min(Math.max(0, Math.ceil(
-//                    (Math.log(2 * copy.getNumberOfRules() - 1)/Math.log(2)) - 1
-//            )), max_complexity);
-
-            return new Fitness(copy.getNumberOfRules(), getUnweightedAreaUnderROC(eval));
+            double[][] dists = copy.distributionsForInstances(local_val);
+            ArrayList<String> lines = new ArrayList<>(dists.length);
+            for(int i = 0; i < local_val.size(); i++) {
+                lines.add(writeLineProbabilities(local_val.instance(i).classValue(), dists[i]));
+            }
+            return new PredictionsSizeContainer(copy.getNumberOfRules(), lines);
+            // eval.evaluateModel(copy, local_val);
+            // return new Fitness(copy.getNumberOfRules(), getUnweightedAreaUnderROC(eval));
         } catch(Exception e) {
             return e;
         }

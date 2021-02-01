@@ -8,6 +8,7 @@ import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.core.Instance;
 import weka.core.Instances;
 
 import javax.annotation.processing.FilerException;
@@ -23,10 +24,11 @@ import java.util.zip.ZipOutputStream;
 
 public class PBILLogger {
 
-    private final String dataset_name;
-    protected final String dataset_overall_path;
-    protected final String this_run_path;
-    protected final String dataset_metadata_path;
+    protected String dataset_name;
+    protected String dataset_overall_path;
+    protected String this_run_path;
+    protected String dataset_metadata_path;
+    private boolean logTest;
 
     protected HashMap<String,  // generation
             HashMap<String, // child variable
@@ -39,10 +41,10 @@ public class PBILLogger {
     protected Individual last;
     protected Individual overall;
 
-    protected final int n_sample;
-    protected final int n_fold;
-    protected final int n_individuals;
-    protected final boolean log;
+    protected int n_sample;
+    protected int n_fold;
+    protected int n_individuals;
+    protected boolean log;
 
     protected int curGen;
 
@@ -56,9 +58,12 @@ public class PBILLogger {
 
     protected HashMap<String, String> pastPopulations = null;
 
+    private Instances train_data;
     private Instances learn_data;
     private Instances val_data;
+    private Instances test_data;
     private ArrayList<Double> currentGenBestValFitness;
+    private ArrayList<Double> testFitness;
 
     /** Column names as displayed in stdout during evolution */
     public static final String[] column_names = {"dataset", " gen", "nevals", "min", "median", "max",
@@ -122,7 +127,7 @@ public class PBILLogger {
      */
     public PBILLogger(
             String dataset_name, String dataset_metadata_path,
-            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log
+            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log, boolean logTest
     ) {
         this.dataset_name = dataset_name;
         this.n_sample = n_sample;
@@ -133,6 +138,7 @@ public class PBILLogger {
         this.currentGenBestValFitness = null;
 
         this.log = log;
+        this.logTest = logTest;
         if(this.log) {
             this.pastPopulations = new HashMap<>(n_generations * n_individuals * 50);
             this.pastDependencyStructures = new HashMap<>(n_generations * 50);
@@ -165,10 +171,10 @@ public class PBILLogger {
 
     public PBILLogger(
             String dataset_name, String dataset_metadata_path,
-            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log,
+            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log, boolean logTest,
             Instances learn_data, Instances val_data
     ) {
-        this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log);
+        this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log, logTest);
         this.learn_data = learn_data;
         this.val_data = val_data;
         this.currentGenBestValFitness = new ArrayList<>();
@@ -201,6 +207,13 @@ public class PBILLogger {
 
         this.currentGenBestValFitness.add(last.getFitness().getValQuality());
 
+        if(this.logTest) {
+            Individual copy = new Individual(this.last);
+            copy.buildClassifier(this.learn_data);
+            Evaluation tEv = new Evaluation(this.learn_data);
+            tEv.evaluateModel(copy, this.test_data);
+            this.testFitness.add(FitnessCalculator.getUnweightedAreaUnderROC(tEv));
+        }
         this.lapTimes.add((int)t1.until(t2, ChronoUnit.SECONDS));
 
         this.logPopulation(sortedIndices, population);
@@ -371,7 +384,32 @@ public class PBILLogger {
             }
         }
         bw.close();
+
+        this.predictions_to_file(individuals, train_data, test_data);
         return fitnesses;
+    }
+
+    private void predictions_to_file(
+            HashMap<String, Individual> individuals, Instances train_data, Instances test_data
+    ) throws Exception {
+        for(String indName : individuals.keySet()) {
+            String template = dataset_overall_path;
+            template = template.replace(".csv", String.format("_%s.preds", indName));
+
+            BufferedWriter bw = new BufferedWriter(new FileWriter(template));
+            
+            Individual copy = new Individual(individuals.get(indName));
+            copy.buildClassifier(train_data);
+            for(int i = 0; i < test_data.size(); i++) {
+                Instance inst = test_data.instance(i);
+                double[] dist = copy.distributionForInstance(inst);
+
+                String line = FitnessCalculator.writeLineProbabilities(inst.classValue(), dist);
+                bw.write(line);
+            }
+            bw.flush();
+            bw.close();
+        }
     }
 
     public void toFile(
@@ -394,14 +432,18 @@ public class PBILLogger {
 
             // writes header
             bw.write(
-                    "gen,nevals,min,median,max," + (this.val_data != null? "currentGenBestValFitness," : "") +
+                    "gen,nevals,min,median,max," +
+                            (this.val_data != null? "currentGenBestValFitness," : "") +
+                            (this.logTest? "currentGenBestTestFitness," : "") +
                     "lap time (seconds),discarded individuals (including burn-in),GM connections,GM mean heuristic," +
                     "sampling order\n");
 
             for(int i = 0; i < this.curGen; i++) {
                 bw.write(String.format(
                         Locale.US,
-                        "%d,%d,%.8f,%.8f,%.8f,"  + (this.val_data != null? "%.8f," : "%s") +
+                        "%d,%d,%.8f,%.8f,%.8f,"  +
+                                (this.val_data != null? "%.8f," : "%s") +
+                                (this.logTest? "%.8f," : "%s") +
                                 "%04d,%04d,%04d,%.8f,%s\n",
                         i,
                         this.nevals.get(i),
@@ -409,6 +451,7 @@ public class PBILLogger {
                         this.medianFitness.get(i),
                         this.maxFitness.get(i),
                         this.val_data != null? this.currentGenBestValFitness.get(i) : "",
+                        this.logTest? this.testFitness.get(i) : "",
                         this.lapTimes.get(i),
                         this.discardedIndividuals.get(i),
                         this.dnConnections.get(i),
@@ -593,9 +636,21 @@ public class PBILLogger {
         System.out.println();
     }
 
-    public void setDatasets(Instances train_data, Instances test_data) {
-        this.learn_data = train_data;
-        this.val_data = test_data;
+    public void setDatasets(Instances train_data, Instances learn_data, Instances val_data, Instances test_data) {
+        if(train_data != null) {
+            this.train_data = train_data;
+        }
+
+        if(learn_data != null) {
+            this.learn_data = learn_data;
+        }
+        if(val_data != null) {
+            this.val_data = val_data;
+        }
+        if(test_data != null) {
+            this.test_data = test_data;
+            this.testFitness = new ArrayList<>();
+        }
         this.currentGenBestValFitness = new ArrayList<>();
     }
 
