@@ -145,7 +145,8 @@ public class Main {
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Fraction of fittest population to use to update graphical model")
+                .desc("Fraction of population that should be resampled in the next generation. Assume " +
+                        "population_size - (population_size * selection_share) as the fraction that updates GM.")
                 .build());
 
         options.addOption(Option.builder()

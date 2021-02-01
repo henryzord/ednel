@@ -136,7 +136,7 @@ def plot_search_space(df, characteristics):
     # plt.show()
 
 
-def interpret_search(results_path):
+def interpret_search(results_path: str, max_draws: int):
     files = [x for x in os.listdir(results_path) if (not os.path.isdir(os.path.join(results_path, x)) and x.split('.')[-1] == 'csv')]
 
     with open(os.path.join(results_path, 'script_experiments.sh'), 'w') as ff:
@@ -146,6 +146,8 @@ def interpret_search(results_path):
                    "--string_characteristics \"<string_characteristics>\" --n_samples <n_samples>"
 
         for i, some_file in enumerate(files):
+            print('file: %s' % os.path.join(results_path, some_file))
+
             df = pd.read_csv(os.path.join(results_path, some_file))
             if len(df['classifier'].unique()) > 1:
                 raise ValueError('%s table must have at most one classifier!' % os.path.join(results_path, some_file))
@@ -159,22 +161,36 @@ def interpret_search(results_path):
 
             # gets name of draws that were complete
             to_drop_draws = count.loc[count.values != count.max()].index.get_level_values(0).values.tolist()
+            set_draws = set(df['n_draw'].unique()) - set(to_drop_draws)
+            if len(set_draws) > max_draws:
+                to_drop_draws.extend(np.random.choice(list(set_draws), replace=False, size=len(set_draws) - max_draws))
 
             if len(to_drop_draws) > 0:
                 zipped = list(it.product([clf_name], to_drop_draws))
                 # to_drop_indices = pd.MultiIndex.from_product([clf_name], to_drop_draws)
                 to_drop_indices = pd.MultiIndex.from_tuples(zipped)
                 proper = proper.drop(to_drop_indices)
-                print('removed %d draws in file %s for being incomplete' % (len(zipped), some_file), file=sys.stderr)
-                print('removed draws: [%s]' % ','.join(map(str, to_drop_draws)), file=sys.stderr)
+                # print('removed %d draws in file %s for being incomplete' % (len(zipped), some_file), file=sys.stderr)
+                print('removed %d draws: [%s]' % (len(to_drop_draws), ','.join(map(str, to_drop_draws))), file=sys.stderr)
 
             best_draw = proper['unweighted_area_under_roc']['mean'].idxmax()[1]
-            print('best draw: %d AUC: %f File: %s' % (
-                    best_draw,
+            print('Classifier: %s AUC: %f best draw: %d' % (
+                    clf_name,
                     proper['unweighted_area_under_roc']['mean'].max(),
-                    os.path.join(results_path, some_file)
+                    best_draw
                 )
             )
+
+            # print('string to use:')
+            # print(
+            #     'java -classpath ednel.jar ednel.RandomSearchApply --datasets_path <datasets_path> '
+            #     '--datasets_names NOT_%s --metadata_path <metadata_path> --string_options \"-%s %s\" '
+            #     '--string_characteristics \"%s\" --n_samples <n_samples>' % (
+            #         clf_name,
+            #         df.loc[df['n_draw'] == best_draw]['options'].values[0],
+            #         df.loc[df['n_draw'] == best_draw]['characteristics'].values[0],
+            #     )
+            # )
 
             tt = deepcopy(template)
             tt = tt.replace('<string_options>', '-%s %s' % (clf_name, df.loc[df['n_draw'] == best_draw].iloc[0]['options']))
@@ -191,6 +207,8 @@ def interpret_apply(results_path):
     files = [x for x in os.listdir(results_path) if
              (not os.path.isdir(os.path.join(results_path, x)) and x.split('.')[-1] == 'csv')]
 
+    dict_dataframes = dict()
+
     for some_file in files:
         df = pd.read_csv(os.path.join(results_path, some_file))
 
@@ -198,8 +216,28 @@ def interpret_apply(results_path):
         alg_names = np.unique(list(map(lambda x: x.split('=')[0].split('_')[0], characteristics)))
 
         grouped = df.groupby(by=['dataset_name']).agg([np.mean, np.std])
-        print('activated classifiers: %s file: %s' % (','.join(alg_names), some_file))
+
+        this_hash = hash(','.join(grouped.index))
+        active_classifiers = ','.join(alg_names)
+
+        if this_hash not in dict_dataframes:
+            dict_dataframes[this_hash] = list()
+        dict_dataframes[this_hash] += [(active_classifiers, grouped[['unweighted_area_under_roc']])]
+
+        print('activate classifiers: %s file: %s' % (active_classifiers, some_file))
         print(grouped[['unweighted_area_under_roc']])
+
+    for k in dict_dataframes.keys():
+        collapsed = None
+
+        for i, (clf_name, data) in enumerate(dict_dataframes[k]):
+            data.columns = [clf_name + '_mean', clf_name + '_std']
+            if i == 0:
+                collapsed = data
+            else:
+                collapsed = collapsed.join(data)
+
+        collapsed.to_csv(os.path.join(results_path, str(k) + '.csv'))
 
 
 if __name__ == '__main__':
@@ -223,10 +261,17 @@ if __name__ == '__main__':
         help='Path to where hyper-parametrizations for EDNEL will be written.'
     )
 
+    parser.add_argument(
+        '--max-draws', action='store', required=False, type=int,
+        help='Maximum number of draws to use per file. For example, if 25 draws are present, but one wish to use only '
+             '10 (e.g. one of the baseline algorithms did not complete all draws), then 10 draws will be randomly '
+             'sampled from the 25 group.'
+    )
+
     args = parser.parse_args()
 
     if args.search_results_path is not None:
-        interpret_search(results_path=args.search_results_path)
+        interpret_search(results_path=args.search_results_path, max_draws=args.max_draws)
     elif args.apply_results_path is not None:
         interpret_apply(results_path=args.apply_results_path)
     elif args.ednel_search_output is not None:
