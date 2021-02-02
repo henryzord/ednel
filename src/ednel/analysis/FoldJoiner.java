@@ -47,6 +47,9 @@ public class FoldJoiner {
             double actualClass = Double.parseDouble(splitted[0]);
             actualClasses.put(counter, actualClass);
 
+            classValues.add(actualClass);
+            someInstances.add(new DenseInstance(1, new double[]{(double) counter, actualClass}));
+
             for(int j = 1; j < splitted.length; j++) {
                 if(splitted[j].length() > 0) {
                     String[] strProbs = splitted[j].split(",");
@@ -62,8 +65,6 @@ public class FoldJoiner {
                     thisClfProbabilities.put(counter, null);
                     probabilities.add(j - 1, thisClfProbabilities);
                 }
-                classValues.add(actualClass);
-                someInstances.add(new DenseInstance(1, new double[]{(double) counter, actualClass}));
             }
 
             counter += 1;
@@ -119,5 +120,13 @@ public class FoldJoiner {
         Evaluation eval = new Evaluation(this.dummyDataset);
         eval.evaluateModel(this.dummyClassifiers.get(clfName), this.dummyDataset);
         return FitnessCalculator.getUnweightedAreaUnderROC(eval);
+    }
+
+    public HashMap<String, DummyClassifier> getDummyClassifiers() {
+        return dummyClassifiers;
+    }
+
+    public Instances getDummyDataset() {
+        return this.dummyDataset;
     }
 }

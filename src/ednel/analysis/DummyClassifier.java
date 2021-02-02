@@ -26,7 +26,13 @@ public class DummyClassifier extends AbstractClassifier {
 
     @Override
     public double classifyInstance(Instance instance) throws Exception {
-        double[] probs = this.compiledPredictions.get((int)instance.value(0));
+        int key = (int)instance.value(0);
+
+        if(!this.compiledPredictions.containsKey(key)) {
+            throw new Exception("classifier is not present for all folds for this individual");
+        }
+
+        double[] probs = this.compiledPredictions.get(key);
         double max = Double.NEGATIVE_INFINITY;
         int argmax = -1;
         for(int i = 0; i < probs.length; i++) {
@@ -42,7 +48,7 @@ public class DummyClassifier extends AbstractClassifier {
     public double[] distributionForInstance(Instance instance) throws Exception {
         int key = (int)instance.value(0);
 
-        if(this.compiledPredictions.containsKey(key)) {
+        if(!this.compiledPredictions.containsKey(key)) {
             throw new Exception("classifier is not present for all folds for this individual");
         }
         return this.compiledPredictions.get(key).clone();

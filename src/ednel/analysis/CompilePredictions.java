@@ -1,7 +1,9 @@
 package ednel.analysis;
 
 import ednel.eda.individual.FitnessCalculator;
+import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
@@ -85,9 +87,25 @@ public class CompilePredictions {
 
         HashMap<String, ArrayList<String>> filePreds = collectFiles(cmd.getOptionValue("path_predictions"));
 
+        // TODO produce all metrics
+
+        HashMap<String, AbstractClassifier> all_classifiers = new HashMap<>();
+
+        Instances dummyDataset = null;
+
         for(String indName : filePreds.keySet()) {
             FoldJoiner fj = new FoldJoiner(filePreds.get(indName), cmd.getOptionValue("path_predictions"));
-            System.out.println("AUC for individual " + indName + " " + fj.getAUC("ensemble"));
+            dummyDataset = fj.getDummyDataset();
+            HashMap<String, DummyClassifier> dummyClassifiers = fj.getDummyClassifiers();
+
+            for(String key : dummyClassifiers.keySet()) {
+                if(!key.contains("ensemble")) {
+                    all_classifiers.put(indName + "-" + key, dummyClassifiers.get(key));
+                } else {
+                    all_classifiers.put(indName, dummyClassifiers.get(key));
+                }
+            }
         }
+        PBILLogger.newEvaluationsToFile(all_classifiers, dummyDataset, cmd.getOptionValue("path_predictions"));
     }
 }

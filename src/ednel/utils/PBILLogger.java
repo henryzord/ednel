@@ -292,7 +292,7 @@ public class PBILLogger {
         }
     }
 
-    private String getEvaluationLineForClassifier(String name, Evaluation evaluation) throws Exception {
+    private static String getEvaluationLineForClassifier(String name, Evaluation evaluation) throws Exception {
 
         String line = name;
 
@@ -344,7 +344,7 @@ public class PBILLogger {
         return line + "," + (evaluation != null? FitnessCalculator.getUnweightedAreaUnderROC(evaluation) : "") + "\n";
     }
 
-    private Double[] evaluationsToFile(
+    private Double[] deprecatedEvaluationsToFile(
             HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
 
         BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
@@ -366,7 +366,7 @@ public class PBILLogger {
             evaluation = new Evaluation(train_data);
             evaluation.evaluateModel(individuals.get(indName), test_data);
 
-            bw.write(this.getEvaluationLineForClassifier(indName, evaluation));
+            bw.write(PBILLogger.getEvaluationLineForClassifier(indName, evaluation));
 
             HashMap<String, AbstractClassifier> indClassifiers = individuals.get(indName).getClassifiers();
 
@@ -380,13 +380,51 @@ public class PBILLogger {
                     fitnesses[i] = 0.0;
                     evaluation = null;
                 }
-                bw.write(this.getEvaluationLineForClassifier(indName + "-" + key, evaluation));
+                bw.write(PBILLogger.getEvaluationLineForClassifier(indName + "-" + key, evaluation));
             }
         }
         bw.close();
 
         this.predictions_to_file(individuals, train_data, test_data);
         return fitnesses;
+    }
+
+    /**
+     * In this version, classifiers are already trained.
+     *
+     * @param individuals
+     * @param wholeDataset
+     * @param output_path
+     * @throws Exception
+     */
+    public static void newEvaluationsToFile(
+            HashMap<String, AbstractClassifier> individuals, Instances wholeDataset, String output_path) throws Exception {
+
+        BufferedWriter bw = new BufferedWriter(new FileWriter(output_path + File.separator + "summary_1.csv"));
+
+        // writes header
+        String header = "algorithm";
+        for(String methodName : metricsToCollect) {
+            header += "," + methodName;
+        }
+        bw.write(header + "," + "unweightedAreaUnderRoc" + "\n");
+
+        Evaluation evaluation;
+
+        Object[] indNames = individuals.keySet().toArray();
+
+        for(int i = 0; i < indNames.length; i++) {
+            String indName = (String)indNames[i];
+            evaluation = new Evaluation(wholeDataset);
+            try {
+                evaluation.evaluateModel(individuals.get(indName), wholeDataset);
+            } catch(Exception e) {
+                evaluation = null;
+            } finally {
+                bw.write(PBILLogger.getEvaluationLineForClassifier(indName, evaluation));
+            }
+        }
+        bw.close();
     }
 
     /**
@@ -442,7 +480,7 @@ public class PBILLogger {
             DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data
     ) throws Exception {
 
-        Double[] fitnesses = evaluationsToFile(individuals, train_data, test_data);
+        Double[] fitnesses = deprecatedEvaluationsToFile(individuals, train_data, test_data);
         PBILLogger.createFolder(this_run_path);
         individualsCharacteristicsToFile(individuals, fitnesses);
         individualsClassifiersToFile(individuals);
