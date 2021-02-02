@@ -32,25 +32,25 @@ public class CompilePredictions {
                 .build()
         );
 
-        options.addOption(Option.builder()
-                .required(true)
-                .longOpt("datasets_path")
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Path to folder where all datasets are stored")
-                .build()
-        );
-
-        options.addOption(Option.builder()
-                .required(true)
-                .longOpt("dataset_name")
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Path to folder where all datasets are stored")
-                .build()
-        );
+//        options.addOption(Option.builder()
+//                .required(true)
+//                .longOpt("datasets_path")
+//                .type(String.class)
+//                .hasArg()
+//                .numberOfArgs(1)
+//                .desc("Path to folder where all datasets are stored")
+//                .build()
+//        );
+//
+//        options.addOption(Option.builder()
+//                .required(true)
+//                .longOpt("dataset_name")
+//                .type(String.class)
+//                .hasArg()
+//                .numberOfArgs(1)
+//                .desc("Path to folder where all datasets are stored")
+//                .build()
+//        );
 
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
@@ -87,7 +87,7 @@ public class CompilePredictions {
 
         for(String indName : filePreds.keySet()) {
             FoldJoiner fj = new FoldJoiner(filePreds.get(indName), cmd.getOptionValue("path_predictions"));
-            System.out.println("AUC for individual " + indName + " " + fj.getAUC());
+            System.out.println("AUC for individual " + indName + " " + fj.getAUC("ensemble"));
         }
     }
 }

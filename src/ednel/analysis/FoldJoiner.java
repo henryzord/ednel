@@ -8,6 +8,7 @@ import weka.core.Instance;
 import weka.core.Instances;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,33 +17,58 @@ import java.util.HashSet;
 public class FoldJoiner {
 
     protected Instances dummyDataset;
-    protected DummyClassifier dummyClassifier;
+    protected HashMap<String, DummyClassifier> dummyClassifiers;
 
     public FoldJoiner(ArrayList<String> lines) {
-        HashMap<Integer, double[]> probabilities = new HashMap<>();
-        HashMap<Integer, Double> actualClasses = new HashMap<>();
-
+        // some instances is the dataset that is built to emulate classification based on predictions of classifiers
         ArrayList<Instance> someInstances = new ArrayList<>();
+        // actual classes are the actual classes of instances in the list of lines
+        HashMap<Integer, Double> actualClasses = new HashMap<>();
+        // set of un-repeated class values
         HashSet<Double> classValues = new HashSet<>();
 
+        String[] header = lines.get(0).replace("\n", "").split(";");
+        ArrayList<String> clfsNames = new ArrayList<>();
+        ArrayList<HashMap<Integer, double[]>> probabilities = new ArrayList<>();
+
+        for(int i = 1; i < header.length; i++) {
+            clfsNames.add(header[i]);
+            probabilities.add(new HashMap<>());
+        }
+
         int counter = 0;
-        for(String line : lines) {
-            String[] splitted = line.split(";");
-            double actualClass = Double.parseDouble(splitted[0]);
-            String[] strProbs = splitted[1].split(",");
-            double[] probs = new double[strProbs.length];
-            for (int j = 0; j < strProbs.length; j++) {
-                probs[j] = Double.parseDouble(strProbs[j]);
+        for(int i = 1; i < lines.size(); i++) {
+            if(lines.get(i).contains("classValue")) {
+                continue;
             }
-            probabilities.put(counter, probs);
+
+            String[] splitted = lines.get(i).replace("\n", "").split(";");
+
+            double actualClass = Double.parseDouble(splitted[0]);
             actualClasses.put(counter, actualClass);
-            DenseInstance inst = new DenseInstance(1, new double[]{(double) counter, actualClass});
-            classValues.add(actualClass);
-            someInstances.add(inst);
+
+            for(int j = 1; j < splitted.length; j++) {
+                if(splitted[j].length() > 0) {
+                    String[] strProbs = splitted[j].split(",");
+                    double[] probs = new double[strProbs.length];
+                    for (int k = 0; k < strProbs.length; k++) {
+                        probs[k] = Double.parseDouble(strProbs[k]);
+                    }
+                    HashMap<Integer, double[]> thisClfProbabilities = probabilities.remove(j - 1);
+                    thisClfProbabilities.put(counter, probs);
+                    probabilities.add(j - 1, thisClfProbabilities);
+                } else {  // adds null because this classifier is not present for this fold. statistics for this classifier will not be present
+                    HashMap<Integer, double[]> thisClfProbabilities = probabilities.remove(j - 1);
+                    thisClfProbabilities.put(counter, null);
+                    probabilities.add(j - 1, thisClfProbabilities);
+                }
+                classValues.add(actualClass);
+                someInstances.add(new DenseInstance(1, new double[]{(double) counter, actualClass}));
+            }
 
             counter += 1;
         }
-        this.interpretData(someInstances, classValues, probabilities);
+        this.interpretData(someInstances, classValues, clfsNames, probabilities);
     }
 
     public FoldJoiner(ArrayList<String> files, String path_predictions) throws Exception {
@@ -63,10 +89,9 @@ public class FoldJoiner {
 
     protected void interpretData(
             ArrayList<Instance> someInstances, HashSet<Double> classValues,
-            HashMap<Integer, double[]> probabilities
+            ArrayList<String> clfNames, ArrayList<HashMap<Integer, double[]>> probabilities
     ) {
-        this.dummyClassifier = new DummyClassifier(probabilities);
-
+        // builds dummyDataset
         ArrayList<String> classValuesAL = new ArrayList<>();
         for(Double ob : classValues) {
             classValuesAL.add(ob.toString());
@@ -77,15 +102,22 @@ public class FoldJoiner {
             add(new Attribute("predictive"));
             add(new Attribute("class", classValuesAL));
         }};
+
         this.dummyDataset = new Instances("dummy dataset", attrInfo, someInstances.size());
         this.dummyDataset.addAll(someInstances);
         this.dummyDataset.setClassIndex(this.dummyDataset.numAttributes() - 1);
+
+        // builds dummyClassifiers
+
+        this.dummyClassifiers = new HashMap<>();
+        for(int i = 0; i < clfNames.size(); i++) {
+            this.dummyClassifiers.put(clfNames.get(i), new DummyClassifier(probabilities.get(i)));
+        }
     }
 
-    public double getAUC() throws Exception {
+    public double getAUC(String clfName) throws Exception {
         Evaluation eval = new Evaluation(this.dummyDataset);
-        eval.evaluateModel(this.dummyClassifier, this.dummyDataset);
-
+        eval.evaluateModel(this.dummyClassifiers.get(clfName), this.dummyDataset);
         return FitnessCalculator.getUnweightedAreaUnderROC(eval);
     }
 }

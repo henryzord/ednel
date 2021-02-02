@@ -50,6 +50,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     protected HashMap<String, String> characteristics = null;
 
     protected HashMap<String, AbstractClassifier> classifiers;
+    protected String[] orderedClassifiersNames = null;
     protected AbstractClassifier[] orderedClassifiers = null;
 
     protected HashMap<String, String> optionTable;
@@ -91,6 +92,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
         }
 
 //        this.orderedClassifiers = new AbstractClassifier[]{j48, simpleCart, part, jrip, decisionTable};
+        this.orderedClassifiersNames = new String[]{"JRip", "DecisionTable", "J48", "PART", "SimpleCart"};
         this.orderedClassifiers = new AbstractClassifier[]{jrip, decisionTable, j48, part, simpleCart};
         this.setOptions(options);
     }
@@ -244,6 +246,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             throw new EmptyEnsembleException("no classifier present in this ensemble!");
         }
 
+        this.orderedClassifiersNames = new String[]{"JRip", "DecisionTable", "J48", "PART", "SimpleCart"};
         this.orderedClassifiers = new AbstractClassifier[]{jrip, decisionTable, j48, part, simpleCart};
         this.classifiers.put("J48", this.j48);
         this.classifiers.put("SimpleCart", this.simpleCart);
@@ -639,6 +642,14 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
             return Integer.compare(o.getFitness().getSize(), this.getFitness().getSize());
         }
         return res;
+    }
+
+    public String[] getOrderedClassifiersNames() {
+        return orderedClassifiersNames;
+    }
+
+    public AbstractClassifier[] getOrderedClassifiers() {
+        return this.orderedClassifiers;
     }
 }
 

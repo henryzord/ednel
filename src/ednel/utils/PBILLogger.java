@@ -389,6 +389,15 @@ public class PBILLogger {
         return fitnesses;
     }
 
+    /**
+     * Writes to a .preds file the predictions of this run of EDNEL.
+     * The adopted structure is csv-like.
+     *
+     * @param individuals Each individual will generate a .preds file, named after the fold of this experiment.
+     * @param train_data Training data, used to train individuals.
+     * @param test_data Test data, that the individuals will make predictions on.
+     * @throws Exception If anything bad happens
+     */
     private void predictions_to_file(
             HashMap<String, Individual> individuals, Instances train_data, Instances test_data
     ) throws Exception {
@@ -397,15 +406,32 @@ public class PBILLogger {
             template = template.replace(".csv", String.format("_%s.preds", indName));
 
             BufferedWriter bw = new BufferedWriter(new FileWriter(template));
-            
+
             Individual copy = new Individual(individuals.get(indName));
             copy.buildClassifier(train_data);
+
+            String[] orderedClassifiersNames = copy.getOrderedClassifiersNames();
+            AbstractClassifier[] orderedClassifiers = copy.getOrderedClassifiers();
+            // writes header
+            bw.write("classValue;");
+            for(int i = 0; i < orderedClassifiers.length; i++) {
+                bw.write(orderedClassifiersNames[i] + ";");
+            }
+            bw.write("ensemble\n");
+
             for(int i = 0; i < test_data.size(); i++) {
                 Instance inst = test_data.instance(i);
-                double[] dist = copy.distributionForInstance(inst);
 
-                String line = FitnessCalculator.writeLineProbabilities(inst.classValue(), dist);
-                bw.write(line);
+                bw.write(inst.classValue() + ";");
+
+                for(int j = 0; j < orderedClassifiers.length; j++) {
+                    if(orderedClassifiers[j] != null) {
+                        bw.write(FitnessCalculator.writeDistributionOfProbabilities(orderedClassifiers[j].distributionForInstance(inst)) + ";");
+                    } else {
+                        bw.write(";");
+                    }
+                }
+                bw.write(FitnessCalculator.writeDistributionOfProbabilities(copy.distributionForInstance(inst)) + "\n");
             }
             bw.flush();
             bw.close();

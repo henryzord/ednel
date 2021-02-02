@@ -12,7 +12,6 @@ import weka.core.UnassignedClassException;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -138,17 +137,15 @@ public class FitnessCalculator {
         return container;
     }
 
-    public static String writeLineProbabilities(double classValue, double[] dist) {
+    public static String writeDistributionOfProbabilities(double[] dist) {
         StringBuilder sb = new StringBuilder("");
 
-        sb.append(classValue).append(";");
         for(int j = 0; j < dist.length; j++) {
             sb.append(dist[j]);
             if((j + 1) < dist.length) {
                 sb.append(",");
             }
         }
-        sb.append("\n");
         return sb.toString();
     }
 
@@ -238,7 +235,7 @@ public class FitnessCalculator {
         double learnQuality;
         try {
             FoldJoiner fj = new FoldJoiner(all_lines);
-            learnQuality = fj.getAUC();
+            learnQuality = fj.getAUC("ensemble");
         } catch(Exception e) {
             learnQuality = 0;
         }
@@ -266,8 +263,9 @@ public class FitnessCalculator {
 
             double[][] dists = copy.distributionsForInstances(local_val);
             ArrayList<String> lines = new ArrayList<>(dists.length);
+            lines.add("classValue;ensemble\n");
             for(int i = 0; i < local_val.size(); i++) {
-                lines.add(writeLineProbabilities(local_val.instance(i).classValue(), dists[i]));
+                lines.add(local_val.instance(i).classValue() + ";" + FitnessCalculator.writeDistributionOfProbabilities(dists[i]) + "\n");
             }
             return new PredictionsSizeContainer(copy.getNumberOfRules(), lines);
             // eval.evaluateModel(copy, local_val);

@@ -1,5 +1,7 @@
 package ednel.analysis;
 
+import org.apache.commons.math3.analysis.function.Exp;
+import sun.reflect.annotation.ExceptionProxy;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instance;
 import weka.core.Instances;
@@ -38,7 +40,12 @@ public class DummyClassifier extends AbstractClassifier {
 
     @Override
     public double[] distributionForInstance(Instance instance) throws Exception {
-        return this.compiledPredictions.get((int)instance.value(0)).clone();
+        int key = (int)instance.value(0);
+
+        if(this.compiledPredictions.containsKey(key)) {
+            throw new Exception("classifier is not present for all folds for this individual");
+        }
+        return this.compiledPredictions.get(key).clone();
     }
 
     @Override
