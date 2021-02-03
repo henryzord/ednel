@@ -6,6 +6,8 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
+import org.apache.commons.math3.stat.descriptive.moment.Mean;
+import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Instance;
@@ -292,6 +294,67 @@ public class PBILLogger {
         }
     }
 
+    private static HashMap<String, Double> writeLineAndGetStatistics(String name, Evaluation evaluation, BufferedWriter bw) throws Exception {
+        StringBuilder line = new StringBuilder(name);
+
+        HashMap<String, Double> statistics = new HashMap<>();
+
+        Method[] overallMethods = null;
+        HashMap<String, Method> overallMethodDict = null;
+
+        if(evaluation != null) {
+            overallMethods = evaluation.getClass().getMethods();
+            overallMethodDict = new HashMap<>(overallMethods.length);
+
+            for(Method method : overallMethods) {
+                overallMethodDict.put(method.getName(), method);
+            }
+        }
+
+        for(String methodName : metricsToCollect) {
+            if(evaluation == null) {
+                line.append(",");
+            } else {
+                Object res = overallMethodDict.get(methodName).invoke(evaluation);
+                if(res.getClass().isArray()) {
+                    try {
+                        double[] doublyOverall = ((double[])res);
+
+                        line.append(",\"np.array([");
+                        for(int k = 0; k < doublyOverall.length; k++) {
+                            line.append(doublyOverall[k]).append(",");
+                        }
+                        line = new StringBuilder(line.substring(0, line.lastIndexOf(",")) + "], dtype=np.float64)\",");
+                    } catch(ClassCastException e) {
+                        double[][] doublyOverall = ((double[][])res);
+
+                        line.append(",\"np.array([[");
+                        for(int j = 0; j < doublyOverall.length; j++) {
+                            for(int k = 0; k < doublyOverall[j].length; k++) {
+                                line.append(doublyOverall[j][k]).append(",");
+                            }
+                            line = new StringBuilder(line.substring(0, line.lastIndexOf(",")) + "],[");
+                        }
+                        line = new StringBuilder(line.substring(0, line.lastIndexOf(",[")) + "], dtype=np.float64)\",");
+                    } catch(Exception e) {
+                        throw(e);
+                    }
+                } else {
+                    line.append(",").append(res).append(",");
+                    statistics.put(methodName, Double.valueOf(res.toString()));
+                }
+            }
+        }
+
+        Double auc = (evaluation != null? FitnessCalculator.getUnweightedAreaUnderROC(evaluation) : null);
+        statistics.put("unweightedAreaUnderRoc", auc);
+
+        String toWrite = line.toString() + "," + auc + "\n";
+        bw.write(toWrite);
+
+        return statistics;
+    }
+
     private static String getEvaluationLineForClassifier(String name, Evaluation evaluation) throws Exception {
 
         String line = name;
@@ -398,20 +461,25 @@ public class PBILLogger {
      * @throws Exception
      */
     public static void newEvaluationsToFile(
-            HashMap<String, AbstractClassifier> individuals, Instances wholeDataset, String output_path) throws Exception {
+            int n_samples, HashMap<String, AbstractClassifier> individuals, Instances wholeDataset, String output_path) throws Exception {
 
         BufferedWriter bw = new BufferedWriter(new FileWriter(output_path + File.separator + "summary_1.csv"));
 
         // writes header
-        String header = "algorithm";
+        StringBuilder header1 = new StringBuilder("");
+        StringBuilder header2 = new StringBuilder("");
         for(String methodName : metricsToCollect) {
-            header += "," + methodName;
+            header1.append(",").append(methodName).append(",").append(methodName);
+            header2.append(",").append("mean").append(",").append("std");
         }
-        bw.write(header + "," + "unweightedAreaUnderRoc" + "\n");
+        bw.write(header1.toString() + ",unweightedAreaUnderRoc,unweightedAreaUnderRoc\n");
+        bw.write(header2.toString() + ",mean,std\n");
 
         Evaluation evaluation;
 
         Object[] indNames = individuals.keySet().toArray();
+        HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics = new HashMap<>();
+
 
         for(int i = 0; i < indNames.length; i++) {
             String indName = (String)indNames[i];
@@ -421,10 +489,66 @@ public class PBILLogger {
             } catch(Exception e) {
                 evaluation = null;
             } finally {
-                bw.write(PBILLogger.getEvaluationLineForClassifier(indName, evaluation));
+                HashMap<String, Double> theseStatistics = PBILLogger.writeLineAndGetStatistics(indName, evaluation, bw);
+
+                String atomicIndName = indName.split("-sample")[0];
+                HashMap<String, ArrayList<Double>> atomicIndStatistics = null;
+                if(!summarizedStatistics.containsKey(atomicIndName)) {
+                    atomicIndStatistics = new HashMap<>();
+                } else {
+                    atomicIndStatistics = summarizedStatistics.get(atomicIndName);
+                }
+                for(String s : theseStatistics.keySet()) {
+                    ArrayList<Double> values = null;
+                    if(!atomicIndStatistics.containsKey(s)) {
+                        values = new ArrayList<>();
+                    } else {
+                        values = atomicIndStatistics.get(s);
+                    }
+                    values.add(theseStatistics.get(s));
+                    atomicIndStatistics.put(s, values);
+                }
+                summarizedStatistics.put(atomicIndName, atomicIndStatistics);
             }
         }
+        PBILLogger.writeSummarizedStatistics(summarizedStatistics, bw);
         bw.close();
+    }
+
+    private static void writeSummarizedStatistics(
+            HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics, BufferedWriter bw
+    ) throws IOException {
+
+        String[] theseMetricsToCollect = new String[metricsToCollect.length + 1];
+        for(int i = 0; i < metricsToCollect.length; i++) {
+            theseMetricsToCollect[i] = metricsToCollect[i];
+        }
+        theseMetricsToCollect[metricsToCollect.length] = "unweightedAreaUnderRoc";
+
+        for(String indName : summarizedStatistics.keySet()) {
+            bw.write(indName);
+
+            HashMap<String, ArrayList<Double>> dictStatistics = summarizedStatistics.get(indName);
+
+            for(String methodName : theseMetricsToCollect) {
+                if(dictStatistics.containsKey(methodName)) {
+                    ArrayList<Double> tempValues = dictStatistics.get(methodName);
+                    double[] dValues = new double[tempValues.size()];
+                    for(int i = 0; i < tempValues.size(); i++) {
+                        dValues[i] = tempValues.get(i) == null? 0.0 : tempValues.get(i);
+                    }
+
+                    Mean meanObj = new Mean();
+                    double mean = meanObj.evaluate(dValues, 0, dValues.length);
+                    StandardDeviation stdObj = new StandardDeviation();
+                    double std = stdObj.evaluate(dValues);
+                    bw.write("," + mean + "," + std);
+                } else {
+                    bw.write("," + ",");
+                }
+            }
+            bw.write("\n");
+        }
     }
 
     /**

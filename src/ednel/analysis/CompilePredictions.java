@@ -3,6 +3,7 @@ package ednel.analysis;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
+import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Attribute;
@@ -13,10 +14,7 @@ import weka.core.Instances;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 
 public class CompilePredictions {
 
@@ -59,24 +57,42 @@ public class CompilePredictions {
         return cmd;
     }
 
-    protected static HashMap<String, ArrayList<String>> collectFiles(String path) throws NullPointerException {
+    /**
+     * Collects files from a folder.
+     *
+     * Generates a HashMap with the following hierarchy: n_sample, indName, list of predictions per folds
+     * @param path
+     * @return
+     * @throws NullPointerException
+     */
+    protected static HashMap<Integer, HashMap<String, ArrayList<String>>> collectFiles(String path) throws NullPointerException {
         File folder = new File(path);
         String[] files = folder.list();
 
-        HashMap<String, ArrayList<String>> filePreds = new HashMap<>();
+        HashMap<Integer, HashMap<String, ArrayList<String>>> filePreds = new HashMap<>();
+
         for(String file : files) {
             if(file.contains(".preds")) {
                 String[] split1 = file.split("_");
                 String indName = (split1[split1.length - 1]).split(".preds")[0];
+                int n_sample = Integer.parseInt(file.substring(file.indexOf("sample-") + "sample-".length(), file.indexOf("sample-") + "sample-".length() + 2));
+
+                HashMap<String, ArrayList<String>> local;
+                if(!filePreds.containsKey(n_sample)) {
+                    local = new HashMap<>();
+                } else {
+                    local = filePreds.get(n_sample);
+                }
 
                 ArrayList<String> thisList;
-                if(!filePreds.containsKey(indName)) {
+                if(!local.containsKey(indName)) {
                     thisList = new ArrayList<>();
                 } else {
-                    thisList = filePreds.get(indName);
+                    thisList = local.get(indName);
                 }
                 thisList.add(file);
-                filePreds.put(indName, thisList);
+                local.put(indName, thisList);
+                filePreds.put(n_sample, local);
             }
         }
         return filePreds;
@@ -85,27 +101,27 @@ public class CompilePredictions {
     public static void main(String[] args) throws Exception {
         CommandLine cmd = CompilePredictions.parseOptions(args);
 
-        HashMap<String, ArrayList<String>> filePreds = collectFiles(cmd.getOptionValue("path_predictions"));
-
-        // TODO produce all metrics
-
-        HashMap<String, AbstractClassifier> all_classifiers = new HashMap<>();
+        // sample, individual name (overall, last), arraylist of files
+        HashMap<Integer, HashMap<String, ArrayList<String>>> filePreds = collectFiles(cmd.getOptionValue("path_predictions"));
 
         Instances dummyDataset = null;
+        HashMap<String, AbstractClassifier> all_classifiers = new HashMap<>();
 
-        for(String indName : filePreds.keySet()) {
-            FoldJoiner fj = new FoldJoiner(filePreds.get(indName), cmd.getOptionValue("path_predictions"));
-            dummyDataset = fj.getDummyDataset();
-            HashMap<String, DummyClassifier> dummyClassifiers = fj.getDummyClassifiers();
+        for(Integer n_sample : filePreds.keySet()) {
+            for(String indName : filePreds.get(n_sample).keySet()) {
+                FoldJoiner fj = new FoldJoiner(filePreds.get(n_sample).get(indName), cmd.getOptionValue("path_predictions"));
+                dummyDataset = fj.getDummyDataset();
+                HashMap<String, DummyClassifier> dummyClassifiers = fj.getDummyClassifiers();
 
-            for(String key : dummyClassifiers.keySet()) {
-                if(!key.contains("ensemble")) {
-                    all_classifiers.put(indName + "-" + key, dummyClassifiers.get(key));
-                } else {
-                    all_classifiers.put(indName, dummyClassifiers.get(key));
+                for(String key : dummyClassifiers.keySet()) {
+                    if(!key.contains("ensemble")) {
+                        all_classifiers.put(indName + "-" + key + String.format(Locale.US, "-sample-%02d", n_sample), dummyClassifiers.get(key));
+                    } else {
+                        all_classifiers.put(indName + String.format(Locale.US, "-sample-%02d", n_sample), dummyClassifiers.get(key));
+                    }
                 }
             }
         }
-        PBILLogger.newEvaluationsToFile(all_classifiers, dummyDataset, cmd.getOptionValue("path_predictions"));
+        PBILLogger.newEvaluationsToFile(filePreds.size(), all_classifiers, dummyDataset, cmd.getOptionValue("path_predictions"));
     }
 }
