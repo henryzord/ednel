@@ -37,6 +37,8 @@ public class RunTrainingPieceTask implements Runnable, Callable {
     private boolean hasCompleted = false;
     private boolean hasSetAnException = false;
 
+    private int n_internal_folds;
+
     private boolean logTest = false;
 
     /**
@@ -86,6 +88,7 @@ public class RunTrainingPieceTask implements Runnable, Callable {
                 Integer.parseInt(cmd.get("early_stop_generations")),
                 Integer.parseInt(cmd.get("max_parents")),
                 Integer.parseInt(cmd.get("delay_structure_learning")),
+                Integer.parseInt(cmd.get("n_internal_folds")),
                 pbilLogger,
                 cmd.get("seed") == null?
                         null : Integer.parseInt(cmd.get("seed"))

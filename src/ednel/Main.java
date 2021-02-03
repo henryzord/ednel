@@ -240,6 +240,17 @@ public class Main {
                 .build());
 
         options.addOption(Option.builder()
+                .longOpt("n_internal_folds")
+                .type(Integer.class)
+                .required(false)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of internal folds to be used. use 0 for holdout (80/20) on the training set, 1 for leave-" +
+                        "one-out, or any number greater or equal to 2 for n-fold cross-validation. Defaults to 5" +
+                        "if no value is passed.")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("timeout")
                 .type(Integer.class)
                 .required(false)
@@ -307,21 +318,21 @@ public class Main {
         }
 
         // simple check for limits
-        Boolean[] required = {true, true, true, true, false, false, false, false, false, false, false, false, false};
+        Boolean[] required = {true, true, true, true, false, false, false, false, false, false, false, false, false, false};
         String[] parameters = {"n_individuals", "n_generations", "selection_share", "learning_rate", "burn_in",
                 "thinning_factor", "max_parents", "delay_structure_learning", "early_stop_generations", "n_jobs",
-                "n_samples", "timeout", "timeout_individual"};
-        Double[] lower_limits = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 60.0, 60.0};
+                "n_samples", "timeout", "timeout_individual", "n_internal_folds"};
+        Double[] lower_limits = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 60.0, 60.0, 0.0};
         Double[] upper_limits = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 1.0, 1.0, Double.POSITIVE_INFINITY,
                 Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                Double.POSITIVE_INFINITY, 30.0, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
+                Double.POSITIVE_INFINITY, 30.0, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         AbstractOperator[] lower_operators = {new GreaterThan(), new GreaterThanOrEqualTo(), new GreaterThan(),
                 new GreaterThan(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(),
                 new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(),
-                new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo()};
+                new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo(), new GreaterThanOrEqualTo()};
         AbstractOperator[] upper_operators = {new LessThan(), new LessThan(), new LessThan(), new LessThanOrEqualTo(),
                 new LessThan(), new LessThan(), new LessThan(), new LessThan(), new LessThan(), new LessThanOrEqualTo(),
-                new LessThanOrEqualTo(), new LessThan(), new LessThan()};
+                new LessThanOrEqualTo(), new LessThan(), new LessThan(), new LessThan()};
 
         for(int i = 0; i < parameters.length; i++) {
             if(!options.containsKey(parameters[i])) {
@@ -380,6 +391,9 @@ public class Main {
         }
         if(!options.containsKey("timeout_individual")) {
             options.put("timeout_individual", "60");
+        }
+        if(!options.containsKey("n_internal_folds")) {
+            options.put("n_internal_folds", "5");
         }
 
         // now that all hyper-parameters are set, treat their values

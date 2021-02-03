@@ -1,4 +1,4 @@
-package ednel.analysis;
+package ednel.utils.analysis;
 
 import ednel.eda.individual.FitnessCalculator;
 import weka.classifiers.Evaluation;
@@ -8,7 +8,6 @@ import weka.core.Instance;
 import weka.core.Instances;
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;

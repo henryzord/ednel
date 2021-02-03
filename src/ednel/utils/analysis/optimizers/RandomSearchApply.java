@@ -5,7 +5,7 @@
  *
  * If using only J48, enter the following command in commandline:
  *
- * java -classpath ednel.jar ednel.RandomSearchApply --datasets_path <datasets_path>
+ * java -classpath ednel.jar ednel.utils.analysis.optimizers.RandomSearchApply --datasets_path <datasets_path>
  *   --datasets_names <comma_separated_datasets> --metadata_path <metadata_path>
  *   --string_options "-J48 -U -O -M 8 -A" --string_characteristics "J48_pruning=unpruned;J48_collapseTree=false;J48_subtreeRaising=null;J48_binarySplits=false;J48_minNumObj=8;J48_useLaplace=true;J48_useMDLcorrection=true;J48_confidenceFactorValue=null;J48_doNotMakeSplitPointActualValue=false;J48_numFolds=null;"
  *   --n_samples 10
@@ -16,8 +16,9 @@
  * -DecisionTable -R -X 1 -S weka.attributeSelection.BestFirst -D 1 -N 5
  */
 
-package ednel;
+package ednel.utils.analysis.optimizers;
 
+import ednel.Main;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.sorters.Argsorter;

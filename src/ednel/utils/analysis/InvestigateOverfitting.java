@@ -6,7 +6,7 @@
 
   Usage:
 
-  java -classpath ednel.jar ednel.analysis.InvestigateOverfitting --datasets_path <datasets_path>
+  java -classpath ednel.jar ednel.utils.analysis.InvestigateOverfitting --datasets_path <datasets_path>
   --datasets_names <datasets_name> --metadata_path <metadata_path> --n_generations <n_generations>
   --n_individuals <n_individuals> --n_samples <n_samples> --learning_rate <learning_rate>
   --selection_share <selection_share> --burn_in <burn_in> --thinning_factor <thinning_factor>
@@ -16,21 +16,13 @@
 
  */
 
-package ednel.analysis;
+package ednel.utils.analysis;
 
 import ednel.Main;
 import ednel.eda.RunTrainingPieceTask;
 import ednel.utils.PBILLogger;
-import ednel.utils.operators.*;
-import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
-import org.apache.commons.cli.*;
 import org.apache.commons.math3.random.MersenneTwister;
-import weka.core.Instances;
-import weka.core.converters.ConverterUtils;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;

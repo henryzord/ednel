@@ -1,7 +1,5 @@
-package ednel.analysis;
+package ednel.utils.analysis;
 
-import org.apache.commons.math3.analysis.function.Exp;
-import sun.reflect.annotation.ExceptionProxy;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instance;
 import weka.core.Instances;

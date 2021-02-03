@@ -20,13 +20,13 @@
   is used, because more trees in the ensemble always equal to better results.
  */
 
-package ednel;
+package ednel.utils.analysis.optimizers;
 
+import ednel.Main;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.network.DependencyNetwork;
 import ednel.network.variables.AbstractVariable;
 import org.apache.commons.cli.*;
-import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.MersenneTwister;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;

@@ -11,6 +11,8 @@ import ednel.utils.sorters.PopulationSorter;
 import org.apache.commons.math3.random.MersenneTwister;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
+import weka.filters.Filter;
+import weka.filters.unsupervised.instance.RemovePercentage;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -45,11 +47,13 @@ public class EDNEL extends AbstractClassifier {
 
     protected boolean no_cycles;
 
+    protected int n_internal_folds;
+
     protected EarlyStop earlyStop;
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
-                 int max_parents, int delay_structure_learning, PBILLogger pbilLogger, Integer seed
+                 int max_parents, int delay_structure_learning, int n_internal_folds, PBILLogger pbilLogger, Integer seed
     ) throws Exception {
 
         this.learning_rate = learning_rate;
@@ -61,9 +65,9 @@ public class EDNEL extends AbstractClassifier {
         this.burn_in = burn_in;
         this.thinning_factor = thinning_factor;
         this.early_stop_generations = early_stop_generations;
-//        this.early_stop_tolerance = early_stop_tolerance;
         this.max_parents = max_parents;
         this.delay_structure_learning = delay_structure_learning;
+        this.n_internal_folds = n_internal_folds;
 
         this.earlyStop = null;
 
@@ -92,13 +96,32 @@ public class EDNEL extends AbstractClassifier {
         LocalDateTime start = LocalDateTime.now();
         LocalDateTime t1 = LocalDateTime.now(), t2;
 
-        Instances train_data = FitnessCalculator.betterStratifier(input_data, 6);  // 5 folds of interval CV + 1 for validation
-        Instances val_data = train_data.testCV(6, 1);
-        Instances learn_data = train_data.trainCV(6, 1);
-        learn_data = FitnessCalculator.betterStratifier(learn_data, 5);
+        Instances train_data;
+        Instances learn_data;
+        Instances val_data;
+
+        if(this.n_internal_folds == 0) {  // holdout
+            train_data = FitnessCalculator.betterStratifier(input_data, 10);  // uses 10 as default
+            RemovePercentage rp = new RemovePercentage();
+            rp.setInputFormat(train_data);
+            rp.setPercentage(20);
+            rp.setInvertSelection(false);
+            learn_data = new Instances(Filter.useFilter(train_data, rp));
+            rp = new RemovePercentage();
+            rp.setInputFormat(train_data);
+            rp.setPercentage(20);
+            rp.setInvertSelection(true);
+            val_data = new Instances(Filter.useFilter(train_data, rp));
+        } else if(this.n_internal_folds == 1) {
+            throw new Exception("not implemented yet!");
+        } else {  // n-fold cross validation
+            train_data = FitnessCalculator.betterStratifier(input_data, n_internal_folds + 1);  // 5 folds of interval CV + 1 for validation
+            val_data = train_data.testCV(n_internal_folds + 1, 1);
+            learn_data = FitnessCalculator.betterStratifier(train_data.trainCV(n_internal_folds + 1, 1), n_internal_folds);
+        }
 
         pbilLogger.setDatasets(null, learn_data, val_data, null);
-        FitnessCalculator fc = new FitnessCalculator(5, learn_data, val_data);
+        FitnessCalculator fc = new FitnessCalculator(this.n_internal_folds, learn_data, val_data);
 
         this.currentGenBest = new BaselineIndividual();
         this.overallBest = this.currentGenBest;

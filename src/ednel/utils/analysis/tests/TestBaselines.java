@@ -4,8 +4,9 @@
  * Currently only supports Random Forest.
  */
 
-package ednel;
+package ednel.utils.analysis.tests;
 
+import ednel.Main;
 import ednel.eda.individual.FitnessCalculator;
 import org.apache.commons.cli.*;
 import weka.classifiers.Evaluation;
