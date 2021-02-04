@@ -19,7 +19,7 @@
 package ednel.utils.analysis;
 
 import ednel.Main;
-import ednel.eda.RunTrainingPieceTask;
+import ednel.eda.RunFoldOfTenFoldCrossValidation;
 import ednel.utils.PBILLogger;
 import org.apache.commons.math3.random.MersenneTwister;
 
@@ -60,7 +60,7 @@ public class InvestigateOverfitting {
         for(String dataset_name : dataset_names) {
             int n_fold = mt.nextInt(10) + 1;
 
-            RunTrainingPieceTask task = new RunTrainingPieceTask(
+            RunFoldOfTenFoldCrossValidation task = new RunFoldOfTenFoldCrossValidation(
                     dataset_name, 1, n_fold, commandLine, str_time
             );
             taskQueue.add(Executors.callable(task));

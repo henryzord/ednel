@@ -171,16 +171,16 @@ public class PBILLogger {
         this.curGen = 0;
     }
 
-    public PBILLogger(
-            String dataset_name, String dataset_metadata_path,
-            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log, boolean logTest,
-            Instances learn_data, Instances val_data
-    ) {
-        this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log, logTest);
-        this.learn_data = learn_data;
-        this.val_data = val_data;
-        this.currentGenBestValFitness = new ArrayList<>();
-    }
+//    public PBILLogger(
+//            String dataset_name, String dataset_metadata_path,
+//            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log, boolean logTest,
+//            Instances learn_data, Instances val_data
+//    ) {
+//        this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log, logTest);
+//        this.learn_data = learn_data;
+//        this.val_data = val_data;
+//        this.currentGenBestValFitness = new ArrayList<>();
+//    }
 
     public static double getMedianFitness(Individual[] population, Integer[] sortedIndices) {
         double medianFitness;

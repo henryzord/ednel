@@ -1,6 +1,7 @@
 package ednel.utils.analysis;
 
 import ednel.eda.individual.FitnessCalculator;
+import smile.neighbor.lsh.Hash;
 import weka.classifiers.Evaluation;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
@@ -18,16 +19,55 @@ public class FoldJoiner {
     protected Instances dummyDataset;
     protected HashMap<String, DummyClassifier> dummyClassifiers;
 
+    /**
+     * Does for only one classifier, instead of multiple.
+     *
+     * @param probs Probabilities as produced by AbstractClassifier.distributionsForInstances
+     * @param y Actual classes of instances in the dataset
+     */
+    public FoldJoiner(double[][] probs, double[] y) {
+        // some instances is the dataset that is built to emulate classification based on predictions of classifiers
+        ArrayList<Instance> someInstances = new ArrayList<>();
+        // set of un-repeated class values
+        HashSet<Double> classValues = new HashSet<>();
+
+        // classifier names as presented in header of lines
+        ArrayList<String> clfsNames = new ArrayList<String>(){{
+            add("classifier");
+        }};
+
+        HashMap<Integer, double[]> probDistForSingleClassifier = new HashMap<>();
+
+        int counter = 0;
+        for(int i = 0; i < probs.length; i++) {
+            classValues.add(y[i]);
+            someInstances.add(new DenseInstance(1, new double[]{(double) counter, y[i]}));
+
+            for(int j = 0; j < probs[i].length; j++) {
+                probDistForSingleClassifier.put(counter, probs[i]);
+            }
+            counter += 1;
+        }
+        // list of dictionaries: each list entry is the dictionary for a classifier
+        ArrayList<HashMap<Integer, double[]>> probabilities = new ArrayList<HashMap<Integer, double[]>>(){{
+            add(probDistForSingleClassifier);
+        }};
+
+        this.interpretData(someInstances, classValues, clfsNames, probabilities);
+    }
+
     public FoldJoiner(ArrayList<String> lines) {
         // some instances is the dataset that is built to emulate classification based on predictions of classifiers
         ArrayList<Instance> someInstances = new ArrayList<>();
         // actual classes are the actual classes of instances in the list of lines
-        HashMap<Integer, Double> actualClasses = new HashMap<>();
         // set of un-repeated class values
         HashSet<Double> classValues = new HashSet<>();
 
         String[] header = lines.get(0).replace("\n", "").split(";");
+        // classifier names as presented in header of lines
         ArrayList<String> clfsNames = new ArrayList<>();
+
+        // list of dictionaries: each list entry is the dictionary for a classifier
         ArrayList<HashMap<Integer, double[]>> probabilities = new ArrayList<>();
 
         for(int i = 1; i < header.length; i++) {
@@ -44,7 +84,6 @@ public class FoldJoiner {
             String[] splitted = lines.get(i).replace("\n", "").split(";");
 
             double actualClass = Double.parseDouble(splitted[0]);
-            actualClasses.put(counter, actualClass);
 
             classValues.add(actualClass);
             someInstances.add(new DenseInstance(1, new double[]{(double) counter, actualClass}));

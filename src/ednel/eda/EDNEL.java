@@ -120,7 +120,9 @@ public class EDNEL extends AbstractClassifier {
             learn_data = FitnessCalculator.betterStratifier(train_data.trainCV(n_internal_folds + 1, 1), n_internal_folds);
         }
 
-        pbilLogger.setDatasets(null, learn_data, val_data, null);
+        if(this.pbilLogger != null) {
+            pbilLogger.setDatasets(null, learn_data, val_data, null);
+        }
         FitnessCalculator fc = new FitnessCalculator(this.n_internal_folds, learn_data, val_data);
 
         this.currentGenBest = new BaselineIndividual();

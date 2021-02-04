@@ -14,32 +14,31 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.concurrent.Callable;
 
-public class RunTrainingPieceTask implements Runnable, Callable {
-    // hyper-parameters of ednel
+public class RunFoldOfTenFoldCrossValidation implements Runnable, Callable {
 
-    private String dataset_name;
-    private String datasets_path;
+    protected String dataset_name;
+    protected String datasets_path;
 
-    private int n_sample;
-    private int n_fold;
+    protected int n_sample;
 
     /** The whole training set: learning + validation */
-    private Instances train_data;
+    protected Instances train_data;
     /** Data to be used to evaluate quality of method */
-    private Instances test_data;
-    private EDNEL ednel;
-    private PBILLogger pbilLogger;
+    protected Instances test_data;
+    protected EDNEL ednel;
+    protected PBILLogger pbilLogger;
 
-    private boolean log;
+    protected boolean log;
 
-    private LocalDateTime start, end;
-    private Exception except;
-    private boolean hasCompleted = false;
-    private boolean hasSetAnException = false;
+    protected LocalDateTime start, end;
+    protected Exception except;
+    protected boolean hasCompleted = false;
+    protected boolean hasSetAnException = false;
 
-    private int n_internal_folds;
+    protected boolean logTest = false;
 
-    private boolean logTest = false;
+    /** Fold of 10-fold cross validation adopted */
+    protected int n_fold;
 
     /**
      * Runs a given fold of a 10-fold cross validation on EDNEL.
@@ -51,7 +50,7 @@ public class RunTrainingPieceTask implements Runnable, Callable {
      * @param str_time
      * @throws Exception
      */
-    public RunTrainingPieceTask(
+    public RunFoldOfTenFoldCrossValidation(
             String dataset_name, int n_sample, int n_fold, HashMap<String, String> cmd, String str_time
     ) throws Exception {
         start = LocalDateTime.now();

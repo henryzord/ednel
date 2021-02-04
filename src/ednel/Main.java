@@ -1,6 +1,6 @@
 package ednel;
 
-import ednel.eda.RunTrainingPieceTask;
+import ednel.eda.RunFoldOfTenFoldCrossValidation;
 import ednel.utils.PBILLogger;
 import ednel.utils.operators.*;
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
@@ -432,7 +432,7 @@ public class Main {
         for(String dataset_name : dataset_names) {
             for(int n_sample = 1; n_sample < n_samples + 1; n_sample++) {
                 for(int n_fold = Main.init_fold; n_fold < Main.end_fold; n_fold++) {  // 10 folds
-                    RunTrainingPieceTask task = new RunTrainingPieceTask(
+                    RunFoldOfTenFoldCrossValidation task = new RunFoldOfTenFoldCrossValidation(
                             dataset_name, n_sample, n_fold, commandLine, str_time
                     );
                     taskQueue.add(Executors.callable(task));

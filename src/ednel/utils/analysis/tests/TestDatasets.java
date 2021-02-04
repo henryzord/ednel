@@ -10,7 +10,7 @@
 package ednel.utils.analysis.tests;
 
 import ednel.Main;
-import ednel.eda.RunTrainingPieceTask;
+import ednel.eda.RunFoldOfTenFoldCrossValidation;
 import ednel.utils.sorters.Argsorter;
 import weka.core.Instances;
 
@@ -62,8 +62,8 @@ public class TestDatasets {
         return dict;
     }
 
-    public static RunTrainingPieceTask startAndRunTrainingTask(String dataset_name, String str_time, HashMap<String, String> cmd) {
-        RunTrainingPieceTask task = null;
+    public static RunFoldOfTenFoldCrossValidation startAndRunTrainingTask(String dataset_name, String str_time, HashMap<String, String> cmd) {
+        RunFoldOfTenFoldCrossValidation task = null;
         try {
             HashMap<String, Instances> curDatasetFolds = Main.loadDataset(
                     cmd.get("datasets_path"),
@@ -73,7 +73,7 @@ public class TestDatasets {
 //            Instances train_data = curDatasetFolds.get("train_data");
 //            Instances test_data = curDatasetFolds.get("test_data");
 
-            task = new RunTrainingPieceTask(
+            task = new RunFoldOfTenFoldCrossValidation(
                     dataset_name, 1, 1, cmd, str_time
             );
             task.run();
@@ -124,7 +124,7 @@ public class TestDatasets {
                     i -> TestDatasets.startAndRunTrainingTask(datasets_names[sortedIndices[i]], str_time, commandLine)).toArray();
 
             for(Object localTask : localTasks) {
-                RunTrainingPieceTask task = (RunTrainingPieceTask)localTask;
+                RunFoldOfTenFoldCrossValidation task = (RunFoldOfTenFoldCrossValidation)localTask;
 
                 if(task.hasCompleted()) {
                     if(task.hasSetAnException()) {
