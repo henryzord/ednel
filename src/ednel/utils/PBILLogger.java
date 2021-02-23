@@ -552,6 +552,54 @@ public class PBILLogger {
     }
 
     /**
+     * Considers that classifiers are already trained, and only makes predictions on test data.
+     * @param clfs An array of AbstractClassifiers
+     * @param test_data Data to be used for predictions
+     * @param write_path Name of .preds file to write predictions to
+     */
+    public static void predictions_to_file(AbstractClassifier[] clfs, Instances test_data, String write_path) throws Exception {
+        BufferedWriter bw = new BufferedWriter(new FileWriter(write_path));
+
+        String[] orderedClassifiersNames = new String[clfs.length];
+        for(int i = 0; i < clfs.length; i++) {
+            orderedClassifiersNames[i] = clfs[i].getClass().getSimpleName();
+        }
+
+        // writes header
+        bw.write("classValue;");
+        for(int i = 0; i < clfs.length; i++) {
+            bw.write(orderedClassifiersNames[i] + (((i + 1) < clfs.length)? ";" : "\n"));
+        }
+
+        for(int i = 0; i < test_data.size(); i++) {
+            Instance inst = test_data.instance(i);
+
+            bw.write(inst.classValue() + ";");
+
+            for(int j = 0; j < clfs.length; j++) {
+                bw.write(FitnessCalculator.writeDistributionOfProbabilities(clfs[j].distributionForInstance(inst)) + (((j + 1) < clfs.length)? ";" : "\n"));
+            }
+        }
+        bw.flush();
+        bw.close();
+
+    }
+
+    /**
+     * Trains and writes to file predictions of an array of AbstractClassifiers
+     * @param clfs An array of AbstractClassifiers
+     * @param train_data Data to be used to train classifiers
+     * @param test_data Data to be used for predictions
+     * @param write_path Name of .preds file to write predictions to
+     */
+    public static void predictions_to_file(AbstractClassifier[] clfs, Instances train_data, Instances test_data, String write_path) throws Exception {
+        for(int i = 0; i < clfs.length; i++) {
+            clfs[i].buildClassifier(train_data);
+        }
+        PBILLogger.predictions_to_file(clfs, test_data, write_path);
+    }
+
+    /**
      * Writes to a .preds file the predictions of this run of EDNEL.
      * The adopted structure is csv-like.
      *
