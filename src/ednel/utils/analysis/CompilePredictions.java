@@ -65,8 +65,9 @@ public class CompilePredictions {
 
         for(String file : files) {
             if(file.contains(".preds")) {
-                String[] split1 = file.split("_");
-                String indName = (split1[split1.length - 1]).split(".preds")[0];
+                // String[] split1 = file.split("_");
+                //String indName = (split1[split1.length - 1]).split(".preds")[0];
+                String indName = "someClassifier";
                 int n_sample = Integer.parseInt(file.substring(file.indexOf("sample-") + "sample-".length(), file.indexOf("sample-") + "sample-".length() + 2));
 
                 HashMap<String, ArrayList<String>> local;

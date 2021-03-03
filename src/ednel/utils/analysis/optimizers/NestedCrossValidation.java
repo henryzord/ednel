@@ -16,6 +16,11 @@ import weka.classifiers.Evaluation;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
+
+import javax.script.ScriptException;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -155,12 +160,13 @@ public class NestedCrossValidation {
         fw.close();
     }
 
-    private static String getRandomForestNumFeatures(String param, Instances data) {
+    private static String getRandomForestNumFeatures(String param, Instances data) throws ScriptException {
+        ScriptEngineManager mgr = new ScriptEngineManager();
+        ScriptEngine engine = mgr.getEngineByName("JavaScript");
         String segment = param.substring(param.indexOf("{") + 1, param.indexOf("}"));
-        double percent = Double.valueOf(segment);
-        int int_num = (int)Math.round(percent/100. * data.numAttributes());
-        param = param.substring(0, param.indexOf("{")) + int_num;
-        return param;
+        segment = segment.replace("p", String.valueOf(data.numAttributes()));
+        String new_param = param.substring(0, param.indexOf("{")) + Math.round(Double.valueOf(engine.eval(segment).toString()));
+        return new_param;
     }
 
     private static String[] atomize(String[] params) {
@@ -189,14 +195,21 @@ public class NestedCrossValidation {
             String dataset_experiment_path, String clf_name) {
 
         try {
-            String[] samplingOrder = new String[]{"bagSizePercent", "breakTiesRandomly", "maxDepth", "numFeatures", "numIterations"};
+//            String[] samplingOrder = new String[]{"bagSizePercent", "breakTiesRandomly", "maxDepth", "numFeatures", "numIterations"};
     //        String[] optionNames = new String[]{"-P", ";-B", "-depth", "-K", "-I"};
     //        int[][] ranges = new int[][]{{20, 90}, {0, 1}, {0, 10}, {1, 100}, {1000, 1000}};
 
             String[] bagSizePercents = {"-P 90", "-P 100"};
-            String[] breakTiesRandomly = {"", "-B"};  // false or true
+            String[] breakTiesRandomly = {""};  // always false
             String[] maxDepths = {"-depth 0"};  // always unlimited
-            String[] numFeatures = {"-K {50}", "-K {75}", "-K {100}"};  // must be replaced by the actual number of features
+            String[] numFeatures = {
+                    "-K {Math.sqrt(p)/2}",
+                    "-K {Math.sqrt(p)}",
+                    "-K {Math.sqrt(p)*2}",
+                    "-K {Math.log10(p)/(Math.log10(2)*2)}",
+                    "-K {Math.log10(p)/Math.log10(2)}",
+                    "-K {(Math.log10(p)/Math.log10(2))*2}"
+            };  // must be replaced by the actual number of features
             String[] numIterations = {"-I 1000"};  // always 1000
 
 

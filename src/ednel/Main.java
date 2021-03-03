@@ -145,8 +145,7 @@ public class Main {
                 .required(true)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("Fraction of population that should be resampled in the next generation. Assume " +
-                        "population_size - (population_size * selection_share) as the fraction that updates GM.")
+                .desc("Fraction of population that updates the GM for the next generation.")
                 .build());
 
         options.addOption(Option.builder()

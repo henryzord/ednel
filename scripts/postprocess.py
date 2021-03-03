@@ -11,6 +11,7 @@ import argparse
 import itertools as it
 import json
 import os
+import subprocess
 import sys
 from functools import reduce
 
@@ -164,6 +165,9 @@ def check_missing_experiments(path, n_samples, n_folds):
 
 
 def single_experiment_process(this_path, n_samples, n_folds, write=True):
+    return_code = subprocess.call([
+        'java', '-classpath', os.path.join('..', 'ednel.jar'), 'ednel.utils.analysis.CompilePredictions', '--path_predictions', this_path
+    ])
     relation = __get_relation__(this_path)
 
     missing = check_missing_experiments(

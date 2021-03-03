@@ -461,58 +461,65 @@ public class PBILLogger {
      * @throws Exception
      */
     public static void newEvaluationsToFile(
-            int n_samples, HashMap<String, AbstractClassifier> individuals, Instances wholeDataset, String output_path) throws Exception {
+            int n_samples, HashMap<String, AbstractClassifier> individuals, Instances wholeDataset, String output_path) {
 
-        BufferedWriter bw = new BufferedWriter(new FileWriter(output_path + File.separator + "summary_1.csv"));
+        File out_file = new File(output_path + File.separator + "summary_1.csv");
+        out_file.delete();
+        try {
+            BufferedWriter bw = new BufferedWriter(new FileWriter(out_file));
 
-        // writes header
-        StringBuilder header1 = new StringBuilder("");
-        StringBuilder header2 = new StringBuilder("");
-        for(String methodName : metricsToCollect) {
-            header1.append(",").append(methodName).append(",").append(methodName);
-            header2.append(",").append("mean").append(",").append("std");
-        }
-        bw.write(header1.toString() + ",unweightedAreaUnderRoc,unweightedAreaUnderRoc\n");
-        bw.write(header2.toString() + ",mean,std\n");
-
-        Evaluation evaluation;
-
-        Object[] indNames = individuals.keySet().toArray();
-        HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics = new HashMap<>();
-
-
-        for(int i = 0; i < indNames.length; i++) {
-            String indName = (String)indNames[i];
-            evaluation = new Evaluation(wholeDataset);
-            try {
-                evaluation.evaluateModel(individuals.get(indName), wholeDataset);
-            } catch(Exception e) {
-                evaluation = null;
-            } finally {
-                HashMap<String, Double> theseStatistics = PBILLogger.writeLineAndGetStatistics(indName, evaluation, bw);
-
-                String atomicIndName = indName.split("-sample")[0];
-                HashMap<String, ArrayList<Double>> atomicIndStatistics = null;
-                if(!summarizedStatistics.containsKey(atomicIndName)) {
-                    atomicIndStatistics = new HashMap<>();
-                } else {
-                    atomicIndStatistics = summarizedStatistics.get(atomicIndName);
-                }
-                for(String s : theseStatistics.keySet()) {
-                    ArrayList<Double> values = null;
-                    if(!atomicIndStatistics.containsKey(s)) {
-                        values = new ArrayList<>();
-                    } else {
-                        values = atomicIndStatistics.get(s);
-                    }
-                    values.add(theseStatistics.get(s));
-                    atomicIndStatistics.put(s, values);
-                }
-                summarizedStatistics.put(atomicIndName, atomicIndStatistics);
+            // writes header
+            StringBuilder header1 = new StringBuilder("");
+            StringBuilder header2 = new StringBuilder("");
+            for(String methodName : metricsToCollect) {
+                header1.append(",").append(methodName).append(",").append(methodName);
+                header2.append(",").append("mean").append(",").append("std");
             }
+            bw.write(header1.toString() + ",unweightedAreaUnderRoc,unweightedAreaUnderRoc\n");
+            bw.write(header2.toString() + ",mean,std\n");
+
+            Evaluation evaluation;
+
+            Object[] indNames = individuals.keySet().toArray();
+            HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics = new HashMap<>();
+
+
+            for(int i = 0; i < indNames.length; i++) {
+                String indName = (String)indNames[i];
+                evaluation = new Evaluation(wholeDataset);
+                try {
+                    evaluation.evaluateModel(individuals.get(indName), wholeDataset);
+                } catch(Exception e) {
+                    evaluation = null;
+                } finally {
+                    HashMap<String, Double> theseStatistics = PBILLogger.writeLineAndGetStatistics(indName, evaluation, bw);
+
+                    String atomicIndName = indName.split("-sample")[0];
+                    HashMap<String, ArrayList<Double>> atomicIndStatistics = null;
+                    if(!summarizedStatistics.containsKey(atomicIndName)) {
+                        atomicIndStatistics = new HashMap<>();
+                    } else {
+                        atomicIndStatistics = summarizedStatistics.get(atomicIndName);
+                    }
+                    for(String s : theseStatistics.keySet()) {
+                        ArrayList<Double> values = null;
+                        if(!atomicIndStatistics.containsKey(s)) {
+                            values = new ArrayList<>();
+                        } else {
+                            values = atomicIndStatistics.get(s);
+                        }
+                        values.add(theseStatistics.get(s));
+                        atomicIndStatistics.put(s, values);
+                    }
+                    summarizedStatistics.put(atomicIndName, atomicIndStatistics);
+                }
+            }
+            PBILLogger.writeSummarizedStatistics(summarizedStatistics, bw);
+            bw.close();
+        } catch(Exception e) {
+            out_file.delete();
         }
-        PBILLogger.writeSummarizedStatistics(summarizedStatistics, bw);
-        bw.close();
+
     }
 
     private static void writeSummarizedStatistics(

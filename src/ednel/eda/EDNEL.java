@@ -163,8 +163,13 @@ public class EDNEL extends AbstractClassifier {
                 counter += 1;
             }
 
-            to_sample = (int)(this.n_individuals - (this.selection_share * this.n_individuals));
-            to_select = this.n_individuals - to_sample;
+//            throw new Exception("TODO HERE!");
+
+            to_sample = this.n_individuals - 1;
+            to_select = 1;
+
+//            to_sample = (int)(this.n_individuals - (this.selection_share * this.n_individuals));
+//            to_select = this.n_individuals - to_sample;
 
             sortedIndices = PopulationSorter.lexicographicArgsort(population);
 
