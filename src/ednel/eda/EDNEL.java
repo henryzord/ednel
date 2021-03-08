@@ -22,7 +22,6 @@ public class EDNEL extends AbstractClassifier {
     private final int timeout;
     protected final int burn_in;
     protected final int early_stop_generations;
-//    protected final float early_stop_tolerance;
     protected final int thinning_factor;
     protected final double learning_rate;
     protected final float selection_share;
@@ -112,7 +111,7 @@ public class EDNEL extends AbstractClassifier {
             rp.setPercentage(20);
             rp.setInvertSelection(true);
             val_data = new Instances(Filter.useFilter(train_data, rp));
-        } else if(this.n_internal_folds == 1) {
+        } else if(this.n_internal_folds == 1) {  // leave one out
             throw new Exception("not implemented yet!");
         } else {  // n-fold cross validation
             train_data = FitnessCalculator.betterStratifier(input_data, n_internal_folds + 1);  // 5 folds of interval CV + 1 for validation
@@ -152,6 +151,7 @@ public class EDNEL extends AbstractClassifier {
                 break;
             }
 
+            // selects old population - all sampled individuals in first generation, and 1 from then on
             for(int i = 0; i < to_select; i++) {
                 population[counter] = population[sortedIndices[i]];
                 counter += 1;
@@ -163,19 +163,19 @@ public class EDNEL extends AbstractClassifier {
                 counter += 1;
             }
 
-//            throw new Exception("TODO HERE!");
-
             to_sample = this.n_individuals - 1;
             to_select = 1;
 
-//            to_sample = (int)(this.n_individuals - (this.selection_share * this.n_individuals));
-//            to_select = this.n_individuals - to_sample;
-
             sortedIndices = PopulationSorter.lexicographicArgsort(population);
 
+            // current gen best is the individual which presents the best fitness in
+            // learning set (if using n-fold cross-validation) or validation set (holdout)
+            // TODO not implemented por leave-one-out
             this.currentGenBest = population[sortedIndices[0]];
             Fitness currentGenBestFit = fc.getEnsembleValidationFitness(this.currentGenBest);
             this.currentGenBest.setFitness(currentGenBestFit);
+
+            // TODO when is overallBest set?
 
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {

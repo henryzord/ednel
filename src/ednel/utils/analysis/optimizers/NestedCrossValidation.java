@@ -206,9 +206,9 @@ public class NestedCrossValidation {
                     "-K {Math.sqrt(p)/2}",
                     "-K {Math.sqrt(p)}",
                     "-K {Math.sqrt(p)*2}",
-                    "-K {Math.log10(p)/(Math.log10(2)*2)}",
-                    "-K {Math.log10(p)/Math.log10(2)}",
-                    "-K {(Math.log10(p)/Math.log10(2))*2}"
+                    "-K {Math.log(p)/(Math.log(2)*2)}",
+                    "-K {Math.log(p)/Math.log(2)}",
+                    "-K {(Math.log(p)/Math.log(2))*2}"
             };  // must be replaced by the actual number of features
             String[] numIterations = {"-I 1000"};  // always 1000
 
@@ -332,11 +332,11 @@ public class NestedCrossValidation {
 
             String characteristics_str = String.format(
                     Locale.US,
-                    "bagSizePercent=%d, breakTiesRandomly=%s, maxDepth=%d, numFeatures=%d, numIterations=%d",
+                    "bagSizePercent=%d, breakTiesRandomly=%s, maxDepth=%d, numFeatures=%s, numIterations=%d",
                     Integer.parseInt(combinations[best_combination_index][0].split(" ")[1]),
                     combinations[best_combination_index][1].contains("-B")? "true" : "false",
                     Integer.parseInt(combinations[best_combination_index][2].split(" ")[1]),
-                    Integer.parseInt(combinations[best_combination_index][3].split(" ")[1].replace("{", "").replace("}", "")),
+                    combinations[best_combination_index][3],
                     Integer.parseInt(combinations[best_combination_index][4].split(" ")[1])
             );
 
@@ -473,11 +473,11 @@ public class NestedCrossValidation {
                 double lastAUC = lastFJ.getAUC("classifier");
                 double overallAUC = overallFJ.getAUC("classifier");
 
-                if((lastAUC > best_combination_auc) && (lastAUC > best_combination_auc)) {
+                if((lastAUC > best_combination_auc) && (lastAUC > overallAUC)) {
                     best_combination_index = counter_combination;
                     best_combination_auc = lastAUC;
                     bestUsesOverall = false;
-                } else if((overallAUC > lastAUC) && (overallAUC > best_combination_auc)) {
+                } else if((overallAUC > best_combination_auc) && (overallAUC > lastAUC)) {
                     best_combination_index = counter_combination;
                     best_combination_auc = overallAUC;
                     bestUsesOverall = true;
