@@ -221,7 +221,7 @@ public class RandomSearchApply {
                                     String.format(
                                         dataset_folder_file.getAbsolutePath() + File.separator +
                                                 "test_sample-%02d_fold-%02d_%s.preds",
-                                            n_fold, n_sample, isRF? "RandomForest" : "EDNEL"
+                                            n_sample, n_fold, isRF? "RandomForest" : "EDNEL"
                                 )
                             );
 

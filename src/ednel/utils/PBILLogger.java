@@ -408,6 +408,15 @@ public class PBILLogger {
         return line + "," + (evaluation != null? FitnessCalculator.getUnweightedAreaUnderROC(evaluation) : "") + "\n";
     }
 
+    /**
+     * DEPRECATED: writes a .csv with metadata of this run to a folder.
+     *
+     * @param individuals
+     * @param train_data
+     * @param test_data
+     * @return
+     * @throws Exception
+     */
     private Double[] deprecatedEvaluationsToFile(
             HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
 
@@ -481,7 +490,6 @@ public class PBILLogger {
 
             Evaluation evaluation;
 
-            // TODO indNames will change from sample to sample!!!
             HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics = new HashMap<>();
 
             // iterates over samples
@@ -604,9 +612,10 @@ public class PBILLogger {
         // for every instance in the test set
         for(int i = 0; i < test_data.size(); i++) {
             Instance inst = test_data.instance(i);
+            int class_value = (int)inst.classValue();
 
             // writes class value first
-            bw.write(inst.classValue() + ";");
+            bw.write(class_value + ";");
 
             // iterates over classifiers, writes distribution of probabilities for each classifier
             for(int j = 0; j < clfs.length; j++) {

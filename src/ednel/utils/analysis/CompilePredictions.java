@@ -2,12 +2,13 @@ package ednel.utils.analysis;
 
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
-import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Locale;
 
 public class CompilePredictions {
 
@@ -115,6 +116,17 @@ public class CompilePredictions {
             }
             classifiers_per_sample.put(n_sample, all_classifiers);
         }
+        // TODO remove!!
+        for(int n_sample : dummyDatasets.keySet()) {
+            Instances dummyDataset = dummyDatasets.get(n_sample);
+            int[] classDist = dummyDataset.attributeStats(dummyDataset.classIndex()).nominalCounts;
+            System.out.printf("Class distribution for dataset %d\n", n_sample);
+            for(int j = 0; j < classDist.length; j++) {
+                System.out.printf("%d: \t%d\n", j, classDist[j]);
+            }
+            System.out.println();
+        }
+        // TODO remove!!
         PBILLogger.newEvaluationsToFile(classifiers_per_sample, dummyDatasets, cmd.getOptionValue("path_predictions"));
     }
 }
