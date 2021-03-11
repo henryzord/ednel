@@ -316,7 +316,7 @@ public class NestedCrossValidation {
 
             rf.buildClassifier(external_train_data);
 
-            PBILLogger.predictions_to_file(
+            PBILLogger.write_predictions_to_file(
                     new AbstractClassifier[]{rf},
                     external_test_data,
                     dataset_experiment_path + File.separator + String.format("overall%stest_sample-01_fold-%02d_RandomForest.preds", File.separator, n_external_fold)

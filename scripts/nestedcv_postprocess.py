@@ -17,7 +17,7 @@ def main(experiment_path: str):
         for dataset in dataset_names:
             overall_folder = os.path.join(experiment_path, experiment, dataset, 'overall')
             file_preds = [x for x in os.listdir(overall_folder) if '.preds' in x]
-            if len(file_preds) != 10:
+            if (len(file_preds) % 10) != 0:
                 if os.path.exists(os.path.join(overall_folder, 'summary_1.csv')):
                     os.remove(os.path.join(overall_folder, 'summary_1.csv'))
                 continue

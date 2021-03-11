@@ -171,17 +171,6 @@ public class PBILLogger {
         this.curGen = 0;
     }
 
-//    public PBILLogger(
-//            String dataset_name, String dataset_metadata_path,
-//            int n_individuals, int n_generations, int n_sample, int n_fold, boolean log, boolean logTest,
-//            Instances learn_data, Instances val_data
-//    ) {
-//        this(dataset_name, dataset_metadata_path, n_individuals, n_generations, n_sample, n_fold, log, logTest);
-//        this.learn_data = learn_data;
-//        this.val_data = val_data;
-//        this.currentGenBestValFitness = new ArrayList<>();
-//    }
-
     public static double getMedianFitness(Individual[] population, Integer[] sortedIndices) {
         double medianFitness;
         if((population.length % 2) == 0) {
@@ -194,6 +183,18 @@ public class PBILLogger {
             medianFitness = population[sortedIndices[population.length / 2]].getFitness().getLearnQuality();
         }
         return medianFitness;
+    }
+
+    public static String writeDistributionOfProbabilities(double[] dist) {
+        StringBuilder sb = new StringBuilder("");
+
+        for(int j = 0; j < dist.length; j++) {
+            sb.append(dist[j]);
+            if((j + 1) < dist.length) {
+                sb.append(",");
+            }
+        }
+        return sb.toString();
     }
 
     public void log(Integer[] sortedIndices,
@@ -448,20 +449,20 @@ public class PBILLogger {
         }
         bw.close();
 
-        this.predictions_to_file(individuals, train_data, test_data);
+        this.ednel_predictions_to_file(individuals, train_data, test_data);
         return fitnesses;
     }
 
     /**
      * In this version, classifiers are already trained.
      *
-     * @param individuals
-     * @param wholeDataset
+     * @param individuals The size of this HashMap dictates how many samples are in the experiment
+     * @param datasets
      * @param output_path
      * @throws Exception
      */
     public static void newEvaluationsToFile(
-            int n_samples, HashMap<String, AbstractClassifier> individuals, Instances wholeDataset, String output_path) {
+            HashMap<Integer, HashMap<String, AbstractClassifier>> individuals, HashMap<Integer, Instances> datasets, String output_path) {
 
         File out_file = new File(output_path + File.separator + "summary_1.csv");
         out_file.delete();
@@ -480,38 +481,44 @@ public class PBILLogger {
 
             Evaluation evaluation;
 
-            Object[] indNames = individuals.keySet().toArray();
+            // TODO indNames will change from sample to sample!!!
             HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics = new HashMap<>();
 
+            // iterates over samples
+            for(int n_sample : datasets.keySet()) {
+                Object[] indNames = individuals.get(n_sample).keySet().toArray();
+                Instances this_dataset = datasets.get(n_sample);
 
-            for(int i = 0; i < indNames.length; i++) {
-                String indName = (String)indNames[i];
-                evaluation = new Evaluation(wholeDataset);
-                try {
-                    evaluation.evaluateModel(individuals.get(indName), wholeDataset);
-                } catch(Exception e) {
-                    evaluation = null;
-                } finally {
-                    HashMap<String, Double> theseStatistics = PBILLogger.writeLineAndGetStatistics(indName, evaluation, bw);
+                for(int j = 0; j < indNames.length; j++) {
+                    String indName = (String)indNames[j];
 
-                    String atomicIndName = indName.split("-sample")[0];
-                    HashMap<String, ArrayList<Double>> atomicIndStatistics = null;
-                    if(!summarizedStatistics.containsKey(atomicIndName)) {
-                        atomicIndStatistics = new HashMap<>();
-                    } else {
-                        atomicIndStatistics = summarizedStatistics.get(atomicIndName);
-                    }
-                    for(String s : theseStatistics.keySet()) {
-                        ArrayList<Double> values = null;
-                        if(!atomicIndStatistics.containsKey(s)) {
-                            values = new ArrayList<>();
+                    evaluation = new Evaluation(this_dataset);
+                    try {
+                        evaluation.evaluateModel(individuals.get(n_sample).get(indName), this_dataset);
+                    } catch(Exception e) {
+                        evaluation = null;
+                    } finally {
+                        HashMap<String, Double> theseStatistics = PBILLogger.writeLineAndGetStatistics(indName, evaluation, bw);
+
+                        String atomicIndName = indName.split("-sample")[0];
+                        HashMap<String, ArrayList<Double>> atomicIndStatistics = null;
+                        if(!summarizedStatistics.containsKey(atomicIndName)) {
+                            atomicIndStatistics = new HashMap<>();
                         } else {
-                            values = atomicIndStatistics.get(s);
+                            atomicIndStatistics = summarizedStatistics.get(atomicIndName);
                         }
-                        values.add(theseStatistics.get(s));
-                        atomicIndStatistics.put(s, values);
+                        for(String s : theseStatistics.keySet()) {
+                            ArrayList<Double> values = null;
+                            if(!atomicIndStatistics.containsKey(s)) {
+                                values = new ArrayList<>();
+                            } else {
+                                values = atomicIndStatistics.get(s);
+                            }
+                            values.add(theseStatistics.get(s));
+                            atomicIndStatistics.put(s, values);
+                        }
+                        summarizedStatistics.put(atomicIndName, atomicIndStatistics);
                     }
-                    summarizedStatistics.put(atomicIndName, atomicIndStatistics);
                 }
             }
             PBILLogger.writeSummarizedStatistics(summarizedStatistics, bw);
@@ -522,6 +529,13 @@ public class PBILLogger {
 
     }
 
+    /**
+     *
+     * @param summarizedStatistics A HashMap where the key is the classifier name and the value another HashMap, this time
+     *                             with the metric name as key and an ArrayList of values
+     * @param bw
+     * @throws IOException
+     */
     private static void writeSummarizedStatistics(
             HashMap<String, HashMap<String, ArrayList<Double>>> summarizedStatistics, BufferedWriter bw
     ) throws IOException {
@@ -532,10 +546,10 @@ public class PBILLogger {
         }
         theseMetricsToCollect[metricsToCollect.length] = "unweightedAreaUnderRoc";
 
-        for(String indName : summarizedStatistics.keySet()) {
-            bw.write(indName);
+        for(String clfName : summarizedStatistics.keySet()) {
+            bw.write(clfName);
 
-            HashMap<String, ArrayList<Double>> dictStatistics = summarizedStatistics.get(indName);
+            HashMap<String, ArrayList<Double>> dictStatistics = summarizedStatistics.get(clfName);
 
             for(String methodName : theseMetricsToCollect) {
                 if(dictStatistics.containsKey(methodName)) {
@@ -559,99 +573,104 @@ public class PBILLogger {
     }
 
     /**
-     * Considers that classifiers are already trained, and only makes predictions on test data.
-     * @param clfs An array of AbstractClassifiers
+     * Given a list of AbstractClassifiers, writes predictions of test data in a .preds file.
+     *
+     * The .preds file is a .csv separated by semicolons. The first column is the actual class of the instance
+     * in that row; the subsequent columns are the distributions of probabilities (separated by colons) for that
+     * classifier, for that instance.
+     *
+     * @param clfs An array of AbstractClassifiers. Classifiers must be already trained.
      * @param test_data Data to be used for predictions
      * @param write_path Name of .preds file to write predictions to
      */
-    public static void predictions_to_file(AbstractClassifier[] clfs, Instances test_data, String write_path) throws Exception {
+    public static void write_predictions_to_file(
+            AbstractClassifier[] clfs, Instances test_data, String write_path
+    ) throws Exception {
+
         BufferedWriter bw = new BufferedWriter(new FileWriter(write_path));
 
+        // gets names of classifiers in list the list of AbstractClassifiers
         String[] orderedClassifiersNames = new String[clfs.length];
         for(int i = 0; i < clfs.length; i++) {
             orderedClassifiersNames[i] = clfs[i].getClass().getSimpleName();
         }
 
-        // writes header
+        // writes header of .preds file
         bw.write("classValue;");
         for(int i = 0; i < clfs.length; i++) {
             bw.write(orderedClassifiersNames[i] + (((i + 1) < clfs.length)? ";" : "\n"));
         }
 
+        // for every instance in the test set
         for(int i = 0; i < test_data.size(); i++) {
             Instance inst = test_data.instance(i);
 
+            // writes class value first
             bw.write(inst.classValue() + ";");
 
+            // iterates over classifiers, writes distribution of probabilities for each classifier
             for(int j = 0; j < clfs.length; j++) {
-                bw.write(FitnessCalculator.writeDistributionOfProbabilities(clfs[j].distributionForInstance(inst)) + (((j + 1) < clfs.length)? ";" : "\n"));
+                bw.write(
+                        PBILLogger.writeDistributionOfProbabilities(clfs[j].distributionForInstance(inst)) +
+                                (((j + 1) < clfs.length)? ";" : "\n")
+                );
             }
         }
         bw.flush();
         bw.close();
-
     }
 
     /**
-     * Trains and writes to file predictions of an array of AbstractClassifiers
-     * @param clfs An array of AbstractClassifiers
+     * Given a list of AbstractClassifiers, trains each classifier in the train_data, and writes predictions of test data
+     * in a .preds file.
+     *
+     * The .preds file is a .csv separated by semicolons. The first column is the actual class of the instance
+     * in that row; the subsequent columns are the distributions of probabilities (separated by colons) for that
+     * classifier, for that instance.
+     *
+     * @param clfs An array of AbstractClassifiers. Will be trained on train_data
      * @param train_data Data to be used to train classifiers
      * @param test_data Data to be used for predictions
      * @param write_path Name of .preds file to write predictions to
      */
-    public static void predictions_to_file(AbstractClassifier[] clfs, Instances train_data, Instances test_data, String write_path) throws Exception {
+    public static void train_and_write_predictions_to_file(
+            AbstractClassifier[] clfs, Instances train_data, Instances test_data, String write_path) throws Exception {
         for(int i = 0; i < clfs.length; i++) {
             clfs[i].buildClassifier(train_data);
         }
-        PBILLogger.predictions_to_file(clfs, test_data, write_path);
+        PBILLogger.write_predictions_to_file(clfs, test_data, write_path);
     }
 
     /**
-     * Writes to a .preds file the predictions of this run of EDNEL.
-     * The adopted structure is csv-like.
      *
-     * @param individuals Each individual will generate a .preds file, named after the fold of this experiment.
-     * @param train_data Training data, used to train individuals.
+     *
+     * The .preds file is a .csv separated by semicolons. The first column is the actual class of the instance
+     * in that row; the subsequent columns are the distributions of probabilities (separated by colons) for that
+     * classifier, for that instance.
+     *
+     * @param individuals Individuals from EDNEL to report (probably last and overall). Each individual will generate a
+     *                    .preds file, named after the fold of this experiment.
+     * @param train_data Training data, used to train individual base classifiers and the ensemble.
      * @param test_data Test data, that the individuals will make predictions on.
      * @throws Exception If anything bad happens
      */
-    private void predictions_to_file(
+    private void ednel_predictions_to_file(
             HashMap<String, Individual> individuals, Instances train_data, Instances test_data
     ) throws Exception {
         for(String indName : individuals.keySet()) {
-            String template = dataset_overall_path;
-            template = template.replace(".csv", String.format("_%s.preds", indName));
+            String write_path = dataset_overall_path;
+            write_path = write_path.replace(".csv", String.format("_%s.preds", indName));
 
-            BufferedWriter bw = new BufferedWriter(new FileWriter(template));
-
-            Individual copy = new Individual(individuals.get(indName));
-            copy.buildClassifier(train_data);
-
-            String[] orderedClassifiersNames = copy.getOrderedClassifiersNames();
+            Individual copy = new Individual(individuals.get(indName));  // ensemble individual
             AbstractClassifier[] orderedClassifiers = copy.getOrderedClassifiers();
-            // writes header
-            bw.write("classValue;");
+
+            AbstractClassifier[] to_report = new AbstractClassifier[orderedClassifiers.length + 1];
             for(int i = 0; i < orderedClassifiers.length; i++) {
-                bw.write(orderedClassifiersNames[i] + ";");
+                to_report[i] = orderedClassifiers[i];
             }
-            bw.write("ensemble\n");
+            to_report[orderedClassifiers.length] = copy;
 
-            for(int i = 0; i < test_data.size(); i++) {
-                Instance inst = test_data.instance(i);
-
-                bw.write(inst.classValue() + ";");
-
-                for(int j = 0; j < orderedClassifiers.length; j++) {
-                    if(orderedClassifiers[j] != null) {
-                        bw.write(FitnessCalculator.writeDistributionOfProbabilities(orderedClassifiers[j].distributionForInstance(inst)) + ";");
-                    } else {
-                        bw.write(";");
-                    }
-                }
-                bw.write(FitnessCalculator.writeDistributionOfProbabilities(copy.distributionForInstance(inst)) + "\n");
-            }
-            bw.flush();
-            bw.close();
+            PBILLogger.train_and_write_predictions_to_file(to_report, train_data, test_data, write_path);
         }
     }
 

@@ -19,35 +19,62 @@ import java.time.temporal.ChronoUnit;
 
 public class EDNEL extends AbstractClassifier {
 
+    /** How much time (in seconds) this classifier has to be trained. Early stops if exceeds time */
     private final int timeout;
-    protected final int burn_in;
-    protected final int early_stop_generations;
-    protected final int thinning_factor;
-    protected final double learning_rate;
-    protected final float selection_share;
-    protected final int n_individuals;
-    protected final int n_generations;
-
-    protected final int max_parents;
-    protected final int delay_structure_learning;
+    // TODO: fazer talvez com que indivíduo tenha sua fitness setada para zero? Tem que ver as implicações na população
+    // TODO: (e.g. não pode ter uma população inteira de indivíduos inválidos)
+    /** How much time each individual has to be trained. If an individual exceeds this time, it is discarded and resampled */
     protected final int timeout_individual;
 
-    protected PBILLogger pbilLogger;
-    protected final Integer seed;
+    /** How many generations to tolerate when a decrease in validation fitness is detected. Larger values are more tolerant */
+    protected final int early_stop_generations;
 
-    protected boolean fitted;
+    /** The ratio at which probabilities must be changed in GM. Higher values imply faster changes. Must be in (0, 1] */
+    protected final double learning_rate;
+    /** Ratio of individuals, in the current generation, that will be used to update GM probabilities. Must be in (0, 1] */
+    protected final float selection_share;
+    /** Number of individuals to have concomitantly in the same generation */
+    protected final int n_individuals;
+    /** Number of generations to run EDA */
+    protected final int n_generations;
 
-    protected MersenneTwister mt;
-
-    protected DependencyNetwork dn;
-
-    protected Individual currentGenBest;
-    protected Individual overallBest;
-
+    /** How many samples to discard when sampling solutions in Dependency Network */
+    protected final int burn_in;
+    /** How many samples to discard between valid samples when sampling solution in Dependency Network */
+    protected final int thinning_factor;
+    /** How many generations of individuals that updated GM probabilities to collect before updating the structure of GM */
+    protected final int delay_structure_learning;
+    /**
+     * Maximum number of probabilistic parents a variable might have in Graphical Model.
+     * Does not affect deterministic parents count (which is pre-built and never changes) */
+    protected final int max_parents;
+    /** whether to allow inner cycles in GM structure */
     protected boolean no_cycles;
 
+    /** Number of internal folds to use when evaluating fitness */
     protected int n_internal_folds;
 
+    /** Random number generation (RNG) */
+    protected MersenneTwister mt;
+    /** Seed to use. Defaults to system clock if not passed */
+    protected final Integer seed;
+
+
+    /** PBILLogger instance that will log metadata of this EDNEL run */
+    protected PBILLogger pbilLogger;
+
+    /** True if this classifier was already trained, false otherwise */
+    protected boolean fitted;
+
+    /** Instance of Dependency Network used by this classifier */
+    protected DependencyNetwork dn;
+
+    /** Best individual (based on fitness) from current generation */
+    protected Individual currentGenBest;
+    /** Individual with overall best validation fitness */
+    protected Individual overallBest;
+
+    /** EarlyStop instance */
     protected EarlyStop earlyStop;
 
     public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
@@ -170,12 +197,10 @@ public class EDNEL extends AbstractClassifier {
 
             // current gen best is the individual which presents the best fitness in
             // learning set (if using n-fold cross-validation) or validation set (holdout)
-            // TODO not implemented por leave-one-out
+            // TODO not implemented for leave-one-out
             this.currentGenBest = population[sortedIndices[0]];
             Fitness currentGenBestFit = fc.getEnsembleValidationFitness(this.currentGenBest);
             this.currentGenBest.setFitness(currentGenBestFit);
-
-            // TODO when is overallBest set?
 
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {
@@ -203,7 +228,8 @@ public class EDNEL extends AbstractClassifier {
     }
 
     /**
-     * Trains overall best individual and last best individual on the whole training set.
+     * Trains currentGenBest and overallBest individuals on the whole training set.
+     *
      * @param train_data Training data, as provided to EDNEL.
      * @throws Exception If anything wrong happens.
      */

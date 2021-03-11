@@ -19,23 +19,19 @@
 package ednel.utils.analysis.optimizers;
 
 import ednel.Main;
-import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
+import ednel.utils.PBILLogger;
 import ednel.utils.sorters.Argsorter;
 import org.apache.commons.cli.*;
 import weka.classifiers.AbstractClassifier;
-import weka.classifiers.Evaluation;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
-import java.util.Locale;
 
 public class RandomSearchApply {
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
@@ -123,12 +119,12 @@ public class RandomSearchApply {
     }
 
     private static HashMap<String, String> captureEDNELClassifierOptions(String c) {
-        String[] tokens = {"J48", "SimpleCart", "PART", "JRip", "DecisionTable"};
+        String[] tokens = {"J48", "SimpleCart", "PART", "JRip", "DecisionTable", "GreedyStepwise", "BestFirst"};
         HashMap<String, String> optionsTable = new HashMap<>();
         Integer[] indices = new Integer [tokens.length];
 
         for(int i = 0; i < tokens.length; i++) {
-            indices[i] = c.indexOf(tokens[i]);
+            indices[i] = c.lastIndexOf(tokens[i]);
         }
         Integer[] sortedIndices = Argsorter.crescent_argsort(indices);
 
@@ -193,15 +189,23 @@ public class RandomSearchApply {
         LocalDateTime now = LocalDateTime.now();
         String str_time = dtf.format(now);
 
-        BufferedWriter bfw = new BufferedWriter(new FileWriter(new File(
-                commandLine.getOptionValue("metadata_path") + File.separator + str_time + "_applied_algorithm.csv")
-        ));
+        File metadata_file = new File(commandLine.getOptionValue("metadata_path") + File.separator + str_time);
+        metadata_file.mkdirs();
+
+//        BufferedWriter bfw = new BufferedWriter(new FileWriter(new File(
+//                commandLine.getOptionValue("metadata_path") + File.separator + str_time + "_applied_algorithm.csv")
+//        ));
         Exception except = null;
 
         try {
-            bfw.write("dataset_name,n_sample,n_fold,unweighted_area_under_roc,classifier size,elapsed time (seconds),characteristics,options\n");
+//            bfw.write("dataset_name,n_sample,n_fold,unweighted_area_under_roc,classifier size,elapsed time (seconds),characteristics,options\n");
 
             for(String dataset_name : dataset_names) {
+                File dataset_folder_file = new File(metadata_file.getAbsolutePath() + File.separator + dataset_name);
+                dataset_folder_file.mkdirs();
+                dataset_folder_file = new File(dataset_folder_file.getAbsolutePath() + File.separator + "overall");
+                dataset_folder_file.mkdirs();
+
                 for(int n_fold = 1; n_fold <= 10; n_fold++) {  // 10 folds
                     HashMap<String, Instances> datasets = Main.loadDataset(
                             commandLine.getOptionValue("datasets_path"),
@@ -213,6 +217,14 @@ public class RandomSearchApply {
 
                     for(int n_sample = 1; n_sample <= n_samples; n_sample++) {
                         try {
+                            File preds_file = new File(
+                                    String.format(
+                                        dataset_folder_file.getAbsolutePath() + File.separator +
+                                                "test_sample-%02d_fold-%02d_%s.preds",
+                                            n_fold, n_sample, isRF? "RandomForest" : "EDNEL"
+                                )
+                            );
+
                             LocalDateTime t1 = LocalDateTime.now();
                             AbstractClassifier ind;
                             if(isRF) {
@@ -225,20 +237,22 @@ public class RandomSearchApply {
                             } else {
                                 ind = new Individual(optionTable, characteristics);
                             }
-                            ind.buildClassifier(train_data);
-                            Evaluation ev = new Evaluation(train_data);
-
-                            ev.evaluateModel(ind, test_data);
-                            double unweightedAuc = FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ind);
+//                            ind.buildClassifier(train_data);
+//                            Evaluation ev = new Evaluation(train_data);
+//
+//                            ev.evaluateModel(ind, test_data);
+//                            double unweightedAuc = FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ind);
                             LocalDateTime t2 = LocalDateTime.now();
 
                             long elapsed_time = t1.until(t2, ChronoUnit.SECONDS);
-                            // "dataset_name,n_sample,n_fold,unweighted_area_under_roc,classifier size,elapsed time (seconds)\n"
-                            bfw.write(String.format(
-                                    Locale.US,
-                                    "%s,%d,%d,%f,%d,%d,\"%s\",\"%s\"\n",
-                                    dataset_name, n_sample, n_fold, unweightedAuc, ind instanceof Individual? ((Individual)ind).getNumberOfRules() : -1, elapsed_time, characteristics_str, options_str
-                            ));
+
+                            PBILLogger.train_and_write_predictions_to_file(new AbstractClassifier[]{ind}, train_data, test_data, preds_file.getAbsolutePath());
+
+//                            bfw.write(String.format(
+//                                    Locale.US,
+//                                    "%s,%d,%d,%f,%d,%d,\"%s\",\"%s\"\n",
+//                                    dataset_name, n_sample, n_fold, unweightedAuc, ind instanceof Individual? ((Individual)ind).getNumberOfRules() : -1, elapsed_time, characteristics_str, options_str
+//                            ));
                             System.out.println(String.format("Done: %s,%d,%d", dataset_name, n_sample, n_fold));
                         } catch(Exception e) {
                             System.err.println(String.format("Error: %s,%d,%d,%s", dataset_name, n_sample, n_fold, e.getMessage()));
@@ -249,7 +263,7 @@ public class RandomSearchApply {
         } catch(Exception e) {
             except = e;
         } finally {
-            bfw.close();
+//            bfw.close();
         }
         if(except != null) {
             throw except;

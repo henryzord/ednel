@@ -1,5 +1,6 @@
 package ednel.eda.individual;
 
+import ednel.utils.PBILLogger;
 import ednel.utils.analysis.FoldJoiner;
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.omg.CORBA.portable.UnknownException;
@@ -12,6 +13,7 @@ import weka.core.UnassignedClassException;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,22 +21,21 @@ import java.util.Random;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 
+
 /**
- * A little demo java program for using WEKA.<br/>
- * Check out the Evaluation class for more details.
- *
- * @author FracPete (fracpete at waikato dot ac dot nz)
- * @version $Revision$
- * @see Evaluation
+ * Class for calculating fitness of individuals from EDA.
  */
 public class FitnessCalculator {
 
+    /** Data used to train classifiers. Might be split into subsets if performing an internal n-fold cross-validation */
     private Instances learn_data;
+    /** Data to measure validation fitness */
     private Instances val_data;
+    /** Number of internal folds */
     private int n_folds;
 
-    boolean leave_one_out;
-    boolean holdout;
+    private static final String[] evaluation_methods_names = new String[]{"holdout", "leave-one-out", "cross-validation"};
+    private String evaluation_method;
 
     public FitnessCalculator(int n_folds, Instances learn_data) {
         this(n_folds, learn_data, null);
@@ -46,8 +47,8 @@ public class FitnessCalculator {
 
         this.n_folds = n_folds;
 
-        this.holdout = this.n_folds == 0;
-        this.leave_one_out = this.n_folds == 1;
+        int clipped_n_folds = Math.min(Math.max(0, n_folds), FitnessCalculator.evaluation_methods_names.length - 1);
+        this.evaluation_method = FitnessCalculator.evaluation_methods_names[clipped_n_folds];
     }
 
     public static double getUnweightedAreaUnderROC(
@@ -71,6 +72,16 @@ public class FitnessCalculator {
         return unweighted / n_classes;
     }
 
+    /**
+     * Stratifies data for posterior use of a cross-validation procedure.
+     *
+     * @param data Data to be stratified
+     * @param n_folds Number of folds that will be used in cross-validation
+     * @return Same dataset as data, but now stratified
+     * @throws IllegalArgumentException Invalid number of folds
+     * @throws UnassignedClassException Class index is not set
+     * @throws ValueException Is not a classification dataset
+     */
     public static Instances betterStratifier(Instances data, int n_folds)
             throws IllegalArgumentException, UnassignedClassException, ValueException {
         if (n_folds <= 1) {
@@ -143,45 +154,6 @@ public class FitnessCalculator {
         return container;
     }
 
-    public static String writeDistributionOfProbabilities(double[] dist) {
-        StringBuilder sb = new StringBuilder("");
-
-        for(int j = 0; j < dist.length; j++) {
-            sb.append(dist[j]);
-            if((j + 1) < dist.length) {
-                sb.append(",");
-            }
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Evaluates ensemble -- that is, returns the fitness function for this individual.
-     *
-     * @param seed
-     * @param ind
-     * @return
-     * @throws Exception
-     */
-//    public Fitness evaluateEnsemble(int seed, Individual ind) throws
-//            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-//        Random random = new Random(seed);
-//        return this.evaluateEnsemble(random, ind, null, false);
-//    }
-
-    /**
-     * Evaluates ensemble -- that is, returns the fitness function for this individual.
-     *
-     * @param random
-     * @param ind
-     * @return
-     * @throws Exception
-     */
-//    public Fitness evaluateEnsemble(Random random, Individual ind) throws
-//            EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-//        return this.evaluateEnsemble(random, ind, null, false);
-//    }
-
     /**
      * Evaluates ensemble -- that is, returns the fitness function for this individual.
      *
@@ -207,14 +179,16 @@ public class FitnessCalculator {
     public Fitness evaluateEnsemble(
             Random random, Individual ind, Integer timeout_individual, boolean get_validation_fitness
     ) throws EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-        if(!holdout && !leave_one_out) {
-            return crossValidationEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
-        } else if(leave_one_out) {
-            return leaveOneOutEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
-        } else if(holdout) {
-            return holdoutEvaluateEnsemble(random, ind, timeout_individual);
-        } else {
-            throw new UnknownException(new Exception("unknown evaluation methodology"));
+
+        switch(this.evaluation_method) {
+            case "holdout":
+                return crossValidationEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
+            case "leave-one-out":
+                return leaveOneOutEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
+            case "cross-validation":
+                return holdoutEvaluateEnsemble(random, ind, timeout_individual);
+            default:
+                throw new UnknownException(new Exception("unknown evaluation methodology"));
         }
     }
 
@@ -311,7 +285,7 @@ public class FitnessCalculator {
             ArrayList<String> lines = new ArrayList<>(dists.length);
             lines.add("classValue;ensemble\n");
             for(int i = 0; i < local_val.size(); i++) {
-                lines.add(local_val.instance(i).classValue() + ";" + FitnessCalculator.writeDistributionOfProbabilities(dists[i]) + "\n");
+                lines.add(local_val.instance(i).classValue() + ";" + PBILLogger.writeDistributionOfProbabilities(dists[i]) + "\n");
             }
             return new PredictionsSizeContainer(copy.getNumberOfRules(), lines);
             // eval.evaluateModel(copy, local_val);
@@ -321,6 +295,12 @@ public class FitnessCalculator {
         }
     }
 
+    public Fitness getEnsembleValidationFitness(Individual ind) throws EmptyEnsembleException, NoAggregationPolicyException {
+        EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, null);
+        t.run();
+        Fitness fit = new Fitness(ind.getFitness().getSize(), ind.getFitness().getLearnQuality(), t.getValQuality());
+        return fit;
+    }
 
     public static void main(String[] args) {
         try {
@@ -346,12 +326,5 @@ public class FitnessCalculator {
             System.err.println(e.getMessage());
         }
 
-    }
-
-    public Fitness getEnsembleValidationFitness(Individual ind) throws EmptyEnsembleException, NoAggregationPolicyException {
-        EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, null);
-        t.run();
-        Fitness fit = new Fitness(ind.getFitness().getSize(), ind.getFitness().getLearnQuality(), t.getValQuality());
-        return fit;
     }
 }

@@ -1,14 +1,16 @@
 package ednel.utils.analysis;
 
 import ednel.eda.individual.FitnessCalculator;
-import smile.neighbor.lsh.Hash;
 import weka.classifiers.Evaluation;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
 import weka.core.Instance;
 import weka.core.Instances;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,14 +59,13 @@ public class FoldJoiner {
     }
 
     public FoldJoiner(ArrayList<String> lines) {
-        // some instances is the dataset that is built to emulate classification based on predictions of classifiers
+        // someInstances is the dataset that is built to emulate classification based on predictions of classifiers
         ArrayList<Instance> someInstances = new ArrayList<>();
-        // actual classes are the actual classes of instances in the list of lines
         // set of un-repeated class values
         HashSet<Double> classValues = new HashSet<>();
 
         String[] header = lines.get(0).replace("\n", "").split(";");
-        // classifier names as presented in header of lines
+        // classifier names as presented in header
         ArrayList<String> clfsNames = new ArrayList<>();
 
         // list of dictionaries: each list entry is the dictionary for a classifier
@@ -77,6 +78,7 @@ public class FoldJoiner {
 
         int counter = 0;
         for(int i = 1; i < lines.size(); i++) {
+            // each .preds file has a header. So header lines might get repeated
             if(lines.get(i).contains("classValue")) {
                 continue;
             }
@@ -86,25 +88,26 @@ public class FoldJoiner {
             double actualClass = Double.parseDouble(splitted[0]);
 
             classValues.add(actualClass);
+            // counter is the predictive value (dummy), actualClass the class value
             someInstances.add(new DenseInstance(1, new double[]{(double) counter, actualClass}));
 
             for(int j = 1; j < splitted.length; j++) {
+                double[] probs;
                 if(splitted[j].length() > 0) {
                     String[] strProbs = splitted[j].split(",");
-                    double[] probs = new double[strProbs.length];
+                    probs = new double[strProbs.length];
                     for (int k = 0; k < strProbs.length; k++) {
                         probs[k] = Double.parseDouble(strProbs[k]);
                     }
-                    HashMap<Integer, double[]> thisClfProbabilities = probabilities.remove(j - 1);
-                    thisClfProbabilities.put(counter, probs);
-                    probabilities.add(j - 1, thisClfProbabilities);
-                } else {  // adds null because this classifier is not present for this fold. statistics for this classifier will not be present
-                    HashMap<Integer, double[]> thisClfProbabilities = probabilities.remove(j - 1);
-                    thisClfProbabilities.put(counter, null);
-                    probabilities.add(j - 1, thisClfProbabilities);
+                } else {
+                    // adds null because this classifier is not present for this fold.
+                    // statistics for this classifier will not be present
+                    probs = null;
                 }
+                HashMap<Integer, double[]> thisClfProbabilities = probabilities.remove(j - 1);
+                thisClfProbabilities.put(counter, probs);
+                probabilities.add(j - 1, thisClfProbabilities);
             }
-
             counter += 1;
         }
         this.interpretData(someInstances, classValues, clfsNames, probabilities);
@@ -126,6 +129,16 @@ public class FoldJoiner {
         return lines;
     }
 
+    /**
+     * Builds DummyDataset and DummyClassifiers
+     *
+     * @param someInstances An ArrayList of instances, as read from files
+     * @param classValues HashSet of class values (that is, unrepeated values)
+     * @param clfNames Name of classifiers in files
+     * @param probabilities An ArrayList where in each position there is a HashMap for each classifier; and each HashMap
+     *                      is the index of the instance, and the probability distribution for that classifier for that
+     *                      instance.
+     */
     protected void interpretData(
             ArrayList<Instance> someInstances, HashSet<Double> classValues,
             ArrayList<String> clfNames, ArrayList<HashMap<Integer, double[]>> probabilities
@@ -147,7 +160,6 @@ public class FoldJoiner {
         this.dummyDataset.setClassIndex(this.dummyDataset.numAttributes() - 1);
 
         // builds dummyClassifiers
-
         this.dummyClassifiers = new HashMap<>();
         for(int i = 0; i < clfNames.size(); i++) {
             this.dummyClassifiers.put(clfNames.get(i), new DummyClassifier(probabilities.get(i)));

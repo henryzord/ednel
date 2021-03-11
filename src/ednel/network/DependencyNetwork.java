@@ -490,8 +490,16 @@ public class DependencyNetwork {
         return combinations;
     }
 
+
     /**
-     * collects data from fittest individuals
+     * Creates a HashMap, where each key is a variable name, and each value an ArrayList with the values of the
+     * individuals that updated the GM probabilities in the current generation.
+     *
+     * @param selectionShare Proportion of individuals that were selected to update GM probabilities
+     * @param sortedIndices Indices of individuals in the population, sorted in descendent order of fitness
+     * @param population Actual individuals
+     * @return A HashMap where each key is a variable in GM and the value an ArrayList of values for that variable in
+     *         last generation's fittest population (as per selectionShare)
      */
     private HashMap<String, ArrayList<String>> getFittestIndividualsValues(float selectionShare, Integer[] sortedIndices, Individual[] population) {
         int to_select = Math.round(selectionShare * sortedIndices.length);
@@ -523,7 +531,6 @@ public class DependencyNetwork {
                 this.bufferStructureLearning.put(var, values);
             }
         }
-
 
         // only updates structure if there is a previous fittest population
         if((this.max_parents > 0) &&
