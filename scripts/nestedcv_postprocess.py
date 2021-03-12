@@ -8,8 +8,6 @@ import numpy as np
 def main(experiment_path: str):
     experiments = [x for x in os.listdir(experiment_path) if os.path.isdir(os.path.join(experiment_path, x))]
 
-    # data = dict()
-    # datasets = []
 
     all_df = pd.DataFrame(dtype=np.float, columns=pd.MultiIndex.from_product([[None], ['mean', 'std']], names=['classifier', 'metric']))  # empty dataframe
 
@@ -37,14 +35,12 @@ def main(experiment_path: str):
                     df = pd.read_csv(os.path.join(overall_folder, 'summary_1.csv'), index_col=0, header=None)
                     new_columns = pd.MultiIndex.from_arrays(df.iloc[:2].values)
                     df = pd.DataFrame(data=df.iloc[2:].values, columns=new_columns, index=df.index[2:])
-                    # datasets += [dataset]
 
                     if dataset not in all_df.index:
                         all_df.loc[dataset] = np.empty(len(all_df.columns), dtype=np.float)
 
                     for clf in df.index:
                         if 'sample' not in clf:
-                            # TODO get std too!
                             value = df.loc[clf, ('unweightedAreaUnderRoc', ('mean', 'std'))]
 
                             if clf not in all_df.columns.get_level_values(0):
@@ -54,24 +50,13 @@ def main(experiment_path: str):
                             all_df.loc[dataset, (clf, 'mean')] = value[0]
                             all_df.loc[dataset, (clf, 'std')] = value[1]
 
-                            # try:
-                            #     data[clf] += [value]
-                            # except KeyError:
-                            #     data[clf] = [value]
                 except Exception as e:
                     z = 0
-
-    # TODO deal when a classifier is missing from a dataset!!!
 
     del all_df[(None, 'mean')]
     del all_df[(None, 'std')]
 
     all_df.to_csv(os.path.join(experiment_path, 'nestedcv_summarized.csv'))
-
-    # df = pd.DataFrame(new_data).T
-    # df.columns = pd.MultiIndex.from_product([df.columns, ['mean', 'std']])
-    #
-    # pd.DataFrame(data, index=datasets).to_csv(os.path.join(experiment_path, 'nestedcv_summarized.csv'))
 
 
 if __name__ == '__main__':
