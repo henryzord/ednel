@@ -182,11 +182,11 @@ public class FitnessCalculator {
 
         switch(this.evaluation_method) {
             case "holdout":
-                return crossValidationEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
+                return holdoutEvaluateEnsemble(random, ind, timeout_individual);
             case "leave-one-out":
                 return leaveOneOutEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
             case "cross-validation":
-                return holdoutEvaluateEnsemble(random, ind, timeout_individual);
+                return crossValidationEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
             default:
                 throw new UnknownException(new Exception("unknown evaluation methodology"));
         }

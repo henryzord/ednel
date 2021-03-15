@@ -672,12 +672,22 @@ public class PBILLogger {
 
             Individual copy = new Individual(individuals.get(indName));  // ensemble individual
             AbstractClassifier[] orderedClassifiers = copy.getOrderedClassifiers();
-
-            AbstractClassifier[] to_report = new AbstractClassifier[orderedClassifiers.length + 1];
+            int n_valid_classifiers = 0;
             for(int i = 0; i < orderedClassifiers.length; i++) {
-                to_report[i] = orderedClassifiers[i];
+                if(orderedClassifiers[i] != null) {
+                    n_valid_classifiers += 1;
+                }
             }
-            to_report[orderedClassifiers.length] = copy;
+
+            AbstractClassifier[] to_report = new AbstractClassifier[n_valid_classifiers + 1];
+            int counter_to_report = 0;
+            for(int i = 0; i < orderedClassifiers.length; i++) {
+                if(orderedClassifiers[i] != null) {
+                    to_report[counter_to_report] = orderedClassifiers[i];
+                    counter_to_report += 1;
+                }
+            }
+            to_report[counter_to_report] = copy;
 
             PBILLogger.train_and_write_predictions_to_file(to_report, train_data, test_data, write_path);
         }

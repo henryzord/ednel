@@ -9,17 +9,14 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import ednel.utils.analysis.FoldJoiner;
-import jdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.apache.commons.cli.*;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
-import javax.script.ScriptEngineManager;
 import javax.script.ScriptEngine;
-import javax.script.ScriptException;
-
+import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -368,7 +365,7 @@ public class NestedCrossValidation {
         try {
 
             float selection_share = 0.5f;
-            int n_individuals = 100;
+            int n_individuals = 50;  // TODO changed from 100 to 50!
             int n_generations = 100;
             int timeout = 3600;
             int timeout_individual = 60;
@@ -473,14 +470,18 @@ public class NestedCrossValidation {
                 double lastAUC = lastFJ.getAUC("classifier");
                 double overallAUC = overallFJ.getAUC("classifier");
 
-                if((lastAUC > best_combination_auc) && (lastAUC > overallAUC)) {
-                    best_combination_index = counter_combination;
-                    best_combination_auc = lastAUC;
-                    bestUsesOverall = false;
-                } else if((overallAUC > best_combination_auc) && (overallAUC > lastAUC)) {
-                    best_combination_index = counter_combination;
-                    best_combination_auc = overallAUC;
-                    bestUsesOverall = true;
+                if(lastAUC > overallAUC) {
+                    if(lastAUC > best_combination_auc) {
+                        bestUsesOverall = false;
+                        best_combination_auc = lastAUC;
+                        best_combination_index = counter_combination;
+                    }
+                } else {
+                    if(overallAUC > best_combination_auc) {
+                        bestUsesOverall = true;
+                        best_combination_auc = overallAUC;
+                        best_combination_index = counter_combination;
+                    }
                 }
                 counter_combination += 1;
             }
