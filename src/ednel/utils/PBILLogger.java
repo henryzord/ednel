@@ -53,6 +53,7 @@ public class PBILLogger {
     protected ArrayList<Double> minFitness;
     protected ArrayList<Double> maxFitness;
     protected ArrayList<Double> medianFitness;
+
     protected ArrayList<Integer> discardedIndividuals;
     protected ArrayList<Integer> lapTimes;
     protected ArrayList<Integer> nevals;
@@ -161,6 +162,7 @@ public class PBILLogger {
         this.minFitness = new ArrayList<>();
         this.medianFitness = new ArrayList<>();
         this.maxFitness = new ArrayList<>();
+
         this.discardedIndividuals = new ArrayList<>();
         this.lapTimes = new ArrayList<>();
         this.nevals = new ArrayList<>();
@@ -265,13 +267,18 @@ public class PBILLogger {
                     ), population[i].getCharacteristics().get(characteristic));
                 }
                 this.pastPopulations.put(String.format(
-                        "gen_%03d_ind_%03d_%s", this.curGen, i, "fitness"
+                        "gen_%03d_ind_%03d_%s", this.curGen, i, "option_string"
+                ), population[i].getOptionString());
+                this.pastPopulations.put(String.format(
+                        "gen_%03d_ind_%03d_%s", this.curGen, i, "learnQuality"
                 ), String.valueOf(population[i].getFitness().getLearnQuality()));
+                this.pastPopulations.put(String.format(
+                        "gen_%03d_ind_%03d_%s", this.curGen, i, "validationQuality"
+                ), String.valueOf(population[i].getFitness().getValQuality()));
             }
         }
         this.minFitness.add(population[sortedIndices[population.length - 1]].getFitness().getLearnQuality());
         this.maxFitness.add(population[sortedIndices[0]].getFitness().getLearnQuality());
-
         this.medianFitness.add(PBILLogger.getMedianFitness(population, sortedIndices));
     }
 
@@ -406,60 +413,6 @@ public class PBILLogger {
             }
         }
         return line + "," + (evaluation != null? FitnessCalculator.getUnweightedAreaUnderROC(evaluation) : "") + "\n";
-    }
-
-    /**
-     * DEPRECATED: writes a .csv with metadata of this run to a folder.
-     *
-     * @param individuals
-     * @param train_data
-     * @param test_data
-     * @return
-     * @throws Exception
-     */
-    private Double[] deprecatedEvaluationsToFile(
-            HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
-
-        BufferedWriter bw = new BufferedWriter(new FileWriter(this.dataset_overall_path));
-        Double[] fitnesses = new Double [individuals.size()];
-
-        // writes header
-        String header = "algorithm";
-        for(String methodName : metricsToCollect) {
-            header += "," + methodName;
-        }
-        bw.write(header + "," + "unweightedAreaUnderRoc" + "\n");
-
-        Evaluation evaluation;
-
-        Object[] indNames = individuals.keySet().toArray();
-
-        for(int i = 0; i < indNames.length; i++) {
-            String indName = (String)indNames[i];
-            evaluation = new Evaluation(train_data);
-            evaluation.evaluateModel(individuals.get(indName), test_data);
-
-            bw.write(PBILLogger.getEvaluationLineForClassifier(indName, evaluation));
-
-            HashMap<String, AbstractClassifier> indClassifiers = individuals.get(indName).getClassifiers();
-
-            for(String key: indClassifiers.keySet()) {
-                if(!String.valueOf(indClassifiers.get(key)).equals("null")) {
-                    evaluation = new Evaluation(train_data);
-                    evaluation.evaluateModel(indClassifiers.get(key), test_data);
-
-                    fitnesses[i] = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
-                } else {
-                    fitnesses[i] = 0.0;
-                    evaluation = null;
-                }
-                bw.write(PBILLogger.getEvaluationLineForClassifier(indName + "-" + key, evaluation));
-            }
-        }
-        bw.close();
-
-        this.ednel_predictions_to_file(individuals, train_data, test_data);
-        return fitnesses;
     }
 
     /**
@@ -693,13 +646,26 @@ public class PBILLogger {
         }
     }
 
+    /**
+     * Writes several metadata to file: <br>
+     *      * A .csv with characteristics of every individual that ever lived; <br>
+     *      * A .md with the readable ensemble; <br>
+     *      * The dependency network structure, as a zipped .json file; <br>
+     *      * A .csv with metadata on evolution <br>
+     * @param dn Dependency Network
+     * @param individuals A HashMap of individuals, where the key is the name (last, overall) and the value the Individual
+     *                    instance
+     * @param train_data Data to be used to train individuals (last, overall)
+     * @param test_data Data to test individuals (last, overall)
+     * @throws Exception If anything bad happens
+     */
     public void toFile(
             DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data
     ) throws Exception {
 
-        Double[] fitnesses = deprecatedEvaluationsToFile(individuals, train_data, test_data);
+//        Double[] fitnesses = deprecatedEvaluationsToFile(individuals, train_data, test_data);
         PBILLogger.createFolder(this_run_path);
-        individualsCharacteristicsToFile(individuals, fitnesses);
+        individualsCharacteristicsToFile(individuals, train_data, test_data);
         individualsClassifiersToFile(individuals);
         loggerDataToFile();
         dependencyNetworkStructureToFile(dn);
@@ -803,18 +769,18 @@ public class PBILLogger {
     }
 
     private String getCharacteristicsLineForIndividual(
-            Object[] order, String indName, HashMap<String, String> characteristics, Double aucs) {
+            Object[] order, String indName, HashMap<String, String> characteristics, Double aucs, String option_string) {
 
         String line = indName;
         for(Object ch : order) {
             line += "," + characteristics.get(ch);
         }
-        line += ",null," + aucs;
+        line += ",null," + aucs + "," + option_string;
         return line + "\n";
     }
 
     private void individualsCharacteristicsToFile(
-            HashMap<String, Individual> individuals, Double[] fitnesses) throws IOException {
+            HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
 
         BufferedWriter bw = new BufferedWriter(new FileWriter(
                 this_run_path + File.separator + "characteristics.csv"
@@ -826,14 +792,22 @@ public class PBILLogger {
         for(int i = 0; i < order.length; i++) {
             header += "," + order[i];
         }
-        bw.write(header + ",fitness,test_auc\n");
+        bw.write(header + ",fitness,test_auc,option_string\n");
 
         Object[] indNames = individuals.keySet().toArray();
 
         for(int i = 0; i < indNames.length; i++) {
             String indName = (String)indNames[i];
+            Individual ind = individuals.get(indName);
+            Evaluation evaluation = new Evaluation(train_data);
+            ind.buildClassifier(train_data);;
+            evaluation.evaluateModel(ind, test_data);
+            double fitness = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
+
+            String option_string = ind.getOptionString();
+
             HashMap<String, String> characteristics = individuals.get(indName).getCharacteristics();
-            bw.write(this.getCharacteristicsLineForIndividual(order, indName, characteristics, fitnesses[i]));
+            bw.write(this.getCharacteristicsLineForIndividual(order, indName, characteristics, fitness, option_string));
         }
         if(this.log) {
             for(int i = 0; i < this.curGen; i++) {
@@ -842,7 +816,9 @@ public class PBILLogger {
                     for(Object ch : order) {
                         line += "," + pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, ch));
                     }
-                    line += "," + pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, "fitness")) + ",null";
+                    line += "," + pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, "fitness")) +
+                            ",null," +
+                            pastPopulations.get(String.format("gen_%03d_ind_%03d_%s", i, j, "option_string"));
                     bw.write(line + "\n");
                 }
             }

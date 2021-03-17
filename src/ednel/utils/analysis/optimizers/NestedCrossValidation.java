@@ -8,7 +8,7 @@ import ednel.eda.individual.EmptyEnsembleException;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
-import ednel.utils.analysis.FoldJoiner;
+import ednel.utils.analysis.CompilePredictions;
 import org.apache.commons.cli.*;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
@@ -269,9 +269,9 @@ public class NestedCrossValidation {
                         counter_instance += 1;
                     }
                 }
-                FoldJoiner foldJoiner = new FoldJoiner(predictionMatrix, actualClasses);
-
-                double auc = foldJoiner.getAUC("classifier");
+                String tempClfName = "classifier";
+                CompilePredictions foldJoiner = new CompilePredictions(predictionMatrix, actualClasses, tempClfName);
+                double auc = foldJoiner.getAUC(tempClfName);
 
                 if(auc > best_combination_auc) {
                     best_combination_index = counter_combination;
@@ -464,11 +464,11 @@ public class NestedCrossValidation {
                         counter_instance += 1;
                     }
                 }
-                FoldJoiner lastFJ = new FoldJoiner(lastPredictionMatrix, actualClasses);
-                FoldJoiner overallFJ = new FoldJoiner(overallPredictionMatrix, actualClasses);
+                CompilePredictions lastFJ = new CompilePredictions(lastPredictionMatrix, actualClasses, "LastClassifier");
+                CompilePredictions overallFJ = new CompilePredictions(overallPredictionMatrix, actualClasses, "OverallClassifier");
 
-                double lastAUC = lastFJ.getAUC("classifier");
-                double overallAUC = overallFJ.getAUC("classifier");
+                double lastAUC = lastFJ.getAUC("LastClassifier");
+                double overallAUC = overallFJ.getAUC("OverallClassifier");
 
                 if(lastAUC > overallAUC) {
                     if(lastAUC > best_combination_auc) {

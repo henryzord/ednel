@@ -24,6 +24,8 @@ import java.util.concurrent.TimeoutException;
 
 public class Individual extends AbstractClassifier implements OptionHandler, Summarizable, TechnicalInformationHandler, Comparable<Individual> {
 
+    protected String option_string;
+
     protected J48 j48;
     protected SimpleCart simpleCart;
     protected PART part;
@@ -66,6 +68,7 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
     public Individual(HashMap<String, String> optionTable, HashMap<String, String> characteristics) throws
             EmptyEnsembleException, InvalidParameterException, NoAggregationPolicyException
     {
+        this.setOptionString(optionTable);
 
         this.classifiers = new HashMap<>(6);
         this.characteristics = new HashMap<>();
@@ -650,6 +653,18 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
     public AbstractClassifier[] getOrderedClassifiers() {
         return this.orderedClassifiers;
+    }
+
+    protected void setOptionString(HashMap<String, String> optionTable) {
+        StringBuilder sb = new StringBuilder("");
+        for(String key : optionTable.keySet()) {
+            sb.append(String.format("-%s %s ", key, optionTable.get(key)));
+        }
+        this.option_string = sb.toString();
+    }
+
+    public String getOptionString() {
+        return option_string;
     }
 }
 

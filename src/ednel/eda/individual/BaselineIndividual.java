@@ -17,7 +17,6 @@ import java.util.HashMap;
 public class BaselineIndividual extends Individual {
 
     private static final HashMap<String, String> options;
-
     private static final HashMap<String, String> baselineCharacteristics;
 
     static {

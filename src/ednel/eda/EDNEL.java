@@ -7,7 +7,6 @@ import ednel.eda.individual.Individual;
 import ednel.eda.stoppers.EarlyStop;
 import ednel.network.DependencyNetwork;
 import ednel.utils.PBILLogger;
-import ednel.utils.sorters.PopulationSorter;
 import org.apache.commons.math3.random.MersenneTwister;
 import weka.classifiers.AbstractClassifier;
 import weka.core.Instances;
@@ -163,9 +162,8 @@ public class EDNEL extends AbstractClassifier {
         int to_sample = this.n_individuals;
         int to_select = 0;
 
-        Integer[] sortedIndices = new Integer[0];
-
         Individual[] population = new Individual[this.n_individuals];
+        Integer[] sortedIndices = new Integer[0];
 
         for(int g = 0; g < this.n_generations; g++) {
             Individual[] sampled = dn.gibbsSample(
@@ -190,14 +188,13 @@ public class EDNEL extends AbstractClassifier {
                 counter += 1;
             }
 
+            sortedIndices = fc.getSortedIndices(population);
+
             to_sample = this.n_individuals - 1;
             to_select = 1;
 
-            sortedIndices = PopulationSorter.lexicographicArgsort(population);
-
             // current gen best is the individual which presents the best fitness in
-            // learning set (if using n-fold cross-validation) or validation set (holdout)
-            // TODO not implemented for leave-one-out
+            // learning set (if using n-fold cross-validation, including leave-one-out) or validation set (holdout)
             this.currentGenBest = population[sortedIndices[0]];
             Fitness currentGenBestFit = fc.getEnsembleValidationFitness(this.currentGenBest);
             this.currentGenBest.setFitness(currentGenBestFit);

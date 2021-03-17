@@ -1,7 +1,8 @@
 package ednel.eda.individual;
 
 import ednel.utils.PBILLogger;
-import ednel.utils.analysis.FoldJoiner;
+import ednel.utils.analysis.CompilePredictions;
+import ednel.utils.sorters.PopulationSorter;
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.omg.CORBA.portable.UnknownException;
 import weka.classifiers.AbstractClassifier;
@@ -13,6 +14,7 @@ import weka.core.UnassignedClassException;
 import weka.core.Utils;
 import weka.core.converters.ConverterUtils;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,21 +36,41 @@ public class FitnessCalculator {
     /** Number of internal folds */
     private int n_folds;
 
-    private static final String[] evaluation_methods_names = new String[]{"holdout", "leave-one-out", "cross-validation"};
-    private String evaluation_method;
+    public enum EvaluationMethod {
+            HOLDOUT, LEAVEONEOUT, CROSSVALIDATION;
+    };
+    private EvaluationMethod evaluation_method;
 
-    public FitnessCalculator(int n_folds, Instances learn_data) {
+    private Integer[] sortedIndices_learn;
+    private Integer[] sortedIndices_val;
+
+    public FitnessCalculator(int n_folds, Instances learn_data) throws Exception {
         this(n_folds, learn_data, null);
     }
 
-    public FitnessCalculator(int n_folds, Instances learn_data, Instances val_data) {
+    public FitnessCalculator(int n_folds, Instances learn_data, Instances val_data) throws Exception {
         this.learn_data = learn_data;
         this.val_data = val_data;
 
         this.n_folds = n_folds;
 
-        int clipped_n_folds = Math.min(Math.max(0, n_folds), FitnessCalculator.evaluation_methods_names.length - 1);
-        this.evaluation_method = FitnessCalculator.evaluation_methods_names[clipped_n_folds];
+        this.sortedIndices_learn = new Integer[0];
+        this.sortedIndices_val = new Integer[0];
+
+        if(n_folds < 0) {
+            throw new Exception("Number of folds cannot be less than zero!");
+        }
+
+        switch(n_folds) {
+            case 0:
+                this.evaluation_method = EvaluationMethod.HOLDOUT;
+                break;
+            case 1:
+                this.evaluation_method = EvaluationMethod.LEAVEONEOUT;
+                break;
+            default:
+                this.evaluation_method = EvaluationMethod.CROSSVALIDATION;
+        }
     }
 
     public static double getUnweightedAreaUnderROC(
@@ -181,11 +203,11 @@ public class FitnessCalculator {
     ) throws EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
 
         switch(this.evaluation_method) {
-            case "holdout":
+            case HOLDOUT:
                 return holdoutEvaluateEnsemble(random, ind, timeout_individual);
-            case "leave-one-out":
+            case LEAVEONEOUT:
                 return leaveOneOutEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
-            case "cross-validation":
+            case CROSSVALIDATION:
                 return crossValidationEvaluateEnsemble(random, ind, timeout_individual, get_validation_fitness);
             default:
                 throw new UnknownException(new Exception("unknown evaluation methodology"));
@@ -253,7 +275,7 @@ public class FitnessCalculator {
         size /= n_folds;
         double learnQuality;
         try {
-            FoldJoiner fj = new FoldJoiner(all_lines);
+            CompilePredictions fj = new CompilePredictions(all_lines);
             learnQuality = fj.getAUC("ensemble");
         } catch(Exception e) {
             learnQuality = 0;
@@ -326,5 +348,29 @@ public class FitnessCalculator {
             System.err.println(e.getMessage());
         }
 
+    }
+
+    public Integer[] getSortedIndices(Individual[] population) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        Double[] fitnesses = new Double[population.length];
+
+        Method fitnessMethod;
+
+        switch(this.evaluation_method) {
+            case HOLDOUT:
+                fitnessMethod = Fitness.class.getMethod("getValQuality");
+                break;
+            case LEAVEONEOUT:
+            case CROSSVALIDATION:
+                fitnessMethod = Fitness.class.getMethod("getLearnQuality");
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + this.evaluation_method);
+        }
+
+        for(int i = 0; i < population.length; i++) {
+            fitnesses[i] = (double)fitnessMethod.invoke(population[i].getFitness());
+        }
+
+        return PopulationSorter.lexicographicArgsort(fitnesses);
     }
 }

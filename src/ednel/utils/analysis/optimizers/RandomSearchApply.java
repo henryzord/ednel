@@ -119,18 +119,18 @@ public class RandomSearchApply {
     }
 
     private static HashMap<String, String> captureEDNELClassifierOptions(String c) {
-        String[] tokens = {"J48", "SimpleCart", "PART", "JRip", "DecisionTable", "GreedyStepwise", "BestFirst"};
+        String[] tokens = {"-J48", "-SimpleCart", "-PART", "-JRip", "-DecisionTable", "-GreedyStepwise", "-BestFirst", "-Aggregator"};
         HashMap<String, String> optionsTable = new HashMap<>();
         Integer[] indices = new Integer [tokens.length];
 
         for(int i = 0; i < tokens.length; i++) {
-            indices[i] = c.lastIndexOf(tokens[i]);
+            indices[i] = c.indexOf(tokens[i]);
         }
         Integer[] sortedIndices = Argsorter.crescent_argsort(indices);
 
         for(int i = 0; i < tokens.length; i++) {
             if(indices[sortedIndices[i]] == -1) {
-                optionsTable.put(tokens[sortedIndices[i]], null);
+                optionsTable.put(tokens[sortedIndices[i]].replace("-", ""), null);
                 continue;
             }
 
@@ -142,14 +142,17 @@ public class RandomSearchApply {
             } else {
                 endIndex = c.length();
             }
-
-            optionsTable.put(tokens[sortedIndices[i]], c.substring(startIndex, endIndex).trim());
+            String value = c.substring(startIndex, endIndex).trim();
+            optionsTable.put(tokens[sortedIndices[i]].replace("-", ""), value);
         }
 
-        if(!optionsTable.containsKey("Aggregator")) {
-            optionsTable.put("Aggregator", "MajorityVotingAggregator");
+        if(
+                !optionsTable.containsKey("Aggregator") ||
+                (optionsTable.get("Aggregator").length() == 0) ||
+                (optionsTable.get("Aggregator") == null)
+        ) {
+            throw new IllegalArgumentException("should pass an Aggregator too!");
         }
-
         return optionsTable;
     }
 

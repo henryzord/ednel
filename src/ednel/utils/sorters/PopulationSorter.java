@@ -107,7 +107,7 @@ public class PopulationSorter {
         return Argsorter.decrescent_argsort(fitness_values);
     }
 
-    public static Integer[] lexicographicArgsort(Individual[] population) {
-        return Argsorter.decrescent_argsort(population);
+    public static Integer[] lexicographicArgsort(Double[] fitnesses) {
+        return Argsorter.decrescent_argsort(fitnesses);
     }
 }
