@@ -13,6 +13,7 @@ import weka.core.Instances;
 import weka.filters.Filter;
 import weka.filters.unsupervised.instance.RemovePercentage;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
@@ -29,7 +30,7 @@ public class EDNEL extends AbstractClassifier {
     protected final int early_stop_generations;
 
     /** The ratio at which probabilities must be changed in GM. Higher values imply faster changes. Must be in (0, 1] */
-    protected final double learning_rate;
+    protected final float learning_rate;
     /** Ratio of individuals, in the current generation, that will be used to update GM probabilities. Must be in (0, 1] */
     protected final float selection_share;
     /** Number of individuals to have concomitantly in the same generation */
@@ -76,7 +77,7 @@ public class EDNEL extends AbstractClassifier {
     /** EarlyStop instance */
     protected EarlyStop earlyStop;
 
-    public EDNEL(double learning_rate, float selection_share, int n_individuals, int n_generations,
+    public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
                  int max_parents, int delay_structure_learning, int n_internal_folds, PBILLogger pbilLogger, Integer seed
     ) throws Exception {
@@ -149,49 +150,53 @@ public class EDNEL extends AbstractClassifier {
             pbilLogger.setDatasets(null, learn_data, val_data, null);
         }
         FitnessCalculator fc = new FitnessCalculator(this.n_internal_folds, learn_data, val_data);
+        this.earlyStop = new EarlyStop(this.early_stop_generations, 0);
 
         this.currentGenBest = new BaselineIndividual();
-        this.overallBest = this.currentGenBest;
-
-        this.earlyStop = new EarlyStop(this.early_stop_generations, 0);
         Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, null, true);
         this.currentGenBest.setFitness(baselineFitness);
+        this.overallBest = this.currentGenBest;
 
-        this.earlyStop.update(-1, this.currentGenBest);
+        Method fitnessMethod = fc.getPreferredFitnessMethod();
 
-        int to_sample = this.n_individuals;
-        int to_select = 0;
+        this.earlyStop.update(-1, this.currentGenBest, (Double)fitnessMethod.invoke(this.currentGenBest.getFitness()));
 
-        Individual[] population = new Individual[this.n_individuals];
+        int to_select = 0;  // no carry over for first generation
+        int to_sample = this.n_individuals;  // samples whole population
+
         Integer[] sortedIndices = new Integer[0];
+        Individual[] population = new Individual[this.n_individuals];
+
+        boolean exitedDueToSamplingError = false;
 
         for(int g = 0; g < this.n_generations; g++) {
             Individual[] sampled = dn.gibbsSample(
                     this.currentGenBest.getCharacteristics(), to_sample, fc, this.seed, start, this.timeout
             );
-            // removes old individuals
-            int counter = 0;
-
             if((sampled.length < to_sample)) {
+                exitedDueToSamplingError = true;
                 break;
             }
 
-            // selects old population - all sampled individuals in first generation, and 1 from then on
+            // removes old individuals
+            int pop_counter = 0;
+
+            // selects old population - all sampled individuals on first generation, and 1 from then on
             for(int i = 0; i < to_select; i++) {
-                population[counter] = population[sortedIndices[i]];
-                counter += 1;
+                population[pop_counter] = population[sortedIndices[i]];
+                pop_counter += 1;
             }
 
             // adds new population
             for(int i = 0; i < sampled.length; i++) {
-                population[counter] = sampled[i];
-                counter += 1;
+                population[pop_counter] = sampled[i];
+                pop_counter += 1;
             }
 
             sortedIndices = fc.getSortedIndices(population);
 
-            to_sample = this.n_individuals - 1;
             to_select = 1;
+            to_sample = this.n_individuals - 1;
 
             // current gen best is the individual which presents the best fitness in
             // learning set (if using n-fold cross-validation, including leave-one-out) or validation set (holdout)
@@ -207,7 +212,7 @@ public class EDNEL extends AbstractClassifier {
             }
             t1 = t2;
 
-            this.earlyStop.update(g, this.currentGenBest);
+            this.earlyStop.update(g, this.currentGenBest, (Double)fitnessMethod.invoke(this.currentGenBest.getFitness()));
 
             boolean overTime = (this.timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > this.timeout);
 
@@ -220,6 +225,11 @@ public class EDNEL extends AbstractClassifier {
         this.overallBest = this.earlyStop.getBestIndividual();
 
         this.trainReturnIndividuals(train_data);
+
+        if(this.currentGenBest.hashCode() != this.overallBest.hashCode()) {  // TODO remove me!
+            System.out.println("Last bast and Overall Best are different individuals!");
+            int z = 0;  // TODO remove me!
+        }  // TODO remove me!
 
         this.fitted = true;
     }

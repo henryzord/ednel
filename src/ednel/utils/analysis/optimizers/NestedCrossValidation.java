@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.stream.IntStream;
@@ -188,8 +189,8 @@ public class NestedCrossValidation {
     }
 
     private static Object runExternalCrossValidationFoldRandomForest(
-            int n_external_fold, int n_internal_folds, String datasets_path, String dataset_name,
-            String dataset_experiment_path, String clf_name) {
+            int n_external_fold, int n_internal_folds, String dataset_name, String datasets_path,
+            String dataset_experiment_path) {
 
         try {
 //            String[] samplingOrder = new String[]{"bagSizePercent", "breakTiesRandomly", "maxDepth", "numFeatures", "numIterations"};
@@ -359,31 +360,37 @@ public class NestedCrossValidation {
     }
 
     private static Object runExternalCrossValidationFoldEDNEL(
-            int n_external_fold, int n_internal_folds, String datasets_path, String dataset_name,
-            String dataset_experiment_path, String clf_name
+            int n_external_fold, int n_internal_folds, String dataset_name, String datasets_path,
+            String dataset_experiment_path
     ) {
         try {
 
-            float selection_share = 0.5f;
-            int n_individuals = 50;  // TODO changed from 100 to 50!
+            int n_individuals = 50;
             int n_generations = 100;
+
             int timeout = 3600;
             int timeout_individual = 60;
+
+            boolean no_cycles = false;
+
             int burn_in = 100;
             int thinning_factor = 0;
-            boolean no_cycles = false;
-            float[] learning_rates = {0.13f, 0.26f, 0.52f};
-            int[] early_stop_generations = {10, 20};
             int[] max_parents = {0, 1};
+            float selection_share = 0.5f;
             int delay_structure_learning = 5;
+            int[] early_stop_generations = {10, 20};
+            float[] learning_rates = {0.13f, 0.26f, 0.52f};
 
-            double[][] combinations = new double[learning_rates.length * early_stop_generations.length * max_parents.length][3];
-            int counter_comb = 0;
-            for(double learning_rate : learning_rates) {
+            ArrayList<HashMap<String, Float>> combinations = new ArrayList<>();
+
+            for(float learning_rate : learning_rates) {
                 for(int early_stop_generation : early_stop_generations) {
                     for(int max_parent : max_parents) {
-                        combinations[counter_comb] = new double[]{learning_rate, early_stop_generation, max_parent};
-                        counter_comb += 1;
+                        HashMap<String, Float> comb = new HashMap<>();
+                        comb.put("learning_rate", learning_rate);
+                        comb.put("early_stop_generation", (float)early_stop_generation);
+                        comb.put("max_parent", (float)max_parent);
+                        combinations.add(comb);
                     }
                 }
             }
@@ -409,7 +416,7 @@ public class NestedCrossValidation {
             double best_combination_auc = Double.NEGATIVE_INFINITY;
             boolean bestUsesOverall = false;
 
-            for(double[] comb : combinations) {  // iterates over combinations of hyper-parameters
+            for(HashMap<String, Float> comb : combinations) {  // iterates over combinations of hyper-parameters
                 int counter_instance = 0;
                 for(int i = 0; i < n_internal_folds; i++) {
                     Instances internal_train_data = external_train_data.trainCV(n_internal_folds, i);
@@ -420,7 +427,7 @@ public class NestedCrossValidation {
 
                     try {
                         EDNEL ednel = new EDNEL(
-                                comb[0],  // learning rate
+                                comb.get("learning_rate"),  // learning rate
                                 selection_share,
                                 n_individuals,
                                 n_generations,
@@ -429,9 +436,9 @@ public class NestedCrossValidation {
                                 burn_in,
                                 thinning_factor,
                                 false,
-                                (int)comb[1],  // early stop generations
-                                (int)comb[2],  // max parents
-                                comb[2] == 0? 0 : delay_structure_learning,
+                                comb.get("early_stop_generation").intValue(),  // early stop generations
+                                comb.get("max_parent").intValue(),  // max parents
+                                comb.get("max_parent") == 0? 0 : delay_structure_learning,
                                 0, // holdout
                                 null,
                                 null
@@ -499,15 +506,15 @@ public class NestedCrossValidation {
                     burn_in,
                     thinning_factor,
                     no_cycles,
-                    (float)combinations[best_combination_index][0],  // learning rate
-                    (int)combinations[best_combination_index][1],  // early stop generations
-                    (int)combinations[best_combination_index][2],  // max parents
+                    combinations.get(best_combination_index).get("learning_rate"),  // learning rate
+                    combinations.get(best_combination_index).get("early_stop_generation").intValue(),  // early stop generations
+                    combinations.get(best_combination_index).get("max_parent").intValue(),  // max parents
                     delay_structure_learning,
                     bestUsesOverall
                     );
 
             EDNEL ednel = new EDNEL(
-                    combinations[best_combination_index][0],  // learning rate
+                    combinations.get(best_combination_index).get("learning_rate"),  // learning rate
                     selection_share,
                     n_individuals,
                     n_generations,
@@ -516,9 +523,9 @@ public class NestedCrossValidation {
                     burn_in,
                     thinning_factor,
                     false,
-                    (int)combinations[best_combination_index][1],  // early stop generations
-                    (int)combinations[best_combination_index][2],  // max parents
-                    combinations[best_combination_index][2] == 0? 0 : delay_structure_learning,
+                    combinations.get(best_combination_index).get("early_stop_generation").intValue(),  // early stop generations
+                    combinations.get(best_combination_index).get("max_parent").intValue(),  // max parents
+                    combinations.get(best_combination_index).get("max_parent").intValue() == 0? 0 : delay_structure_learning,
                     0, // holdout
                     pbilLogger,
                     null
@@ -540,25 +547,37 @@ public class NestedCrossValidation {
         }
     }
 
+    /**
+     * Performs a nested-cross validation optimization, depending on the algorithm.
+     *
+     * @param clf_name Name of classifier
+     * @param n_external_folds Number of external folds.
+     * @param n_internal_folds Number of internal folds.
+     * @param dataset_name Name of datasets to test
+     * @param datasets_path Path where datasets are stored, one folder for each dataset, and inside each dataset folder,
+     *                      two csv files for each fold (one for the training data, and another for the testing data)
+     * @param experiment_metadata_path Path to where write metadata on this experiment
+     * @throws Exception
+     */
     private static void classifierOptimization(
-            int n_external_folds, int n_internal_folds,
-            String datasets_path, String dataset_name, String experiment_metadata_path, String clf_name
+            String clf_name, int n_external_folds, int n_internal_folds,
+            String dataset_name, String datasets_path, String experiment_metadata_path
     ) throws Exception {
 
         if(clf_name.equals("EDNEL")) {
             Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
                     i -> NestedCrossValidation.runExternalCrossValidationFoldEDNEL(
-                            i, n_internal_folds, datasets_path, dataset_name,
-                            experiment_metadata_path + File.separator + dataset_name, clf_name)
+                            i, n_internal_folds, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
             ).toArray();
         } else if(clf_name.equals("RandomForest")) {
             Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
                     i -> NestedCrossValidation.runExternalCrossValidationFoldRandomForest(
-                            i, n_internal_folds, datasets_path, dataset_name,
-                            experiment_metadata_path + File.separator + dataset_name, clf_name)
+                            i, n_internal_folds, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
             ).toArray();
         } else {
-            throw new Exception("not implemented yet!");
+            throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));
         }
     }
 
@@ -572,8 +591,7 @@ public class NestedCrossValidation {
 
         // writes metadata
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
-        LocalDateTime now = LocalDateTime.now();
-        String str_time = dtf.format(now);
+        String str_time = dtf.format(LocalDateTime.now());
         options.put("datasets_names", options.get("dataset_name"));
         PBILLogger.metadata_path_start(str_time, options);
         options.remove("datasets_names");
@@ -587,7 +605,7 @@ public class NestedCrossValidation {
         String clf_name = options.get("classifier");
 
         NestedCrossValidation.classifierOptimization(
-                n_external_folds, n_internal_folds, datasets_path, dataset_name, experiment_metadata_path, clf_name
+                clf_name, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path
         );
     }
 }

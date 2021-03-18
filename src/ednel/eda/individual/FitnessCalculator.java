@@ -214,6 +214,12 @@ public class FitnessCalculator {
         }
     }
 
+    private Fitness leaveOneOutEvaluateEnsemble(
+            Random random, Individual ind, Integer timeout_individual, boolean get_validation_fitness
+    ) throws EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
+        throw new UnknownException(new Exception("not implemented yet!"));
+    }
+
     private Fitness holdoutEvaluateEnsemble(
             Random random, Individual ind, Integer timeout_individual
     ) throws UnknownException {
@@ -229,12 +235,6 @@ public class FitnessCalculator {
         } catch(Exception e) {
             return new Fitness(0, 0, 0);
         }
-    }
-
-    private Fitness leaveOneOutEvaluateEnsemble(
-            Random random, Individual ind, Integer timeout_individual, boolean get_validation_fitness
-    ) throws EmptyEnsembleException, NoAggregationPolicyException, TimeoutException, UnknownException, InterruptedException {
-        throw new UnknownException(new Exception("not implemented yet!"));
     }
 
     private Fitness crossValidationEvaluateEnsemble(
@@ -287,7 +287,6 @@ public class FitnessCalculator {
             return new Fitness(size, learnQuality);
         }
     }
-
 
     public static Object parallelFoldEvaluation(
             Individual ind, Instances train_data,
@@ -350,9 +349,7 @@ public class FitnessCalculator {
 
     }
 
-    public Integer[] getSortedIndices(Individual[] population) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Double[] fitnesses = new Double[population.length];
-
+    public Method getPreferredFitnessMethod() throws NoSuchMethodException {
         Method fitnessMethod;
 
         switch(this.evaluation_method) {
@@ -366,6 +363,16 @@ public class FitnessCalculator {
             default:
                 throw new IllegalStateException("Unexpected value: " + this.evaluation_method);
         }
+
+        return fitnessMethod;
+
+
+    }
+
+    public Integer[] getSortedIndices(Individual[] population) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        Double[] fitnesses = new Double[population.length];
+
+        Method fitnessMethod = getPreferredFitnessMethod();
 
         for(int i = 0; i < population.length; i++) {
             fitnesses[i] = (double)fitnessMethod.invoke(population[i].getFitness());

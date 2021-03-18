@@ -3,9 +3,8 @@ package ednel.eda.stoppers;
 import ednel.eda.individual.Individual;
 
 public class EarlyStop {
-    private int windowSize;
     private int startGen;
-//    private double tolerance;
+    private int windowSize;
     private Double bestFitness;
     private Individual bestIndividual;
 
@@ -13,48 +12,44 @@ public class EarlyStop {
 
 
     public EarlyStop(int windowSize, int startGen) {
-        this.windowSize = windowSize;
-//        this.tolerance = tolerance;
-//        this.startGen = Math.max(startGen, this.windowSize);
         this.startGen = startGen;
+        this.windowSize = windowSize;
 
         this.faultCounter = 0;
         this.bestFitness = -1.0;
         this.bestIndividual = null;
     }
 
-    public boolean isStopping(int gen) {
-        return ((gen > this.startGen) && (this.faultCounter > this.windowSize));
-    }
-
     /**
+     * Updates early stop with the best individual from the current generation.
+     * The fitness value depends on the evaluation method. Please see documentation for FitnessCalculator.
      *
      * @param gen Current generation
-     * @param ind Current generation best individual
+     * @param ind Current generation best individual, based on fitness (either on learn set or validation set. Depends
+     *            on the evaluation method - holdout, leave-one-out, cross-validation)
      */
-    public void update(int gen, Individual ind) {
+    public void update(int gen, Individual ind, Double bestFitness) {
         if(gen > this.startGen) {
-            if(ind.getFitness().getValQuality() >= this.bestFitness) {
-//            if((ind.getFitness().getValQuality() - this.bestFitness) >= this.tolerance) {
+            if(bestFitness >= this.bestFitness) {
                 this.faultCounter = 0;
-                this.bestFitness = ind.getFitness().getValQuality();
+                this.bestFitness = bestFitness;
                 this.bestIndividual = ind;
             } else {
                 this.faultCounter += 1;
             }
         } else {
             this.bestIndividual = ind;
-            this.bestFitness = ind.getFitness().getValQuality();
+            this.bestFitness = bestFitness;
         }
+    }
+
+    public boolean isStopping(int gen) {
+        return ((gen > this.startGen) && (this.faultCounter > this.windowSize));
     }
 
     public int getWindowSize() {
         return windowSize;
     }
-
-//    public double getTolerance() {
-//        return tolerance;
-//    }
 
     public Individual getBestIndividual() {
         return this.bestIndividual;

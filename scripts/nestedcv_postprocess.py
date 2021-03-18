@@ -8,8 +8,10 @@ import numpy as np
 def main(experiment_path: str):
     experiments = [x for x in os.listdir(experiment_path) if os.path.isdir(os.path.join(experiment_path, x))]
 
-
-    all_df = pd.DataFrame(dtype=np.float, columns=pd.MultiIndex.from_product([[None], ['mean', 'std']], names=['classifier', 'metric']))  # empty dataframe
+    all_df = pd.DataFrame(
+        dtype=np.float,
+        columns=pd.MultiIndex.from_product([[None], ['mean', 'std']], names=['classifier', 'metric'])
+    )
 
     for experiment in experiments:
         dataset_names = [x for x in os.listdir(os.path.join(experiment_path, experiment)) if os.path.isdir(os.path.join(experiment_path, experiment, x))]
@@ -37,7 +39,7 @@ def main(experiment_path: str):
                     df = pd.DataFrame(data=df.iloc[2:].values, columns=new_columns, index=df.index[2:])
 
                     if dataset not in all_df.index:
-                        all_df.loc[dataset] = np.empty(len(all_df.columns), dtype=np.float)
+                        all_df.loc[dataset] = np.ones(len(all_df.columns), dtype=np.float) * -1
 
                     for clf in df.index:
                         if 'sample' not in clf:
@@ -55,6 +57,8 @@ def main(experiment_path: str):
 
     del all_df[(None, 'mean')]
     del all_df[(None, 'std')]
+
+    all_df.replace(to_replace=-1, value=np.nan, inplace=True)
 
     all_df.to_csv(os.path.join(experiment_path, 'nestedcv_summarized.csv'))
 

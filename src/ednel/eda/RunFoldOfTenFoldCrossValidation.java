@@ -75,7 +75,7 @@ public class RunFoldOfTenFoldCrossValidation implements Runnable, Callable {
         );
 
         this.ednel = new EDNEL(
-                Double.parseDouble(cmd.get("learning_rate")),
+                Float.parseFloat(cmd.get("learning_rate")),
                 Float.parseFloat(cmd.get("selection_share")),
                 Integer.parseInt(cmd.get("n_individuals")),
                 Integer.parseInt(cmd.get("n_generations")),
