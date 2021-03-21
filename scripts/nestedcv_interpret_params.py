@@ -34,7 +34,7 @@ def unpack(d: dict, experiment_path: str):
 			for value, count in d[param][dataset].items():
 				df.loc[dataset, param + '_' + value] = count
 
-	df.to_csv(os.path.join(experiment_path, 'summary_hyperparameters.csv'), index=True)
+	df.to_csv(os.path.join(experiment_path, 'ultra_hyperparameters.csv'), index=True)
 	print(df)
 
 
@@ -68,7 +68,6 @@ def main(experiment_path: str):
 				for name, count in cc.items():
 					variable_parameters[k][dataset][name] = count
 
-	# print(variable_parameters)
 	unpack(variable_parameters, experiment_path)
 
 

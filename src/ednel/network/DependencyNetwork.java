@@ -363,7 +363,7 @@ public class DependencyNetwork {
         return components;
     }
 
-    public Individual[] gibbsSample(
+    public Individual[] gibbsSampleAndAssignFitness(
             HashMap<String, String> lastStart, int sampleSize, FitnessCalculator fc, int seed,
             LocalDateTime start, Integer timeout
     ) throws Exception {
@@ -403,13 +403,11 @@ public class DependencyNetwork {
             if(thinning_counter >= this.thinning_factor) {
                 try {
                     Individual individual = new Individual(optionTable, lastStart);
-                    Fitness thisIndFitness = fc.evaluateEnsemble(seed, individual, this.timeout_individual, false);
-                    individual.setFitness(thisIndFitness);
+                    individual.setFitness(
+                            fc.evaluateEnsemble(seed, individual, this.timeout_individual, false)
+                    );
 
                     individuals[individual_counter] = individual;
-//                    fitnesses[individual_counter] = thisIndFitness;
-//                    qualities[individual_counter] = thisIndFitness.getLearnQuality();
-//                    sizes[individual_counter] = thisIndFitness.getSize();
 
                     thinning_counter = 0;
                     individual_counter += 1;
@@ -419,7 +417,7 @@ public class DependencyNetwork {
 
                     this.currentGenEvals += 1;
                 } catch (InvalidParameterException | EmptyEnsembleException | NoAggregationPolicyException | TimeoutException e) {
-                    // generated invalid individual
+                    // invalid individual generated
                     this.currentGenDiscardedIndividuals += 1;
 
                     inner_invalid_streak += 1;

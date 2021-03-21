@@ -231,9 +231,9 @@ public class FitnessCalculator {
             eval.evaluateModel(copy, this.val_data);
 
             double auc = getUnweightedAreaUnderROC(eval);
-            return new Fitness(copy.getNumberOfRules(), auc, auc);
+            return new Fitness(copy.getNumberOfRules(), null, auc);
         } catch(Exception e) {
-            return new Fitness(0, 0, 0);
+            return new Fitness(null, null, null);
         }
     }
 
@@ -284,7 +284,7 @@ public class FitnessCalculator {
         if(get_validation_fitness) {
             return new Fitness(size, learnQuality, t.getValQuality());
         } else {
-            return new Fitness(size, learnQuality);
+            return new Fitness(size, learnQuality, null);
         }
     }
 
@@ -317,36 +317,12 @@ public class FitnessCalculator {
     }
 
     public Fitness getEnsembleValidationFitness(Individual ind) throws EmptyEnsembleException, NoAggregationPolicyException {
-        EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, null);
-        t.run();
-        Fitness fit = new Fitness(ind.getFitness().getSize(), ind.getFitness().getLearnQuality(), t.getValQuality());
-        return fit;
-    }
-
-    public static void main(String[] args) {
-        try {
-            J48 j48 = new J48();
-            j48.setConfidenceFactor((float)0.4);
-
-            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\iris\\iris-10-1tra.arff");
-            ConverterUtils.DataSource test_set = new ConverterUtils.DataSource("C:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\iris\\iris-10-1tst.arff");
-
-            Instances train_data = train_set.getDataSet();
-            Instances test_data = test_set.getDataSet();
-            train_data.setClassIndex(train_data.numAttributes() - 1);
-            test_data.setClassIndex(test_data.numAttributes() - 1);
-
-            j48.buildClassifier(train_data);
-            Evaluation ev = new Evaluation(train_data);
-            ev.evaluateModel(j48, test_data);
-
-            for(int i = 0; i < train_data.numClasses(); i++) {
-                System.out.println(ev.areaUnderROC(i));
-            }
-        } catch(Exception e) {
-            System.err.println(e.getMessage());
+        if(ind.getFitness().getValQuality() == null) {
+            EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, null);
+            t.run();
+            return new Fitness(ind.getFitness().getSize(), ind.getFitness().getLearnQuality(), t.getValQuality());
         }
-
+        return ind.getFitness();
     }
 
     public Method getPreferredFitnessMethod() throws NoSuchMethodException {
@@ -375,9 +351,8 @@ public class FitnessCalculator {
         Method fitnessMethod = getPreferredFitnessMethod();
 
         for(int i = 0; i < population.length; i++) {
-            fitnesses[i] = (double)fitnessMethod.invoke(population[i].getFitness());
+            fitnesses[i] = (Double)fitnessMethod.invoke(population[i].getFitness());
         }
-
         return PopulationSorter.lexicographicArgsort(fitnesses);
     }
 }

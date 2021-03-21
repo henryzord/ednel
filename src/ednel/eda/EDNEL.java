@@ -155,11 +155,9 @@ public class EDNEL extends AbstractClassifier {
         this.currentGenBest = new BaselineIndividual();
         Fitness baselineFitness = fc.evaluateEnsemble(seed, this.currentGenBest, null, true);
         this.currentGenBest.setFitness(baselineFitness);
-        this.overallBest = this.currentGenBest;
 
-        Method fitnessMethod = fc.getPreferredFitnessMethod();
-
-        this.earlyStop.update(-1, this.currentGenBest, (Double)fitnessMethod.invoke(this.currentGenBest.getFitness()));
+        this.earlyStop.update(-1, this.currentGenBest, this.currentGenBest.getFitness().getValQuality());
+        this.overallBest = this.earlyStop.getBestIndividual();
 
         int to_select = 0;  // no carry over for first generation
         int to_sample = this.n_individuals;  // samples whole population
@@ -167,14 +165,11 @@ public class EDNEL extends AbstractClassifier {
         Integer[] sortedIndices = new Integer[0];
         Individual[] population = new Individual[this.n_individuals];
 
-        boolean exitedDueToSamplingError = false;
-
         for(int g = 0; g < this.n_generations; g++) {
-            Individual[] sampled = dn.gibbsSample(
+            Individual[] sampled = dn.gibbsSampleAndAssignFitness(
                     this.currentGenBest.getCharacteristics(), to_sample, fc, this.seed, start, this.timeout
             );
             if((sampled.length < to_sample)) {
-                exitedDueToSamplingError = true;
                 break;
             }
 
@@ -201,8 +196,7 @@ public class EDNEL extends AbstractClassifier {
             // current gen best is the individual which presents the best fitness in
             // learning set (if using n-fold cross-validation, including leave-one-out) or validation set (holdout)
             this.currentGenBest = population[sortedIndices[0]];
-            Fitness currentGenBestFit = fc.getEnsembleValidationFitness(this.currentGenBest);
-            this.currentGenBest.setFitness(currentGenBestFit);
+            this.currentGenBest.setFitness(fc.getEnsembleValidationFitness(this.currentGenBest));
 
             t2 = LocalDateTime.now();
             if(this.pbilLogger != null) {
@@ -212,7 +206,9 @@ public class EDNEL extends AbstractClassifier {
             }
             t1 = t2;
 
-            this.earlyStop.update(g, this.currentGenBest, (Double)fitnessMethod.invoke(this.currentGenBest.getFitness()));
+            // early stop always use validation fitness
+            this.earlyStop.update(g, this.currentGenBest, this.currentGenBest.getFitness().getValQuality());
+            this.overallBest = this.earlyStop.getBestIndividual();
 
             boolean overTime = (this.timeout > 0) && ((int)start.until(t1, ChronoUnit.SECONDS) > this.timeout);
 
@@ -222,13 +218,10 @@ public class EDNEL extends AbstractClassifier {
             this.dn.update(population, sortedIndices, this.selection_share, g);
         }
 
-        this.overallBest = this.earlyStop.getBestIndividual();
-
         this.trainReturnIndividuals(train_data);
 
         if(this.currentGenBest.hashCode() != this.overallBest.hashCode()) {  // TODO remove me!
             System.out.println("Last bast and Overall Best are different individuals!");
-            int z = 0;  // TODO remove me!
         }  // TODO remove me!
 
         this.fitted = true;

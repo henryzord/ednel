@@ -663,7 +663,7 @@ public class PBILLogger {
             DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data
     ) throws Exception {
 
-//        Double[] fitnesses = deprecatedEvaluationsToFile(individuals, train_data, test_data);
+        this.ednel_predictions_to_file(individuals, train_data, test_data);
         PBILLogger.createFolder(this_run_path);
         individualsCharacteristicsToFile(individuals, train_data, test_data);
         individualsClassifiersToFile(individuals);

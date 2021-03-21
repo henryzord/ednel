@@ -7,47 +7,37 @@ package ednel.eda.individual;
  * is ignorant to this fact.
  */
 public class Fitness {
-    private int size;
-    private double learnQuality;
-    private double valQuality;
+    private Integer size;
+    private Double learnQuality;
+    private Double valQuality;
 
-    Fitness() {
-        this.size = 0;
-        this.learnQuality = 0;
-        this.valQuality = 0;
+    Fitness(Integer size, Double learnQuality, Double valQuality) {
+        this.size = size == null? 0 : size;
+        this.learnQuality = learnQuality == null? 0 : learnQuality;
+        this.valQuality = valQuality == null? 0 : valQuality;
     }
 
-    Fitness(int size, double learnQuality) {
-        this(size, learnQuality, 0);
-    }
-
-    Fitness(int size, double learnQuality, double valQuality) {
-        this.size = size;
-        this.learnQuality = learnQuality;
-        this.valQuality = valQuality;
-    }
-
-    public void setSize(int size) {
+    public void setSize(Integer size) {
         this.size = size;
     }
 
-    public void setLearnQuality(double learnQuality) {
+    public void setLearnQuality(Double learnQuality) {
         this.learnQuality = learnQuality;
     }
 
-    public void setValQuality(double valQuality) {
+    public void setValQuality(Double valQuality) {
         this.valQuality = valQuality;
     }
 
-    public int getSize() {
+    public Integer getSize() {
         return size;
     }
 
-    public double getLearnQuality() {
+    public Double getLearnQuality() {
         return learnQuality;
     }
 
-    public double getValQuality() {
+    public Double getValQuality() {
         return valQuality;
     }
 
