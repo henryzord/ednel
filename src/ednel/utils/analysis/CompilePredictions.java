@@ -3,7 +3,6 @@ package ednel.utils.analysis;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
-import smile.neighbor.lsh.Hash;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.core.Attribute;

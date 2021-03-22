@@ -193,10 +193,6 @@ public class NestedCrossValidation {
             String dataset_experiment_path) {
 
         try {
-//            String[] samplingOrder = new String[]{"bagSizePercent", "breakTiesRandomly", "maxDepth", "numFeatures", "numIterations"};
-    //        String[] optionNames = new String[]{"-P", ";-B", "-depth", "-K", "-I"};
-    //        int[][] ranges = new int[][]{{20, 90}, {0, 1}, {0, 10}, {1, 100}, {1000, 1000}};
-
             String[] bagSizePercents = {"-P 90", "-P 100"};
             String[] breakTiesRandomly = {""};  // always false
             String[] maxDepths = {"-depth 0"};  // always unlimited
@@ -576,9 +572,21 @@ public class NestedCrossValidation {
                             i, n_internal_folds, dataset_name, datasets_path,
                             experiment_metadata_path + File.separator + dataset_name)
             ).toArray();
+        } else if(clf_name.equals("PBIL")) {
+            Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
+                    i -> NestedCrossValidation.runExternalCrossValidationFoldPBIL(
+                            i, n_internal_folds, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
+            ).toArray();
         } else {
             throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));
         }
+    }
+
+    private static Object runExternalCrossValidationFoldPBIL(
+            int n_external_fold, int n_internal_folds, String dataset_name, String datasets_path, String dataset_experiment_path
+    ) {
+        return null;
     }
 
     public static void main(String[] args) throws Exception {
