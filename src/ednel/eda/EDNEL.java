@@ -1,5 +1,7 @@
 package ednel.eda;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import ednel.eda.individual.BaselineIndividual;
 import ednel.eda.individual.Fitness;
 import ednel.eda.individual.FitnessCalculator;
@@ -13,9 +15,13 @@ import weka.core.Instances;
 import weka.filters.Filter;
 import weka.filters.unsupervised.instance.RemovePercentage;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 
 public class EDNEL extends AbstractClassifier {
 
@@ -92,7 +98,9 @@ public class EDNEL extends AbstractClassifier {
         this.thinning_factor = thinning_factor;
         this.early_stop_generations = early_stop_generations;
         this.max_parents = max_parents;
-        this.delay_structure_learning = delay_structure_learning;
+
+        this.delay_structure_learning = this.max_parents == 0? 0 : delay_structure_learning;
+
         this.n_internal_folds = n_internal_folds;
 
         this.earlyStop = null;
@@ -274,6 +282,38 @@ public class EDNEL extends AbstractClassifier {
 
     public boolean isLogging() {
         return this.pbilLogger != null;
+    }
+
+    public void writeParametersToFile(
+            String write_path, String dataset_experiment_path, String dataset_name, boolean bestUsesOverall
+    ) throws IOException {
+
+        HashMap<String, String> obj = new HashMap<>();
+
+        obj.put("dataset_experiment_path", dataset_experiment_path);
+        obj.put("dataset_name", dataset_name);
+        obj.put("selection_share", String.valueOf(selection_share));
+        obj.put("n_individuals", String.valueOf(n_individuals));
+        obj.put("n_generations", String.valueOf(n_generations));
+        obj.put("timeout", String.valueOf(timeout));
+        obj.put("timeout_individual", String.valueOf(timeout_individual));
+        obj.put("burn_in", String.valueOf(burn_in));
+        obj.put("thinning_factor", String.valueOf(thinning_factor));
+        obj.put("no_cycles", String.valueOf(no_cycles));
+        obj.put("learning_rate", String.valueOf(learning_rate));
+        obj.put("early_stop_generations", String.valueOf(early_stop_generations));
+        obj.put("max_parents", String.valueOf(max_parents));
+        obj.put("delay_structure_learning", String.valueOf(delay_structure_learning));
+        obj.put("individual", bestUsesOverall? "overall" : "last");
+
+
+        FileWriter fw = new FileWriter(write_path);
+
+        Gson converter = new GsonBuilder().setPrettyPrinting().create();
+
+        fw.write(converter.toJson(obj));
+        fw.flush();
+        fw.close();
     }
 }
 

@@ -4,12 +4,12 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import ednel.Main;
 import ednel.eda.EDNEL;
-import ednel.eda.individual.EmptyEnsembleException;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import ednel.utils.analysis.CompilePredictions;
 import org.apache.commons.cli.*;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.trees.RandomForest;
@@ -22,6 +22,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -31,6 +33,10 @@ import java.util.Locale;
 import java.util.stream.IntStream;
 
 public class NestedCrossValidation {
+    public enum SupportedAlgorithms {
+        EDNEL, PBIL, RandomForest, AUTOCVE
+    }
+
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
         Options options = new Options();
 
@@ -65,14 +71,15 @@ public class NestedCrossValidation {
                 .desc("Path to folder where runs results will be stored.")
                 .build());
 
-        options.addOption(Option.builder()
-                .longOpt("n_external_folds")
-                .required(true)
-                .type(String.class)
-                .hasArg()
-                .numberOfArgs(1)
-                .desc("Number of external folds to use in nested cross validation.")
-                .build());
+        // TODO allow for any number of external folds to run!
+//        options.addOption(Option.builder()
+//                .longOpt("n_external_folds")
+//                .required(true)
+//                .type(String.class)
+//                .hasArg()
+//                .numberOfArgs(1)
+//                .desc("Number of external folds to use in nested cross validation.")
+//                .build());
 
         options.addOption(Option.builder()
                 .longOpt("n_internal_folds")
@@ -98,18 +105,16 @@ public class NestedCrossValidation {
 
     private static void RandomForestParametersToFile(
             int n_external_fold, String dataset_experiment_path, String dataset_name,
-            String bagSizePercent, String breakTiesRandomly, String maxDepth, String numFeatures, String numIterations
+            HashMap<String, Object> bestCombination
     ) throws IOException {
 
         HashMap<String, String> obj = new HashMap<>();
 
-        obj.put("dataset_experiment_path", dataset_experiment_path);
         obj.put("dataset_name", dataset_name);
-        obj.put("bagSizePercent", bagSizePercent.split(" ")[1]);
-        obj.put("breakTiesRandomly", breakTiesRandomly.length() > 0? "true" : "false");
-        obj.put("maxDepth", maxDepth.split(" ")[1]);
-        obj.put("numFeatures", numFeatures.split(" ")[1]);
-        obj.put("numIterations", numIterations.split(" ")[1]);
+        obj.put("dataset_experiment_path", dataset_experiment_path);
+        for(String key : bestCombination.keySet()) {
+            obj.put(key, bestCombination.get(key).toString());
+        }
 
         FileWriter fw = new FileWriter(
                 dataset_experiment_path + File.separator + String.format("test_sample-01_fold-%02d_parameters.json", n_external_fold)
@@ -122,42 +127,19 @@ public class NestedCrossValidation {
         fw.close();
     }
 
-    private static void EDNELparametersToFile(
-            int n_external_fold, String dataset_experiment_path, String dataset_name, float selection_share, int n_individuals,
-            int n_generations, int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles,
-            float learning_rate, int early_stop_generations, int max_parents, int delay_structure_learning, boolean bestUsesOverall
-    ) throws IOException {
-
-        HashMap<String, String> obj = new HashMap<>();
-
-        obj.put("dataset_experiment_path", dataset_experiment_path);
-        obj.put("dataset_name", dataset_name);
-        obj.put("selection_share", String.valueOf(selection_share));
-        obj.put("n_individuals", String.valueOf(n_individuals));
-        obj.put("n_generations", String.valueOf(n_generations));
-        obj.put("timeout", String.valueOf(timeout));
-        obj.put("timeout_individual", String.valueOf(timeout_individual));
-        obj.put("burn_in", String.valueOf(burn_in));
-        obj.put("thinning_factor", String.valueOf(thinning_factor));
-        obj.put("no_cycles", String.valueOf(no_cycles));
-        obj.put("learning_rate", String.valueOf(learning_rate));
-        obj.put("early_stop_generations", String.valueOf(early_stop_generations));
-        obj.put("max_parents", String.valueOf(max_parents));
-        obj.put("delay_structure_learning", String.valueOf(delay_structure_learning));
-        obj.put("individual", bestUsesOverall? "overall" : "last");
-
-
-        FileWriter fw = new FileWriter(
-                dataset_experiment_path + File.separator + String.format("test_sample-01_fold-%02d_parameters.json", n_external_fold)
-        );
-
-        Gson converter = new GsonBuilder().setPrettyPrinting().create();
-
-        fw.write(converter.toJson(obj));
-        fw.flush();
-        fw.close();
-    }
-
+    /**
+     * Given a mathematical expression (as a String), which selects the number of features to be used as hyper-parameter
+     * for RandomForest, and a dataset, returns the exact number of features that should be used.<br>
+     *<br>
+     * Example:<br>
+     * Input: "-K {Math.sqrt(p)/2}" (and a dataset with 100 attributes)<br>
+     * Output: "-K 5"<br>
+     *
+     * @param param The mtry hyper-parameter of RandomForest, expressed as "-K {mathematical_expression}" (see example above)
+     * @param data Dataset
+     * @return The mtry hyper-parameter of RandomForest, now with a number
+     * @throws ScriptException If the mathematical expression cannot be evaluated
+     */
     private static String getRandomForestNumFeatures(String param, Instances data) throws ScriptException {
         ScriptEngineManager mgr = new ScriptEngineManager();
         ScriptEngine engine = mgr.getEngineByName("JavaScript");
@@ -188,209 +170,60 @@ public class NestedCrossValidation {
         return new_string;
     }
 
-    private static Object runExternalCrossValidationFoldRandomForest(
-            int n_external_fold, int n_internal_folds, String dataset_name, String datasets_path,
-            String dataset_experiment_path) {
+    private static AbstractClassifier getAbstractClassifier(
+            SupportedAlgorithms algorithmName, Constructor constructor, HashMap<String, Object> comb, Instances data)
+            throws Exception {
 
-        try {
-            String[] bagSizePercents = {"-P 90", "-P 100"};
-            String[] breakTiesRandomly = {""};  // always false
-            String[] maxDepths = {"-depth 0"};  // always unlimited
-            String[] numFeatures = {
-                    "-K {Math.sqrt(p)/2}",
-                    "-K {Math.sqrt(p)}",
-                    "-K {Math.sqrt(p)*2}",
-                    "-K {Math.log(p)/(Math.log(2)*2)}",
-                    "-K {Math.log(p)/Math.log(2)}",
-                    "-K {(Math.log(p)/Math.log(2))*2}"
-            };  // must be replaced by the actual number of features
-            String[] numIterations = {"-I 1000"};  // always 1000
+        Parameter[] constructorParams = constructor.getParameters();
+        AbstractClassifier abs = null;
+        Object[] toUseParams;
+        switch(algorithmName) {
+            case EDNEL:
+                toUseParams = new Object[constructorParams.length];
 
+                for(int c_param = 0; c_param < constructorParams.length; c_param++) {
+                    toUseParams[c_param] = comb.get(constructorParams[c_param].getName());
+                }
 
-            String[][] combinations = new String[
-                    bagSizePercents.length * breakTiesRandomly.length * maxDepths.length *
-                    numFeatures.length * numIterations.length
-            ][5];  // 5 options
-
-            int counter_comb = 0;
-            for(String bsp : bagSizePercents) {
-                for(String btr : breakTiesRandomly) {
-                    for(String mp : maxDepths) {
-                        for(String nf : numFeatures) {
-                            for(String ni : numIterations) {
-                                combinations[counter_comb] = new String[]{bsp, btr, mp, nf, ni}; // , "-S 1", "-num-slots 1", "-M 1.0"};  // puts seed, n_jobs, and minNumObjs
-                                counter_comb += 1;
-                            }
-                        }
+                abs = (AbstractClassifier)constructor.newInstance(toUseParams);
+                break;
+            case RandomForest:
+                toUseParams = new String[comb.size() * 2];
+                int counter_param = 0;
+                for(String key : comb.keySet()) {
+                    String paramName;
+                    String paramValue;
+                    String[] splitted = comb.get(key).toString().split(" ");
+                    if(key.equals("numFeatures")) {
+                        paramName = splitted[0];
+                        paramValue = NestedCrossValidation.getRandomForestNumFeatures(comb.get("numFeatures").toString(), data).split(" ")[1];
+                    } else if(splitted.length > 1) {
+                        paramName = splitted[0];
+                        paramValue = splitted[1];
+                    } else {
+                        paramName = "";
+                        paramValue = "";
                     }
+                    toUseParams[counter_param] = paramName;
+                    toUseParams[counter_param + 1] = paramValue;
+                    counter_param += 2;
                 }
-            }
-
-            HashMap<String, Instances> datasets = Main.loadDataset(
-                    datasets_path,
-                    dataset_name,
-                    n_external_fold
-            );
-            Instances external_train_data = datasets.get("train_data");  // 9/10 of external cv folds
-            Instances external_test_data = datasets.get("test_data");  // 1/10 of external cv folds
-
-            // prepares data for future internal cross validation
-            external_train_data = FitnessCalculator.betterStratifier(external_train_data, n_internal_folds);
-
-            double[][] predictionMatrix = new double[external_train_data.size()][];
-            double[] actualClasses = new double[external_train_data.size()];
-
-            int counter_combination = 0;
-
-            int best_combination_index = -1;
-            double best_combination_auc = Double.NEGATIVE_INFINITY;
-
-            for(String[] comb : combinations) {  // iterates over combinations of hyper-parameters
-                int counter_instance = 0;
-                for(int i = 0; i < n_internal_folds; i++) {
-                    Instances internal_train_data = external_train_data.trainCV(n_internal_folds, i);
-                    Instances internal_test_data = external_train_data.testCV(n_internal_folds, i);
-
-                    RandomForest rf = new RandomForest();
-                    String[] copy = comb.clone();
-                    copy[3] = NestedCrossValidation.getRandomForestNumFeatures(comb[3], internal_train_data);
-                    rf.setOptions(NestedCrossValidation.atomize(copy));
-
-                    rf.buildClassifier(internal_train_data);
-
-                    double[][] preds = rf.distributionsForInstances(internal_test_data);
-
-                    for(int j = 0; j < internal_test_data.size(); j++) {
-                        predictionMatrix[counter_instance] = preds[j];
-                        actualClasses[counter_instance] = internal_test_data.instance(j).value(internal_test_data.classIndex());
-                        counter_instance += 1;
-                    }
-                }
-                String tempClfName = "classifier";
-                CompilePredictions foldJoiner = new CompilePredictions(predictionMatrix, actualClasses, tempClfName);
-                double auc = foldJoiner.getAUC(tempClfName);
-
-                if(auc > best_combination_auc) {
-                    best_combination_index = counter_combination;
-                    best_combination_auc = auc;
-                }
-                counter_combination += 1;
-            }
-
-            NestedCrossValidation.RandomForestParametersToFile(
-                    n_external_fold,
-                    dataset_experiment_path, dataset_name,
-                    combinations[best_combination_index][0],
-                    combinations[best_combination_index][1],
-                    combinations[best_combination_index][2],
-                    combinations[best_combination_index][3],
-                    combinations[best_combination_index][4]
-            );
-
-            BufferedWriter opt_file = new BufferedWriter(
-                    new FileWriter(
-                            new File(
-                                    dataset_experiment_path + File.separator +
-                                    String.format(
-                                            "overall%stest_sample-01_fold-%02d_RandomForest_nestedcv_optimization.csv",
-                                            File.separator, n_external_fold
-                                    )
-                            )
-                    )
-            );
-            opt_file.write("dataset_name,n_sample,n_fold,unweighted_area_under_roc,classifier size,elapsed time (seconds),characteristics,options\n");
-
-            LocalDateTime t1 = LocalDateTime.now();
-
-            RandomForest rf = new RandomForest();
-
-            String[] copy = combinations[best_combination_index].clone();
-            copy[3] = NestedCrossValidation.getRandomForestNumFeatures(combinations[best_combination_index][3], external_train_data);
-            rf.setOptions(NestedCrossValidation.atomize(copy));
-
-            rf.buildClassifier(external_train_data);
-
-            PBILLogger.write_predictions_to_file(
-                    new AbstractClassifier[]{rf},
-                    external_test_data,
-                    dataset_experiment_path + File.separator + String.format("overall%stest_sample-01_fold-%02d_RandomForest.preds", File.separator, n_external_fold)
-            );
-
-            Evaluation ev = new Evaluation(external_train_data);
-            ev.evaluateModel(rf, external_test_data);
-            double unweightedAuc = FitnessCalculator.getUnweightedAreaUnderROC(external_train_data, external_test_data, rf);
-            LocalDateTime t2 = LocalDateTime.now();
-
-            long elapsed_time = t1.until(t2, ChronoUnit.SECONDS);
-            // "dataset_name,n_sample,n_fold,unweighted_area_under_roc,classifier size,elapsed time (seconds)\n"
-
-            String characteristics_str = String.format(
-                    Locale.US,
-                    "bagSizePercent=%d, breakTiesRandomly=%s, maxDepth=%d, numFeatures=%s, numIterations=%d",
-                    Integer.parseInt(combinations[best_combination_index][0].split(" ")[1]),
-                    combinations[best_combination_index][1].contains("-B")? "true" : "false",
-                    Integer.parseInt(combinations[best_combination_index][2].split(" ")[1]),
-                    combinations[best_combination_index][3],
-                    Integer.parseInt(combinations[best_combination_index][4].split(" ")[1])
-            );
-
-            StringBuilder options_str_builder = new StringBuilder("");
-            for(int j = 0; j < combinations[best_combination_index].length; j++) {
-                options_str_builder.append(combinations[best_combination_index][j]).append(" ");
-            }
-
-            opt_file.write(String.format(
-                    Locale.US,
-                    "%s,%d,%d,%f,%d,%d,\"%s\",\"%s\"\n",
-                    dataset_name, 1, n_external_fold, unweightedAuc, 1000, elapsed_time, characteristics_str, options_str_builder.toString().trim()
-            ));
-            System.out.println(String.format("Done: %s,%d,%d", dataset_name, 1, n_external_fold));
-            opt_file.flush();
-            opt_file.close();
-            return true;
-        } catch(Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace(System.err);
-            return e;
+                abs = new RandomForest();
+                abs.setOptions((String[])toUseParams);
+                break;
+            default:
+                throw new NotImplementedException();
         }
+
+        abs.buildClassifier(data);
+        return abs;
     }
 
-    private static Object runExternalCrossValidationFoldEDNEL(
-            int n_external_fold, int n_internal_folds, String dataset_name, String datasets_path,
-            String dataset_experiment_path
+    private static Object runExternalCrossValidationFoldBareBones(
+            SupportedAlgorithms algorithmName, ArrayList<HashMap<String, Object>> combinations, int n_external_fold, int n_internal_folds,
+            String dataset_name, String datasets_path, String dataset_experiment_path
     ) {
         try {
-
-            int n_individuals = 50;
-            int n_generations = 100;
-
-            int timeout = 3600;
-            int timeout_individual = 60;
-
-            boolean no_cycles = false;
-
-            int burn_in = 100;
-            int thinning_factor = 0;
-            int[] max_parents = {0, 1};
-            float selection_share = 0.5f;
-            int delay_structure_learning = 5;
-            int[] early_stop_generations = {10, 20};
-            float[] learning_rates = {0.13f, 0.26f, 0.52f};
-
-            ArrayList<HashMap<String, Float>> combinations = new ArrayList<>();
-
-            for(float learning_rate : learning_rates) {
-                for(int early_stop_generation : early_stop_generations) {
-                    for(int max_parent : max_parents) {
-                        HashMap<String, Float> comb = new HashMap<>();
-                        comb.put("learning_rate", learning_rate);
-                        comb.put("early_stop_generation", (float)early_stop_generation);
-                        comb.put("max_parent", (float)max_parent);
-                        combinations.add(comb);
-                    }
-                }
-            }
-
             HashMap<String, Instances> datasets = Main.loadDataset(
                     datasets_path,
                     dataset_name,
@@ -402,140 +235,109 @@ public class NestedCrossValidation {
             // prepares data for future internal cross validation
             external_train_data = FitnessCalculator.betterStratifier(external_train_data, n_internal_folds);
 
-            double[][] lastPredictionMatrix = new double[external_train_data.size()][];
-            double[][] overallPredictionMatrix = new double[external_train_data.size()][];
-            double[] actualClasses = new double[external_train_data.size()];
+            ArrayList<NCVMatrixHandler> combinationsHandlers = new ArrayList<>();
 
-            int counter_combination = 0;
+            Constructor constructor;
 
-            int best_combination_index = -1;
-            double best_combination_auc = Double.NEGATIVE_INFINITY;
-            boolean bestUsesOverall = false;
+            switch(algorithmName) {
+                case EDNEL:
+                    constructor = EDNEL.class.getConstructor(
+                            float.class, float.class, int.class, int.class, int.class, int.class, int.class, int.class,
+                            boolean.class, int.class, int.class, int.class, int.class, PBILLogger.class, Integer.class
+                    );
+                    break;
+                case PBIL:
+//                    lastPredictionMatrix = new double[external_train_data.size()][];
+//                    overallPredictionMatrix = new double[external_train_data.size()][];
+                    throw new NotImplementedException();
+                case RandomForest:
+                    constructor = RandomForest.class.getConstructor();
+                    break;
+                case AUTOCVE:
+//                    predictionMatrix = new double[external_train_data.size()][];
+                    throw new NotImplementedException();
+                default:
+                    throw new IllegalStateException("Unexpected value: " + algorithmName);
+            }
 
-            for(HashMap<String, Float> comb : combinations) {  // iterates over combinations of hyper-parameters
-                int counter_instance = 0;
+            for(HashMap<String, Object> comb : combinations) {  // iterates over combinations of hyper-parameters
+                NCVMatrixHandler combinationMatrixHandler = new NCVMatrixHandler(external_train_data, algorithmName);
                 for(int i = 0; i < n_internal_folds; i++) {
                     Instances internal_train_data = external_train_data.trainCV(n_internal_folds, i);
                     Instances internal_test_data = external_train_data.testCV(n_internal_folds, i);
 
-                    double[][] lastFoldPreds;
-                    double[][] overallFoldPreds;
+                    AbstractClassifier abstractClassifier = NestedCrossValidation.getAbstractClassifier(
+                            algorithmName, constructor, comb, internal_train_data
+                    );
+                    combinationMatrixHandler.handle(abstractClassifier, internal_test_data);
+                }  // ends for internal cross validation
 
-                    try {
-                        EDNEL ednel = new EDNEL(
-                                comb.get("learning_rate"),  // learning rate
-                                selection_share,
-                                n_individuals,
-                                n_generations,
-                                timeout,
-                                timeout_individual,
-                                burn_in,
-                                thinning_factor,
-                                false,
-                                comb.get("early_stop_generation").intValue(),  // early stop generations
-                                comb.get("max_parent").intValue(),  // max parents
-                                comb.get("max_parent") == 0? 0 : delay_structure_learning,
-                                0, // holdout
-                                null,
-                                null
-                        );
+                combinationMatrixHandler.compile();
+                combinationsHandlers.add(combinationMatrixHandler);
+            }  // ends for combinations
 
-                        ednel.buildClassifier(internal_train_data);
-
-                        lastFoldPreds = ednel.getCurrentGenBest().distributionsForInstances(internal_test_data);
-                        overallFoldPreds = ednel.getOverallBest().distributionsForInstances(internal_test_data);
-                    } catch(EmptyEnsembleException eee) {
-                        lastFoldPreds = new double[internal_test_data.size()][];
-                        overallFoldPreds = new double[internal_test_data.size()][];
-
-                        int n_classes = internal_test_data.numClasses();
-
-                        for(int j = 0; j < internal_test_data.size(); j++) {
-                            lastFoldPreds[j] = new double[n_classes];
-                            overallFoldPreds[j] = new double[n_classes];
-                            for(int k = 0; k < n_classes; k++) {
-                                lastFoldPreds[j][k] = 0.0f;
-                                overallFoldPreds[j][k] = 0.0f;
-                            }
-                        }
-                    }
-
-                    for(int j = 0; j < internal_test_data.size(); j++) {
-                        lastPredictionMatrix[counter_instance] = lastFoldPreds[j];
-                        overallPredictionMatrix[counter_instance] = overallFoldPreds[j];
-                        actualClasses[counter_instance] = internal_test_data.instance(j).value(internal_test_data.classIndex());
-                        counter_instance += 1;
-                    }
+            int best_combination_index = -1;
+            double best_combination_auc = Double.NEGATIVE_INFINITY;
+            for(int i = 0; i < combinationsHandlers.size(); i++) {
+                if(combinationsHandlers.get(i).getAuc() > best_combination_auc) {
+                    best_combination_index = i;
+                    best_combination_auc = combinationsHandlers.get(i).getAuc();
                 }
-                CompilePredictions lastFJ = new CompilePredictions(lastPredictionMatrix, actualClasses, "LastClassifier");
-                CompilePredictions overallFJ = new CompilePredictions(overallPredictionMatrix, actualClasses, "OverallClassifier");
-
-                double lastAUC = lastFJ.getAUC("LastClassifier");
-                double overallAUC = overallFJ.getAUC("OverallClassifier");
-
-                if(lastAUC > overallAUC) {
-                    if(lastAUC > best_combination_auc) {
-                        bestUsesOverall = false;
-                        best_combination_auc = lastAUC;
-                        best_combination_index = counter_combination;
-                    }
-                } else {
-                    if(overallAUC > best_combination_auc) {
-                        bestUsesOverall = true;
-                        best_combination_auc = overallAUC;
-                        best_combination_index = counter_combination;
-                    }
-                }
-                counter_combination += 1;
             }
-            PBILLogger pbilLogger = new PBILLogger(dataset_name, dataset_experiment_path,
-            n_individuals, n_generations, 1, n_external_fold, true, false);
 
-            NestedCrossValidation.EDNELparametersToFile(
-                    n_external_fold,
-                    dataset_experiment_path, dataset_name,
-                    selection_share,
-                    n_individuals,
-                    n_generations,
-                    timeout,
-                    timeout_individual,
-                    burn_in,
-                    thinning_factor,
-                    no_cycles,
-                    combinations.get(best_combination_index).get("learning_rate"),  // learning rate
-                    combinations.get(best_combination_index).get("early_stop_generation").intValue(),  // early stop generations
-                    combinations.get(best_combination_index).get("max_parent").intValue(),  // max parents
-                    delay_structure_learning,
-                    bestUsesOverall
+            HashMap<String, Object> bestCombination = combinations.get(best_combination_index);
+            NCVMatrixHandler bestCombinationHandler = combinationsHandlers.get(best_combination_index);
+
+            switch(algorithmName) {
+                case EDNEL:
+                    bestCombination.put(
+                            "pbilLogger",
+                            new PBILLogger(
+                                    dataset_name, dataset_experiment_path,
+                                    (Integer)bestCombination.get("n_individuals"),
+                                    (Integer)bestCombination.get("n_generations"),
+                                    1, n_external_fold, true, false
+                            )
+                    );
+                    EDNEL ednel = (EDNEL)NestedCrossValidation.getAbstractClassifier(algorithmName, constructor, bestCombination, external_train_data);
+                    ednel.writeParametersToFile(
+                            dataset_experiment_path + File.separator + String.format("test_sample-01_fold-%02d_parameters.json", n_external_fold),
+                            dataset_experiment_path, dataset_name, bestCombinationHandler.getBestUsersOverall()
+                    );
+                    HashMap<String, Individual> toReport = new HashMap<>(1);
+                    if(bestCombinationHandler.getBestUsersOverall()) {
+                        toReport.put("overall", ednel.getOverallBest());
+                    } else {
+                        toReport.put("last", ednel.getCurrentGenBest());
+                    }
+                    ednel.getPbilLogger().toFile(
+                            ednel.getDependencyNetwork(), toReport, external_train_data, external_test_data
+                    );
+                    return true;
+                case RandomForest:
+                    NestedCrossValidation.RandomForestParametersToFile(
+                            n_external_fold, dataset_experiment_path, dataset_name, bestCombination
                     );
 
-            EDNEL ednel = new EDNEL(
-                    combinations.get(best_combination_index).get("learning_rate"),  // learning rate
-                    selection_share,
-                    n_individuals,
-                    n_generations,
-                    timeout,
-                    timeout_individual,
-                    burn_in,
-                    thinning_factor,
-                    false,
-                    combinations.get(best_combination_index).get("early_stop_generation").intValue(),  // early stop generations
-                    combinations.get(best_combination_index).get("max_parent").intValue(),  // max parents
-                    combinations.get(best_combination_index).get("max_parent").intValue() == 0? 0 : delay_structure_learning,
-                    0, // holdout
-                    pbilLogger,
-                    null
-            );
-            ednel.buildClassifier(external_train_data);
+                    RandomForest rf = (RandomForest)NestedCrossValidation.getAbstractClassifier(
+                            algorithmName, constructor, bestCombination, external_train_data
+                    );
 
-            HashMap<String, Individual> toReport = new HashMap<>(1);
-            if(bestUsesOverall) {
-                toReport.put("overall", ednel.getOverallBest());
-            } else {
-                toReport.put("last", ednel.getCurrentGenBest());
+                    PBILLogger.write_predictions_to_file(
+                            new AbstractClassifier[]{rf},
+                            external_test_data,
+                            dataset_experiment_path + File.separator +
+                                    String.format(
+                                            "overall%stest_sample-01_fold-%02d_RandomForest.preds",
+                                            File.separator,
+                                            n_external_fold
+                                    )
+                    );
+                    System.out.printf("Done: %s,%d,%d%n", dataset_name, 1, n_external_fold);
+                    return true;
+                default:
+                    throw new NotImplementedException();
             }
-            ednel.getPbilLogger().toFile(ednel.getDependencyNetwork(), toReport, external_train_data, external_test_data);
-            return true;
         } catch(Exception e) {
             System.err.println(e.getMessage());
             e.printStackTrace(System.err);
@@ -546,47 +348,126 @@ public class NestedCrossValidation {
     /**
      * Performs a nested-cross validation optimization, depending on the algorithm.
      *
-     * @param clf_name Name of classifier
+     * @param algorithmName Name of classifier
      * @param n_external_folds Number of external folds.
      * @param n_internal_folds Number of internal folds.
      * @param dataset_name Name of datasets to test
      * @param datasets_path Path where datasets are stored, one folder for each dataset, and inside each dataset folder,
      *                      two csv files for each fold (one for the training data, and another for the testing data)
      * @param experiment_metadata_path Path to where write metadata on this experiment
-     * @throws Exception
      */
     private static void classifierOptimization(
-            String clf_name, int n_external_folds, int n_internal_folds,
+            SupportedAlgorithms algorithmName, int n_external_folds, int n_internal_folds,
             String dataset_name, String datasets_path, String experiment_metadata_path
-    ) throws Exception {
+    ) {
 
-        if(clf_name.equals("EDNEL")) {
-            Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
-                    i -> NestedCrossValidation.runExternalCrossValidationFoldEDNEL(
-                            i, n_internal_folds, dataset_name, datasets_path,
-                            experiment_metadata_path + File.separator + dataset_name)
-            ).toArray();
-        } else if(clf_name.equals("RandomForest")) {
-            Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
-                    i -> NestedCrossValidation.runExternalCrossValidationFoldRandomForest(
-                            i, n_internal_folds, dataset_name, datasets_path,
-                            experiment_metadata_path + File.separator + dataset_name)
-            ).toArray();
-        } else if(clf_name.equals("PBIL")) {
-            Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
-                    i -> NestedCrossValidation.runExternalCrossValidationFoldPBIL(
-                            i, n_internal_folds, dataset_name, datasets_path,
-                            experiment_metadata_path + File.separator + dataset_name)
-            ).toArray();
-        } else {
-            throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));
+        // TODO number of external folds is not working as intended! (currently only works for 10fcv!!!
+        System.err.println("TODO number of external folds is not working as intended! (currently only works for 10fcv!!!)");
+
+        ArrayList<HashMap<String, Object>> combinations;
+        switch(algorithmName) {
+            case EDNEL:
+                combinations = NestedCrossValidation.getEDNELCombinations();
+                break;
+            case RandomForest:
+                combinations = NestedCrossValidation.getRandomForestCombinations();
+                break;
+            default:
+                throw new NotImplementedException();
         }
+
+        Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
+                i -> NestedCrossValidation.runExternalCrossValidationFoldBareBones(
+                        algorithmName, combinations,
+                        i, n_internal_folds, dataset_name, datasets_path,
+                        experiment_metadata_path + File.separator + dataset_name)
+        ).toArray();
     }
 
-    private static Object runExternalCrossValidationFoldPBIL(
-            int n_external_fold, int n_internal_folds, String dataset_name, String datasets_path, String dataset_experiment_path
-    ) {
-        return null;
+    private static ArrayList<HashMap<String, Object>> getEDNELCombinations() {
+
+        float[] learning_rate_values = {0.13f, 0.26f, 0.52f};
+        float selection_share = 0.5f;
+        int n_individuals = 10;  // TODO change from 10 to 100 individuals!
+        int n_generations = 100; // TODO change from 10 to 100 generations!
+
+        System.out.println("TODO change from 10 to 100 individuals!");
+        System.out.println("TODO change from 10 to 100 generations!");
+
+        int timeout = 3600;
+        int timeout_individual = 60;
+
+        int burn_in = 100;
+        int thinning_factor = 0;
+
+        boolean no_cycles = false;
+
+        int[] early_stop_generations_values = {10, 20};
+        int[] max_parents_values = {0, 1};
+
+        int delay_structure_learning = 5;
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+
+        for(float learning_rate : learning_rate_values) {
+            for(int early_stop_generations : early_stop_generations_values) {
+                for(int max_parents : max_parents_values) {
+                    HashMap<String, Object> comb = new HashMap<>();
+
+                    comb.put("learning_rate", learning_rate);
+                    comb.put("selection_share", selection_share);
+                    comb.put("n_individuals", n_individuals);
+                    comb.put("n_generations", n_generations);
+                    comb.put("timeout", timeout);
+                    comb.put("timeout_individual", timeout_individual);
+                    comb.put("burn_in", burn_in);
+                    comb.put("thinning_factor", thinning_factor);
+                    comb.put("no_cycles", no_cycles);
+                    comb.put("early_stop_generations", early_stop_generations);
+                    comb.put("max_parents", max_parents);
+                    comb.put("delay_structure_learning", delay_structure_learning);
+                    comb.put("n_internal_folds", 0); // n_internal_folds for EDNEL is not the same for NestedCrossValidation
+                    comb.put("pbilLogger", null);
+                    comb.put("seed", null);
+
+                    combinations.add(comb);
+                }
+            }
+        }
+
+        return combinations;
+    }
+
+    private static ArrayList<HashMap<String, Object>> getRandomForestCombinations() {
+        String breakTiesRandomly = "";  // always false
+        String maxDepth = "-depth 0";  // always unlimited
+        String numIterations = "-I 1000";  // always 1000
+
+        String[] bagSizePercent_array = {"-P 90", "-P 100"};
+        String[] numFeatures_array = {
+                "-K {Math.sqrt(p)/2}",
+                "-K {Math.sqrt(p)}",
+                "-K {Math.sqrt(p)*2}",
+                "-K {Math.log(p)/(Math.log(2)*2)}",
+                "-K {Math.log(p)/Math.log(2)}",
+                "-K {(Math.log(p)/Math.log(2))*2}"
+        };  // must be replaced by the actual number of features
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+
+        for(String numFeatures : numFeatures_array) {
+            for(String bagSizePercent : bagSizePercent_array) {
+                HashMap<String, Object> comb = new HashMap<>();
+
+                comb.put("breakTiesRandomly", breakTiesRandomly);
+                comb.put("maxDepth", maxDepth);
+                comb.put("numIterations", numIterations);
+                comb.put("bagSizePercent", bagSizePercent);
+                comb.put("numFeatures", numFeatures);
+                combinations.add(comb);
+            }
+        }
+        return combinations;
     }
 
     public static void main(String[] args) throws Exception {
@@ -608,12 +489,32 @@ public class NestedCrossValidation {
 
         String datasets_path = options.get("datasets_path");
         String dataset_name = options.get("dataset_name");
-        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));
+//        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));  // TODO allow for any number of external folds to run!!!
+        int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
         int n_internal_folds = Integer.parseInt(options.get("n_internal_folds"));
         String clf_name = options.get("classifier");
 
+        SupportedAlgorithms algorithm_name;
+
+        switch(clf_name) {
+            case "EDNEL":
+                algorithm_name = SupportedAlgorithms.EDNEL;
+                break;
+            case "RandomForest":
+                algorithm_name = SupportedAlgorithms.RandomForest;
+                break;
+            case "PBIL":
+                algorithm_name = SupportedAlgorithms.PBIL;
+                break;
+            case "AUTOCVE":
+                algorithm_name = SupportedAlgorithms.AUTOCVE;
+                break;
+            default:
+                throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));
+        }
+
         NestedCrossValidation.classifierOptimization(
-                clf_name, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path
+                algorithm_name, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path
         );
     }
 }
