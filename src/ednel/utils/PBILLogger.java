@@ -138,7 +138,6 @@ public class PBILLogger {
 
         this.learn_data = null;
         this.val_data = null;
-        this.currentGenBestValFitness = null;
 
         this.log = log;
         this.logTest = logTest;
@@ -162,6 +161,7 @@ public class PBILLogger {
         this.minFitness = new ArrayList<>();
         this.medianFitness = new ArrayList<>();
         this.maxFitness = new ArrayList<>();
+        this.currentGenBestValFitness = new ArrayList<>();
 
         this.discardedIndividuals = new ArrayList<>();
         this.lapTimes = new ArrayList<>();
@@ -612,19 +612,17 @@ public class PBILLogger {
      *
      * @param individuals Individuals from EDNEL to report (probably last and overall). Each individual will generate a
      *                    .preds file, named after the fold of this experiment.
-     * @param train_data Training data, used to train individual base classifiers and the ensemble.
      * @param test_data Test data, that the individuals will make predictions on.
      * @throws Exception If anything bad happens
      */
     private void ednel_predictions_to_file(
-            HashMap<String, Individual> individuals, Instances train_data, Instances test_data
+            HashMap<String, Individual> individuals, Instances test_data
     ) throws Exception {
         for(String indName : individuals.keySet()) {
             String write_path = dataset_overall_path;
             write_path = write_path.replace(".csv", String.format("_%s.preds", indName));
 
-            Individual copy = new Individual(individuals.get(indName));  // ensemble individual
-            AbstractClassifier[] orderedClassifiers = copy.getOrderedClassifiers();
+            AbstractClassifier[] orderedClassifiers = individuals.get(indName).getOrderedClassifiers();
             int n_valid_classifiers = 0;
             for(int i = 0; i < orderedClassifiers.length; i++) {
                 if(orderedClassifiers[i] != null) {
@@ -640,13 +638,16 @@ public class PBILLogger {
                     counter_to_report += 1;
                 }
             }
-            to_report[counter_to_report] = copy;
+            to_report[counter_to_report] = individuals.get(indName);
 
-            PBILLogger.train_and_write_predictions_to_file(to_report, train_data, test_data, write_path);
+            PBILLogger.write_predictions_to_file(to_report, test_data, write_path);
         }
     }
 
     /**
+     *
+     * Note: retrains individuals.
+     *
      * Writes several metadata to file: <br>
      *      * A .csv with characteristics of every individual that ever lived; <br>
      *      * A .md with the readable ensemble; <br>
@@ -655,20 +656,19 @@ public class PBILLogger {
      * @param dn Dependency Network
      * @param individuals A HashMap of individuals, where the key is the name (last, overall) and the value the Individual
      *                    instance
-     * @param train_data Data to be used to train individuals (last, overall)
      * @param test_data Data to test individuals (last, overall)
      * @throws Exception If anything bad happens
      */
     public void toFile(
-            DependencyNetwork dn, HashMap<String, Individual> individuals, Instances train_data, Instances test_data
+            DependencyNetwork dn, HashMap<String, Individual> individuals, Instances test_data
     ) throws Exception {
 
-        this.ednel_predictions_to_file(individuals, train_data, test_data);
-        PBILLogger.createFolder(this_run_path);
-        individualsCharacteristicsToFile(individuals, train_data, test_data);
-        individualsClassifiersToFile(individuals);
-        loggerDataToFile();
-        dependencyNetworkStructureToFile(dn);
+        this.ednel_predictions_to_file(individuals, test_data);
+        PBILLogger.createFolder(this.this_run_path);
+        this.individualsCharacteristicsToFile(individuals, test_data);
+        this.individualsClassifiersToFile(individuals);
+        this.loggerDataToFile();
+        this.dependencyNetworkStructureToFile(dn);
     }
 
     private void loggerDataToFile() throws Exception {
@@ -780,7 +780,7 @@ public class PBILLogger {
     }
 
     private void individualsCharacteristicsToFile(
-            HashMap<String, Individual> individuals, Instances train_data, Instances test_data) throws Exception {
+            HashMap<String, Individual> individuals, Instances test_data) throws Exception {
 
         BufferedWriter bw = new BufferedWriter(new FileWriter(
                 this_run_path + File.separator + "characteristics.csv"
@@ -799,8 +799,7 @@ public class PBILLogger {
         for(int i = 0; i < indNames.length; i++) {
             String indName = (String)indNames[i];
             Individual ind = individuals.get(indName);
-            Evaluation evaluation = new Evaluation(train_data);
-            ind.buildClassifier(train_data);;
+            Evaluation evaluation = new Evaluation(test_data);
             evaluation.evaluateModel(ind, test_data);
             double fitness = FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
 
@@ -908,7 +907,6 @@ public class PBILLogger {
             this.test_data = test_data;
             this.testFitness = new ArrayList<>();
         }
-        this.currentGenBestValFitness = new ArrayList<>();
     }
 
     public String getThisRunPath() {
@@ -918,5 +916,7 @@ public class PBILLogger {
     public String getDatasetMetadataPath() {
         return this.dataset_metadata_path;
     }
+
+
 }
 

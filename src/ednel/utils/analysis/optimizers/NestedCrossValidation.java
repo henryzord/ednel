@@ -7,18 +7,15 @@ import ednel.eda.EDNEL;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
-import ednel.utils.analysis.CompilePredictions;
 import org.apache.commons.cli.*;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import weka.classifiers.AbstractClassifier;
-import weka.classifiers.Evaluation;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -26,15 +23,14 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Parameter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.stream.IntStream;
 
 public class NestedCrossValidation {
     public enum SupportedAlgorithms {
-        EDNEL, PBIL, RandomForest, AUTOCVE
+        EDNEL, RandomForest
     }
 
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
@@ -170,9 +166,10 @@ public class NestedCrossValidation {
         return new_string;
     }
 
-    private static AbstractClassifier getAbstractClassifier(
-            SupportedAlgorithms algorithmName, Constructor constructor, HashMap<String, Object> comb, Instances data)
-            throws Exception {
+    private static AbstractClassifier getInternalCrossValidationAbstractClassifier(
+            SupportedAlgorithms algorithmName, Constructor constructor,
+            HashMap<String, Object> comb, Instances data
+    ) throws Exception {
 
         Parameter[] constructorParams = constructor.getParameters();
         AbstractClassifier abs = null;
@@ -186,6 +183,7 @@ public class NestedCrossValidation {
                 }
 
                 abs = (AbstractClassifier)constructor.newInstance(toUseParams);
+                abs.buildClassifier(data);
                 break;
             case RandomForest:
                 toUseParams = new String[comb.size() * 2];
@@ -196,7 +194,10 @@ public class NestedCrossValidation {
                     String[] splitted = comb.get(key).toString().split(" ");
                     if(key.equals("numFeatures")) {
                         paramName = splitted[0];
-                        paramValue = NestedCrossValidation.getRandomForestNumFeatures(comb.get("numFeatures").toString(), data).split(" ")[1];
+                        paramValue = NestedCrossValidation.getRandomForestNumFeatures(
+                                comb.get("numFeatures").toString(),
+                                data
+                        ).split(" ")[1];
                     } else if(splitted.length > 1) {
                         paramName = splitted[0];
                         paramValue = splitted[1];
@@ -210,12 +211,11 @@ public class NestedCrossValidation {
                 }
                 abs = new RandomForest();
                 abs.setOptions((String[])toUseParams);
+                abs.buildClassifier(data);
                 break;
             default:
                 throw new NotImplementedException();
         }
-
-        abs.buildClassifier(data);
         return abs;
     }
 
@@ -246,30 +246,24 @@ public class NestedCrossValidation {
                             boolean.class, int.class, int.class, int.class, int.class, PBILLogger.class, Integer.class
                     );
                     break;
-                case PBIL:
-//                    lastPredictionMatrix = new double[external_train_data.size()][];
-//                    overallPredictionMatrix = new double[external_train_data.size()][];
-                    throw new NotImplementedException();
                 case RandomForest:
                     constructor = RandomForest.class.getConstructor();
                     break;
-                case AUTOCVE:
-//                    predictionMatrix = new double[external_train_data.size()][];
-                    throw new NotImplementedException();
                 default:
                     throw new IllegalStateException("Unexpected value: " + algorithmName);
             }
 
-            for(HashMap<String, Object> comb : combinations) {  // iterates over combinations of hyper-parameters
+            // iterates over combinations of hyper-parameters
+            for(HashMap<String, Object> comb : combinations) {
                 NCVMatrixHandler combinationMatrixHandler = new NCVMatrixHandler(external_train_data, algorithmName);
                 for(int i = 0; i < n_internal_folds; i++) {
                     Instances internal_train_data = external_train_data.trainCV(n_internal_folds, i);
                     Instances internal_test_data = external_train_data.testCV(n_internal_folds, i);
 
-                    AbstractClassifier abstractClassifier = NestedCrossValidation.getAbstractClassifier(
+                    AbstractClassifier abstractClassifier = NestedCrossValidation.getInternalCrossValidationAbstractClassifier(
                             algorithmName, constructor, comb, internal_train_data
                     );
-                    combinationMatrixHandler.handle(abstractClassifier, internal_test_data);
+                    combinationMatrixHandler.handle(algorithmName, abstractClassifier, internal_test_data);
                 }  // ends for internal cross validation
 
                 combinationMatrixHandler.compile();
@@ -299,7 +293,9 @@ public class NestedCrossValidation {
                                     1, n_external_fold, true, false
                             )
                     );
-                    EDNEL ednel = (EDNEL)NestedCrossValidation.getAbstractClassifier(algorithmName, constructor, bestCombination, external_train_data);
+                    EDNEL ednel = (EDNEL)NestedCrossValidation.getInternalCrossValidationAbstractClassifier(
+                            algorithmName, constructor, bestCombination, external_train_data
+                    );
                     ednel.writeParametersToFile(
                             dataset_experiment_path + File.separator + String.format("test_sample-01_fold-%02d_parameters.json", n_external_fold),
                             dataset_experiment_path, dataset_name, bestCombinationHandler.getBestUsersOverall()
@@ -310,8 +306,8 @@ public class NestedCrossValidation {
                     } else {
                         toReport.put("last", ednel.getCurrentGenBest());
                     }
-                    ednel.getPbilLogger().toFile(
-                            ednel.getDependencyNetwork(), toReport, external_train_data, external_test_data
+                    ednel.getPbilLogger().toFile(  
+                            ednel.getDependencyNetwork(), toReport, external_test_data
                     );
                     return true;
                 case RandomForest:
@@ -319,7 +315,7 @@ public class NestedCrossValidation {
                             n_external_fold, dataset_experiment_path, dataset_name, bestCombination
                     );
 
-                    RandomForest rf = (RandomForest)NestedCrossValidation.getAbstractClassifier(
+                    RandomForest rf = (RandomForest)NestedCrossValidation.getInternalCrossValidationAbstractClassifier(
                             algorithmName, constructor, bestCombination, external_train_data
                     );
 
@@ -361,9 +357,6 @@ public class NestedCrossValidation {
             String dataset_name, String datasets_path, String experiment_metadata_path
     ) {
 
-        // TODO number of external folds is not working as intended! (currently only works for 10fcv!!!
-        System.err.println("TODO number of external folds is not working as intended! (currently only works for 10fcv!!!)");
-
         ArrayList<HashMap<String, Object>> combinations;
         switch(algorithmName) {
             case EDNEL:
@@ -389,7 +382,7 @@ public class NestedCrossValidation {
         float[] learning_rate_values = {0.13f, 0.26f, 0.52f};
         float selection_share = 0.5f;
         int n_individuals = 10;  // TODO change from 10 to 100 individuals!
-        int n_generations = 100; // TODO change from 10 to 100 generations!
+        int n_generations = 10; // TODO change from 10 to 100 generations!
 
         System.out.println("TODO change from 10 to 100 individuals!");
         System.out.println("TODO change from 10 to 100 generations!");
@@ -491,6 +484,9 @@ public class NestedCrossValidation {
         String dataset_name = options.get("dataset_name");
 //        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));  // TODO allow for any number of external folds to run!!!
         int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
+
+        System.err.println("TODO implement code to run for other values of n_external_folds! (currently only supports = 10)");
+
         int n_internal_folds = Integer.parseInt(options.get("n_internal_folds"));
         String clf_name = options.get("classifier");
 
@@ -502,12 +498,6 @@ public class NestedCrossValidation {
                 break;
             case "RandomForest":
                 algorithm_name = SupportedAlgorithms.RandomForest;
-                break;
-            case "PBIL":
-                algorithm_name = SupportedAlgorithms.PBIL;
-                break;
-            case "AUTOCVE":
-                algorithm_name = SupportedAlgorithms.AUTOCVE;
                 break;
             default:
                 throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));

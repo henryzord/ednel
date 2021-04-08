@@ -7,12 +7,10 @@ import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.omg.CORBA.portable.UnknownException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
-import weka.classifiers.trees.J48;
 import weka.core.Attribute;
 import weka.core.Instances;
 import weka.core.UnassignedClassException;
 import weka.core.Utils;
-import weka.core.converters.ConverterUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

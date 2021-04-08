@@ -114,7 +114,7 @@ public class RunFoldOfTenFoldCrossValidation implements Runnable, Callable {
             this.test_data = datasets.get("test_data");
 
             if(this.logTest) {
-                this.pbilLogger.setDatasets(train_data, null, null, test_data);
+                this.pbilLogger.setDatasets(this.train_data, null, null, this.test_data);
             }
 
             this.ednel.buildClassifier(this.train_data);
@@ -124,7 +124,7 @@ public class RunFoldOfTenFoldCrossValidation implements Runnable, Callable {
             toReport.put("last", this.ednel.getCurrentGenBest());
 
             if(this.log) {
-                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.train_data, this.test_data);
+                this.ednel.getPbilLogger().toFile(this.ednel.getDependencyNetwork(), toReport, this.test_data);
             }
         } catch(Exception e) {
             System.err.println(String.format(

@@ -8,7 +8,7 @@ import java.util.HashMap;
 
 public class DummyClassifier extends AbstractClassifier {
 
-    HashMap<Integer, double[]> compiledPredictions;
+    protected HashMap<Integer, double[]> compiledPredictions;
 
     public DummyClassifier(HashMap<Integer, double[]> predictions) {
         compiledPredictions = new HashMap<>();

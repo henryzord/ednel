@@ -228,10 +228,6 @@ public class EDNEL extends AbstractClassifier {
 
         this.trainReturnIndividuals(train_data);
 
-        if(this.currentGenBest.hashCode() != this.overallBest.hashCode()) {  // TODO remove me!
-            System.out.println("Last bast and Overall Best are different individuals!");
-        }  // TODO remove me!
-
         this.fitted = true;
     }
 

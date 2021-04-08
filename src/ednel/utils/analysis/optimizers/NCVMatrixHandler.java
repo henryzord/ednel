@@ -30,13 +30,11 @@ public class NCVMatrixHandler {
 
         switch(algorithmName) {
             case EDNEL:
-            case PBIL:
                 lastPredictionMatrix = new double[data.size()][];
                 overallPredictionMatrix = new double[data.size()][];
                 predictionMatrix = null;
                 break;
             case RandomForest:
-            case AUTOCVE:
                 predictionMatrix = new double[data.size()][];
                 lastPredictionMatrix = null;
                 overallPredictionMatrix = null;
@@ -45,22 +43,26 @@ public class NCVMatrixHandler {
 
     }
 
-    public void handle(AbstractClassifier abstractClassifier, Instances data) throws Exception {
+    public void handle(
+            NestedCrossValidation.SupportedAlgorithms algorithmName,
+            AbstractClassifier abstractClassifier, Instances smaller_data
+    ) throws Exception {
+
         switch(algorithmName) {
             case EDNEL:
                 double[][] lastFoldPreds;
                 double[][] overallFoldPreds;
 
                 try {
-                    lastFoldPreds = ((EDNEL)abstractClassifier).getCurrentGenBest().distributionsForInstances(data);
-                    overallFoldPreds = ((EDNEL)abstractClassifier).getOverallBest().distributionsForInstances(data);
+                    lastFoldPreds = ((EDNEL)abstractClassifier).getCurrentGenBest().distributionsForInstances(smaller_data);
+                    overallFoldPreds = ((EDNEL)abstractClassifier).getOverallBest().distributionsForInstances(smaller_data);
                 } catch (EmptyEnsembleException eee) {
-                    lastFoldPreds = new double[data.size()][];
-                    overallFoldPreds = new double[data.size()][];
+                    lastFoldPreds = new double[smaller_data.size()][];
+                    overallFoldPreds = new double[smaller_data.size()][];
 
-                    int n_classes = data.numClasses();
+                    int n_classes = smaller_data.numClasses();
 
-                    for(int j = 0; j < data.size(); j++) {
+                    for(int j = 0; j < smaller_data.size(); j++) {
                         lastFoldPreds[j] = new double[n_classes];
                         overallFoldPreds[j] = new double[n_classes];
                         for(int k = 0; k < n_classes; k++) {
@@ -69,19 +71,19 @@ public class NCVMatrixHandler {
                         }
                     }
                 }
-                for(int j = 0; j < data.size(); j++) {
+                for(int j = 0; j < smaller_data.size(); j++) {
                     this.lastPredictionMatrix[this.counter_instance] = lastFoldPreds[j];
                     this.overallPredictionMatrix[this.counter_instance] = overallFoldPreds[j];
-                    this.actualClasses[this.counter_instance] = data.instance(j).value(data.classIndex());
+                    this.actualClasses[this.counter_instance] = smaller_data.instance(j).value(smaller_data.classIndex());
                     this.counter_instance += 1;
                 }
                 break;
             case RandomForest:
-                double[][] preds = abstractClassifier.distributionsForInstances(data);
+                double[][] preds = abstractClassifier.distributionsForInstances(smaller_data);
 
-                for(int j = 0; j < data.size(); j++) {
+                for(int j = 0; j < smaller_data.size(); j++) {
                     this.predictionMatrix[this.counter_instance] = preds[j];
-                    this.actualClasses[this.counter_instance] = data.instance(j).value(data.classIndex());
+                    this.actualClasses[this.counter_instance] = smaller_data.instance(j).value(smaller_data.classIndex());
                     this.counter_instance += 1;
                 }
                 break;
