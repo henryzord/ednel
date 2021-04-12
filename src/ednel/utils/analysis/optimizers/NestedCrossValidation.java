@@ -306,7 +306,7 @@ public class NestedCrossValidation {
                     } else {
                         toReport.put("last", ednel.getCurrentGenBest());
                     }
-                    ednel.getPbilLogger().toFile(  
+                    ednel.getPbilLogger().toFile(
                             ednel.getDependencyNetwork(), toReport, external_test_data
                     );
                     return true;
