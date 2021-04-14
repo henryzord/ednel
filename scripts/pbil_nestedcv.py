@@ -1,3 +1,11 @@
+from multiprocessing import set_start_method
+try:
+    set_start_method("spawn")
+except RuntimeError:
+    pass  # is in child process, trying to set context to spawn but failing because is already set
+
+import multiprocessing as mp
+
 import argparse
 import json
 import os
@@ -5,14 +13,12 @@ import sys
 
 import javabridge
 from mPBIL.pbil.model import PBIL
-from weka.classifiers import Evaluation
 from weka.core import jvm
 from weka.core.classes import Random
 from weka.core.converters import Loader
 from weka.core.dataset import Instances
 from sklearn.metrics import roc_auc_score
 import numpy as np
-from collections import Counter
 from copy import deepcopy
 from datetime import datetime as dt
 
@@ -25,8 +31,8 @@ def get_pbil_combinations():
     n_individuals = 10  # TODO change from 10 to 100 individuals!
     n_generations = 2  # TODO change from 10 to 100 generations!
 
-     # TODO change from 10 to 100 individuals!
-     # TODO change from 10 to 100 generations!
+    # TODO change from 10 to 100 individuals!
+    # TODO change from 10 to 100 generations!
 
     for learning_rate in learning_rate_values:
         for selection_share in selection_share_values:
@@ -60,133 +66,197 @@ def read_dataset(path: str) -> Instances:
 
 
 def get_params(args: argparse.Namespace) -> dict:
+    """
+    Get parameters of script that is running. Makes a copy.
+
+    :param args: The parameters as passed to this script
+    :type args: argparse.Namespace
+    :return: the parameters, as a dictionary
+    :rtype: dict
+    """
     return deepcopy(args.__dict__)
+
+
+def run_external_fold(
+        n_jobs: int,
+        heap_size: str,
+        n_external_fold: int, n_internal_folds: int,
+        dataset_name: str, datasets_path: str,
+        metadata_path: str, experiment_folder: str
+):
+    some_exception = None  # type: Exception
+
+    try:
+        # if not jvm.started:
+        #     jvm.start(max_heap_size=heap_size)  # using 4GB of heap size for JVM
+
+        seed = Random(1)
+
+        external_train_data = read_dataset(
+            os.path.join(
+                datasets_path,
+                dataset_name,
+                '%s-10-%dtra.arff' % (dataset_name, n_external_fold)
+            )
+        )  # type: Instances
+
+        external_test_data = read_dataset(
+            os.path.join(
+                datasets_path,
+                dataset_name,
+                '%s-10-%dtst.arff' % (dataset_name, n_external_fold)
+            )
+        )  # type: Instances
+
+        external_train_data.stratify(n_internal_folds)
+
+        class_unique_values = np.array(external_train_data.attribute(external_train_data.class_index).values)
+
+        combinations = get_pbil_combinations()  # type: list
+
+        overall_aucs = []  # type: list
+        last_aucs = []  # type: list
+
+        for comb in combinations:
+            internal_actual_classes = []
+            overall_preds = []
+            last_preds = []
+
+            for n_internal_fold in range(n_internal_folds):
+                internal_train_data = external_train_data.train_cv(n_internal_folds, n_internal_fold, seed)
+                internal_test_data = external_train_data.test_cv(n_internal_folds, n_internal_fold)
+
+                internal_actual_classes.extend(list(internal_test_data.values(internal_test_data.class_index)))
+
+                pbil = PBIL(
+                    resources_path=os.path.join(sys.modules['mPBIL'].__path__[0], 'resources'),
+                    train_data=internal_train_data,
+                    lr=comb['learning_rate'], selection_share=comb['selection_share'],
+                    n_generations=comb['n_generations'], n_individuals=comb['n_individuals']
+                )
+
+                overall, last = pbil.run(1)
+
+                overall_preds.extend(list(map(list, overall.predict_proba(internal_test_data))))
+                last_preds.extend(list(map(list, last.predict_proba(internal_test_data))))
+
+            internal_actual_classes = np.array(internal_actual_classes, dtype=np.int)
+            overall_preds = np.array(overall_preds)
+            last_preds = np.array(last_preds)
+
+            overall_auc = 0.
+            last_auc = 0.
+            for i, c in enumerate(class_unique_values):
+                actual_binary_class = (internal_actual_classes == i).astype(np.int)
+                overall_auc += roc_auc_score(y_true=actual_binary_class, y_score=overall_preds[:, i])
+                last_auc += roc_auc_score(y_true=actual_binary_class, y_score=last_preds[:, i])
+
+            overall_aucs += [overall_auc / len(class_unique_values)]
+            last_aucs += [last_auc / len(class_unique_values)]
+
+        best_overall = int(np.argmax(overall_aucs))  # type: int
+        best_last = int(np.argmax(last_aucs))  # type: int
+
+        uses_overall = overall_aucs[best_overall] > last_aucs[best_last]
+        best_index = best_overall if uses_overall else best_last  # type: int
+
+        pbil = PBIL(
+            resources_path=os.path.join(sys.modules['mPBIL'].__path__[0], 'resources'),
+            train_data=external_train_data,
+            lr=combinations[best_index]['learning_rate'], selection_share=combinations[best_index]['selection_share'],
+            n_generations=combinations[best_index]['n_generations'],
+            n_individuals=combinations[best_index]['n_individuals']
+        )
+
+        overall, last = pbil.run(1)
+
+        clf = overall if uses_overall else last
+        external_preds = list(map(list, clf.predict_proba(external_test_data)))
+        external_actual_classes = list(external_test_data.values(external_test_data.class_index).astype(np.int))
+
+        with open(
+                os.path.join(metadata_path, experiment_folder, dataset_name,
+                             'test_sample-01_fold-%02d_parameters.json' % n_external_fold),
+                'w'
+        ) as write_file:
+            dict_best_params = deepcopy(combinations[best_index])
+            dict_best_params['individual'] = 'overall' if uses_overall else 'last'
+            for k in dict_best_params.keys():
+                dict_best_params[k] = str(dict_best_params[k])
+
+            json.dump(dict_best_params, write_file, indent=2)
+
+        with open(
+                os.path.join(metadata_path, experiment_folder, dataset_name, 'overall',
+                             'test_sample-01_fold-%02d_overall.preds' % n_external_fold)
+                , 'w') as write_file:
+            write_file.write('classValue;Individual\n')
+            for i in range(len(external_actual_classes)):
+                write_file.write('%r;%s\n' % (external_actual_classes[i], ','.join(map(str, external_preds[i]))))
+
+    except Exception as e:
+        some_exception = e
+    finally:
+        # if jvm.started and (n_jobs > 1):  # TODO had an 'and ()' that set everything working - not sure why!
+        #     jvm.stop()
+
+        if some_exception is not None:
+            raise some_exception
+
+
+def create_metadata_folder(metadata_path: str, dataset_name: str) -> str:
+    experiment_folder = dt.now().strftime('%Y-%m-%d-%H-%M-%S')
+
+    os.mkdir(os.path.join(metadata_path, experiment_folder))
+    os.mkdir(os.path.join(metadata_path, experiment_folder, dataset_name))
+    os.mkdir(os.path.join(metadata_path, experiment_folder, dataset_name, 'overall'))
+
+    with open(os.path.join(metadata_path, experiment_folder, 'parameters.json'), 'w') as write_file:
+        dict_params = get_params(some_args)
+        json.dump(dict_params, write_file, indent=2)
+
+    return experiment_folder
+
+
+def start_jvms(_):
+    if not jvm.started:
+        jvm.start()
+
+
+def stop_jvms(_):
+    if jvm.started:
+        jvm.stop()
 
 
 def main(args):
     e = None
 
+    n_jobs = args.n_jobs
+    n_external_folds = 10  # TODO do not change this
+    n_internal_folds = args.n_internal_folds
+
+    experiment_folder = create_metadata_folder(args.metadata_path, args.dataset_name)
+
     try:
-        experiment_folder = dt.now().strftime('%Y-%m-%d-%H-%M-%S')
+        # if n_jobs == 1:
+        #     jvm.start(max_heap_size=args.heap_size)
+        jvm.start(max_heap_size=args.heap_size)
 
-        os.mkdir(os.path.join(args.metadata_path, experiment_folder))
-        os.mkdir(os.path.join(args.metadata_path, experiment_folder, args.dataset_name))
-        os.mkdir(os.path.join(args.metadata_path, experiment_folder, args.dataset_name, 'overall'))
+        with mp.Pool(processes=n_jobs) as pool:
+            iterable_params = [
+                (n_jobs, args.heap_size, x, n_internal_folds,
+                 args.dataset_name, args.datasets_path,
+                 args.metadata_path, experiment_folder
+                 ) for x in range(1, n_external_folds + 1)]
 
-        with open(os.path.join(args.metadata_path, experiment_folder, 'parameters.json'), 'w') as write_file:
-            dict_params = get_params(some_args)
-            json.dump(dict_params, write_file, indent=2)
-
-        jvm.start(max_heap_size=args.heap_size)  # using 4GB of heap size for JVM
-
-        n_external_folds = 10  # TODO do not change this
-        n_internal_folds = args.n_internal_folds
-
-        for n_external_fold in range(1, n_external_folds + 1):
-            seed = Random(1)
-
-            external_train_data = read_dataset(
-                os.path.join(
-                    args.datasets_path,
-                    args.dataset_name,
-                    '%s-10-%dtra.arff' % (args.dataset_name, n_external_fold)
-                )
-            )  # type: Instances
-
-            external_test_data = read_dataset(
-                os.path.join(
-                    args.datasets_path,
-                    args.dataset_name,
-                    '%s-10-%dtst.arff' % (args.dataset_name, n_external_fold)
-                )
-            )  # type: Instances
-
-            external_train_data.stratify(n_internal_folds)
-
-            class_unique_values = np.array(external_train_data.attribute(external_train_data.class_index).values)
-
-            combinations = get_pbil_combinations()  # type: list
-
-            overall_aucs = []  # type: list
-            last_aucs = []  # type: list
-
-            for comb in combinations:
-                internal_actual_classes = []
-                overall_preds = []
-                last_preds = []
-
-                for n_internal_fold in range(n_internal_folds):
-                    internal_train_data = external_train_data.train_cv(n_internal_folds, n_internal_fold, seed)
-                    internal_test_data = external_train_data.test_cv(n_internal_folds, n_internal_fold)
-
-                    internal_actual_classes.extend(list(internal_test_data.values(internal_test_data.class_index)))
-
-                    pbil = PBIL(
-                        resources_path=os.path.join(sys.modules['mPBIL'].__path__[0], 'resources'),
-                        train_data=internal_train_data,
-                        lr=comb['learning_rate'], selection_share=comb['selection_share'],
-                        n_generations=comb['n_generations'], n_individuals=comb['n_individuals']
-                    )
-
-                    overall, last = pbil.run(1)
-
-                    overall_preds.extend(list(map(list, overall.predict_proba(internal_test_data))))
-                    last_preds.extend(list(map(list, last.predict_proba(internal_test_data))))
-
-                internal_actual_classes = np.array(internal_actual_classes, dtype=np.int)
-                overall_preds = np.array(overall_preds)
-                last_preds = np.array(last_preds)
-
-                overall_auc = 0.
-                last_auc = 0.
-                for i, c in enumerate(class_unique_values):
-                    actual_binary_class = (internal_actual_classes == i).astype(np.int)
-                    overall_auc += roc_auc_score(y_true=actual_binary_class, y_score=overall_preds[:, i])
-                    last_auc += roc_auc_score(y_true=actual_binary_class, y_score=last_preds[:, i])
-
-                overall_aucs += [overall_auc / len(class_unique_values)]
-                last_aucs += [last_auc / len(class_unique_values)]
-
-            best_overall = np.argmax(overall_aucs)  # type: int
-            best_last = np.argmax(last_aucs)  # type: int
-
-            uses_overall = overall_aucs[best_overall] > last_aucs[best_last]
-            best_index = best_overall if uses_overall else best_last  # type: int
-
-            pbil = PBIL(
-                resources_path=os.path.join(sys.modules['mPBIL'].__path__[0], 'resources'),
-                train_data=external_train_data,
-                lr=combinations[best_index]['learning_rate'], selection_share=combinations[best_index]['selection_share'],
-                n_generations=combinations[best_index]['n_generations'], n_individuals=combinations[best_index]['n_individuals']
-            )
-
-            overall, last = pbil.run(1)
-
-            clf = overall if uses_overall else last
-            external_preds = list(map(list, clf.predict_proba(external_test_data)))
-            external_actual_classes = list(external_test_data.values(external_test_data.class_index).astype(np.int))
-
-            with open(
-                    os.path.join(args.metadata_path, experiment_folder, args.dataset_name, 'test_sample-01_fold-%02d_parameters.json' % n_external_fold),
-                    'w'
-            ) as write_file:
-                dict_best_params = deepcopy(combinations[best_index])
-                dict_best_params['individual'] = 'overall' if uses_overall else 'last'
-                for k in dict_best_params.keys():
-                    dict_best_params[k] = str(dict_best_params[k])
-
-                json.dump(dict_best_params, write_file, indent=2)
-
-            with open(
-                os.path.join(args.metadata_path, experiment_folder, args.dataset_name, 'overall', 'test_sample-01_fold-%02d_overall.preds' % n_external_fold)
-            , 'w') as write_file:
-                write_file.write('classValue;Individual\n')
-                for i in range(len(external_actual_classes)):
-                    write_file.write('%r;%s\n' % (external_actual_classes[i], ','.join(map(str, external_preds[i]))))
+            pool.map(start_jvms, iterable=range(1, n_external_folds + 1))
+            pool.starmap(func=run_external_fold, iterable=iterable_params)
+            pool.map(stop_jvms, iterable=range(1, n_external_folds + 1))
 
     except Exception as some:
         e = some
     finally:
+        # if jvm.started and (n_jobs == 1):
         jvm.stop()
 
     if e is not None:
@@ -222,12 +292,17 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '--n-internal-folds', action='store', required=True,
-        help='Number of folds to use to perform an internal cross-validation for each combination of hyper-parameters', type=int
+        help='Number of folds to use to perform an internal cross-validation for each combination of hyper-parameters',
+        type=int,
+        choices=set(range(1, 6))
+    )
+
+    parser.add_argument(
+        '--n-jobs', action='store', required=False,
+        help='Number of parallel threads to use when running this script',
+        type=int, choices=set(range(1, 11)), default=1
     )
 
     some_args = parser.parse_args()
 
     main(args=some_args)
-
-
-
