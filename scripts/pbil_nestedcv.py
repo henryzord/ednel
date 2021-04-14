@@ -28,11 +28,8 @@ def get_pbil_combinations():
 
     learning_rate_values = [0.13, 0.26, 0.52]
     selection_share_values = [0.3, 0.5]
-    n_individuals = 10  # TODO change from 10 to 100 individuals!
-    n_generations = 2  # TODO change from 10 to 100 generations!
-
-    # TODO change from 10 to 100 individuals!
-    # TODO change from 10 to 100 generations!
+    n_individuals = 100
+    n_generations = 100
 
     for learning_rate in learning_rate_values:
         for selection_share in selection_share_values:
@@ -87,9 +84,6 @@ def run_external_fold(
     some_exception = None  # type: Exception
 
     try:
-        # if not jvm.started:
-        #     jvm.start(max_heap_size=heap_size)  # using 4GB of heap size for JVM
-
         seed = Random(1)
 
         external_train_data = read_dataset(
@@ -197,9 +191,6 @@ def run_external_fold(
     except Exception as e:
         some_exception = e
     finally:
-        # if jvm.started and (n_jobs > 1):  # TODO had an 'and ()' that set everything working - not sure why!
-        #     jvm.stop()
-
         if some_exception is not None:
             raise some_exception
 
@@ -238,8 +229,6 @@ def main(args):
     experiment_folder = create_metadata_folder(args.metadata_path, args.dataset_name)
 
     try:
-        # if n_jobs == 1:
-        #     jvm.start(max_heap_size=args.heap_size)
         jvm.start(max_heap_size=args.heap_size)
 
         with mp.Pool(processes=n_jobs) as pool:
@@ -256,7 +245,6 @@ def main(args):
     except Exception as some:
         e = some
     finally:
-        # if jvm.started and (n_jobs == 1):
         jvm.stop()
 
     if e is not None:
