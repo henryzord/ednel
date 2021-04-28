@@ -2169,10 +2169,9 @@ public class SimpleCart extends RandomizableClassifier implements
      *
      * @param args the options for the classifier
      */
-    // TODO reactivate
-//    public static void main(String[] args) {
-//        runClassifier(new SimpleCart(), args);
-//    }
+    public static void main(String[] args) {
+        runClassifier(new SimpleCart(), args);
+    }
     @Override
     public int graphType() {
         return Drawable.TREE;
@@ -2303,24 +2302,4 @@ public class SimpleCart extends RandomizableClassifier implements
         }
         return text.toString() + "}\n";
     }
-
-    public static void main(String[] args) {
-        try {
-            ConverterUtils.DataSource train_set = new ConverterUtils.DataSource("D:\\Users\\henry\\Projects\\ednel\\keel_datasets_10fcv\\german\\german-10-1tra.arff");
-
-            SimpleCart sc = new SimpleCart();
-
-            Instances train_data = train_set.getDataSet();
-            train_data.setClassIndex(train_data.numAttributes() - 1);
-
-            sc.buildClassifier(train_data);
-            String graph = sc.graph();
-            System.out.println(graph);
-
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-
 }

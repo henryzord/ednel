@@ -381,11 +381,10 @@ public class NestedCrossValidation {
 
         float[] learning_rate_values = {0.13f, 0.26f, 0.52f};
         float selection_share = 0.5f;
-        int n_individuals = 10;  // TODO change from 10 to 100 individuals!
-        int n_generations = 10; // TODO change from 10 to 100 generations!
+        int n_individuals = 100;  // TODO change from 100 to 50!
+        int n_generations = 100;
 
-        System.out.println("TODO change from 10 to 100 individuals!");
-        System.out.println("TODO change from 10 to 100 generations!");
+        System.out.println("TODO change from 100 to 50 individuals!");
 
         int timeout = 3600;
         int timeout_individual = 60;

@@ -1,10 +1,8 @@
 # EDNEL: Estimation of Dependency Networks Algorithm for Ensemble Learning
 
-## Getting started
+## Installation
 
-### Installing
-
-#### On Windows:
+#### On Windows (tested on Windows 10):
 
 1. Download Java JDK SE version **8u261** from Oracle site: 
 https://www.oracle.com/br/java/technologies/javase/javase-jdk8-downloads.html (note: you'll need to have an Oracle 

@@ -490,7 +490,6 @@ public class AbstractVariable {
                     for(int index : childValueIndex.values()) {
                         sum += shadowProb.get(index);
                     }
-                    // TODO here!!!!!
                     // should not use univariate distribution if bivariate statistic with parent is null!
                     if(sum == 0) {
                         boolean shouldBeNull = false;

@@ -27,8 +27,7 @@ public class EDNEL extends AbstractClassifier {
 
     /** How much time (in seconds) this classifier has to be trained. Early stops if exceeds time */
     private final int timeout;
-    // TODO: fazer talvez com que indivíduo tenha sua fitness setada para zero? Tem que ver as implicações na população
-    // TODO: (e.g. não pode ter uma população inteira de indivíduos inválidos)
+
     /** How much time each individual has to be trained. If an individual exceeds this time, it is discarded and resampled */
     protected final int timeout_individual;
 
