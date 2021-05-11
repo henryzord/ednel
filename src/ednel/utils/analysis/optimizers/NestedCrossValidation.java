@@ -3,6 +3,7 @@ package ednel.utils.analysis.optimizers;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import ednel.Main;
+import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.EDNEL;
 import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
@@ -10,6 +11,10 @@ import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import weka.classifiers.AbstractClassifier;
+import weka.classifiers.rules.DecisionTable;
+import weka.classifiers.rules.JRip;
+import weka.classifiers.rules.PART;
+import weka.classifiers.trees.J48;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
@@ -24,13 +29,12 @@ import java.lang.reflect.Parameter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.stream.IntStream;
 
 public class NestedCrossValidation {
     public enum SupportedAlgorithms {
-        EDNEL, RandomForest
+        EDNEL, RandomForest, J48, SimpleCart, JRip, PART, DecisionTable
     }
 
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
@@ -99,7 +103,7 @@ public class NestedCrossValidation {
         return parser.parse(options, args);
     }
 
-    private static void RandomForestParametersToFile(
+    private static void wekaClassifierParametersToFile(
             int n_external_fold, String dataset_experiment_path, String dataset_name,
             HashMap<String, Object> bestCombination
     ) throws IOException {
@@ -187,7 +191,7 @@ public class NestedCrossValidation {
                 break;
             case RandomForest:
                 toUseParams = new String[comb.size() * 2];
-                int counter_param = 0;
+                int counter_param_rf = 0;
                 for(String key : comb.keySet()) {
                     String paramName;
                     String paramValue;
@@ -205,11 +209,40 @@ public class NestedCrossValidation {
                         paramName = "";
                         paramValue = "";
                     }
-                    toUseParams[counter_param] = paramName;
-                    toUseParams[counter_param + 1] = paramValue;
-                    counter_param += 2;
+                    toUseParams[counter_param_rf] = paramName;
+                    toUseParams[counter_param_rf + 1] = paramValue;
+                    counter_param_rf += 2;
                 }
                 abs = new RandomForest();
+                abs.setOptions((String[])toUseParams);
+                abs.buildClassifier(data);
+                break;
+            case J48:
+            case SimpleCart:
+            case JRip:
+            case PART:
+            case DecisionTable:
+                toUseParams = new String[comb.size() * 2];
+                int counter_param_others = 0;
+                for(String key : comb.keySet()) {
+                    String paramName;
+                    String paramValue;
+                    String[] splitted = comb.get(key).toString().split(" ", 2);
+                    if(splitted.length > 2) {
+                        throw new Exception("unexpected behavior!");
+                    }
+                    if(splitted.length > 1) {
+                        paramName = splitted[0];
+                        paramValue = splitted[1];
+                    } else {
+                        paramName = "";
+                        paramValue = splitted[0];
+                    }
+                    toUseParams[counter_param_others] = paramName;
+                    toUseParams[counter_param_others + 1] = paramValue;
+                    counter_param_others += 2;
+                }
+                abs = (AbstractClassifier)constructor.newInstance();
                 abs.setOptions((String[])toUseParams);
                 abs.buildClassifier(data);
                 break;
@@ -248,6 +281,21 @@ public class NestedCrossValidation {
                     break;
                 case RandomForest:
                     constructor = RandomForest.class.getConstructor();
+                    break;
+                case J48:
+                    constructor = J48.class.getConstructor();
+                    break;
+                case SimpleCart:
+                    constructor = SimpleCart.class.getConstructor();
+                    break;
+                case JRip:
+                    constructor = JRip.class.getConstructor();
+                    break;
+                case PART:
+                    constructor = PART.class.getConstructor();
+                    break;
+                case DecisionTable:
+                    constructor = DecisionTable.class.getConstructor();
                     break;
                 default:
                     throw new IllegalStateException("Unexpected value: " + algorithmName);
@@ -310,23 +358,30 @@ public class NestedCrossValidation {
                             ednel.getDependencyNetwork(), toReport, external_test_data
                     );
                     return true;
+
+                case J48:
+                case SimpleCart:
+                case JRip:
+                case PART:
+                case DecisionTable:
                 case RandomForest:
-                    NestedCrossValidation.RandomForestParametersToFile(
+                    NestedCrossValidation.wekaClassifierParametersToFile(
                             n_external_fold, dataset_experiment_path, dataset_name, bestCombination
                     );
 
-                    RandomForest rf = (RandomForest)NestedCrossValidation.getInternalCrossValidationAbstractClassifier(
+                    AbstractClassifier abstractClf = NestedCrossValidation.getInternalCrossValidationAbstractClassifier(
                             algorithmName, constructor, bestCombination, external_train_data
                     );
 
                     PBILLogger.write_predictions_to_file(
-                            new AbstractClassifier[]{rf},
+                            new AbstractClassifier[]{abstractClf},
                             external_test_data,
                             dataset_experiment_path + File.separator +
                                     String.format(
-                                            "overall%stest_sample-01_fold-%02d_RandomForest.preds",
+                                            "overall%stest_sample-01_fold-%02d_%s.preds",
                                             File.separator,
-                                            n_external_fold
+                                            n_external_fold,
+                                            abstractClf.getClass().getSimpleName()
                                     )
                     );
                     System.out.printf("Done: %s,%d,%d%n", dataset_name, 1, n_external_fold);
@@ -365,6 +420,21 @@ public class NestedCrossValidation {
             case RandomForest:
                 combinations = NestedCrossValidation.getRandomForestCombinations();
                 break;
+            case J48:
+                combinations = NestedCrossValidation.getJ48Combinations();
+                break;
+            case SimpleCart:
+                combinations = NestedCrossValidation.getSimpleCartCombinations();
+                break;
+            case JRip:
+                combinations = NestedCrossValidation.getJRipCombinations();
+                break;
+            case PART:
+                combinations = NestedCrossValidation.getPARTCombinations();
+                break;
+            case DecisionTable:
+                combinations = NestedCrossValidation.getDecisionTableCombinations();
+                break;
             default:
                 throw new NotImplementedException();
         }
@@ -377,14 +447,202 @@ public class NestedCrossValidation {
         ).toArray();
     }
 
+    private static ArrayList<HashMap<String, Object>> getDecisionTableCombinations() {
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+
+        String[] useIBk_array = {"-I", ""};
+        String[] evaluationMeasure_array = {"-E acc", "-E rmse", "-E mae", "-E auc"};
+        String crossVal = "-X 1";
+        String[] search_array = {"-S weka.attributeSelection.BestFirst -D 1 -N 5", "-S weka.attributeSelection.GreedyStepwise"};
+
+        for(String useIBk : useIBk_array) {
+            for(String evaluationMeasure : evaluationMeasure_array) {
+                for(String search : search_array) {
+                    HashMap<String, Object> comb = new HashMap<>();
+
+                    comb.put("useIBk", useIBk);
+                    comb.put("evaluationMeasure", evaluationMeasure);
+                    comb.put("crossVal", crossVal);
+                    comb.put("search", search);
+
+                    combinations.add(comb);
+                }
+            }
+        }
+        return combinations;
+    }
+
+    private static ArrayList<HashMap<String, Object>> getPARTCombinations() {
+        String useMDLcorrection = "";  // always true
+        String binarySplits = ""; // always false
+        String[] minNumObj_array = {"-M 2", "-M 4", "-M 6", "-M 8"};
+        String doNotMakeSplitPointActualValue = "";  // always false
+
+        String[] pruning_array = {"unpruned", "reducedErrorPruning", "confidenceFactor"};
+
+        String confidenceFactor = "-C 0.25";
+
+        String numFolds = "-N 3";
+        String seed = "-Q 1";
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+        for(String minNumObj : minNumObj_array) {
+            for(String pruning : pruning_array) {
+                HashMap<String, Object> comb = new HashMap<>();
+
+                switch(pruning) {
+                    case "reducedErrorPruning":
+                        comb.put("pruning", "-R");
+                        comb.put("seed", seed);
+
+                        comb.put("numFolds", numFolds);
+                        break;
+                    case "confidenceFactor":
+                        comb.put("pruning", confidenceFactor);
+                        break;
+                    case "unpruned":
+                        comb.put("pruning", "-U");
+                        break;
+                }
+
+                comb.put("binarySplits", binarySplits);
+                comb.put("doNotMakeSplitPointActualValue", doNotMakeSplitPointActualValue);
+                comb.put("minNumObj", minNumObj);
+                comb.put("useMDLcorrection", useMDLcorrection);
+
+                combinations.add(comb);
+            }
+        }
+        return combinations;
+    }
+
+    private static ArrayList<HashMap<String, Object>> getJRipCombinations() {
+        boolean[] usePruning_array = {true, false};
+        String checkErrorRate = "";  // always true
+        String[] minNo_array = {"-N 2", "-N 4", "-N 6", "-N 8"};
+        String seed = "-S 1";
+        String optimizations = "-O 2";
+        String folds = "-F 3";
+
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+        for(boolean usePruning : usePruning_array) {
+            for(String minNo : minNo_array) {
+                HashMap<String, Object> comb = new HashMap<>();
+
+                if(usePruning) {
+                    comb.put("usePruning", "");
+
+                    comb.put("optimizations", optimizations);
+                    comb.put("folds", folds);
+                } else {
+                    comb.put("usePruning", "-P");
+                }
+
+                comb.put("seed", seed);
+                comb.put("minNo", minNo);
+                comb.put("checkErrorRate", checkErrorRate);
+
+                combinations.add(comb);
+            }
+        }
+        return combinations;
+
+    }
+
+    private static ArrayList<HashMap<String, Object>> getSimpleCartCombinations() {
+
+        String[] minNumObj_array = {"-M 2", "-M 5", "-M 8"};
+        boolean[] usePrune_array = {true, false};
+        String[] heuristic_array = {"", "-H"};
+
+        String numFoldsPruning = "-N 5";
+        String useOneSE = "";  // always false
+        String sizePer = "-C 1.0";
+        String seed = "-S 1";
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+        for(String minNumObj : minNumObj_array) {
+            for(boolean usePrune : usePrune_array) {
+                for(String heuristic : heuristic_array) {
+                    HashMap<String, Object> comb = new HashMap<>();
+
+                    if(usePrune) {
+                        comb.put("usePrune", "");
+                        comb.put("sizePer", sizePer);
+                        comb.put("seed", seed);
+
+                        comb.put("useOneSE", useOneSE);
+
+                        comb.put("numFoldsPruning", numFoldsPruning);
+                    } else {
+                        comb.put("usePrune", "-U");
+                    }
+                    comb.put("heuristic", heuristic);
+                    comb.put("minNumObj", minNumObj);
+
+                    combinations.add(comb);
+                }
+            }
+        }
+        return combinations;
+    }
+
+    private static ArrayList<HashMap<String, Object>> getJ48Combinations() {
+        String binarySplits = ""; // always false
+        String collapseTree = "";  // always true
+        String confidenceFactor = "-C 0.25";
+        String doNotMakeSplitPointActualValue = "";  // always false
+        String[] minNumObj_array = {"-M 2", "-M 4", "-M 6", "-M 8"};
+        String numFolds = "-N 3";
+        String[] pruning_array = {"unpruned", "reducedErrorPruning", "confidenceFactor"};
+        String subtreeRaising = "";  // always true
+        String useLaplace = "";  // always false
+        String useMDLcorrection = "";  // always true
+        String seed = "-Q 1";
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+        for(String minNumObj : minNumObj_array) {
+            for(String pruning : pruning_array) {
+                HashMap<String, Object> comb = new HashMap<>();
+
+                switch(pruning) {
+                    case "reducedErrorPruning":
+                        comb.put("pruning", "-R");
+                        comb.put("seed", seed);
+
+                        comb.put("numFolds", numFolds);
+                        comb.put("subtreeRaising", subtreeRaising);
+
+                        break;
+                    case "confidenceFactor":
+                        comb.put("pruning", confidenceFactor);
+                        comb.put("subtreeRaising", subtreeRaising);
+                        break;
+                    case "unpruned":
+                        comb.put("pruning", "-U");
+                        break;
+                }
+
+                comb.put("collapseTree", collapseTree);
+                comb.put("binarySplits", binarySplits);
+                comb.put("doNotMakeSplitPointActualValue", doNotMakeSplitPointActualValue);
+                comb.put("minNumObj", minNumObj);
+                comb.put("useLaplace", useLaplace);
+                comb.put("useMDLcorrection", useMDLcorrection);
+
+                combinations.add(comb);
+            }
+        }
+        return combinations;
+    }
+
     private static ArrayList<HashMap<String, Object>> getEDNELCombinations() {
 
         float[] learning_rate_values = {0.13f, 0.26f, 0.52f};
         float selection_share = 0.5f;
-        int n_individuals = 100;  // TODO change from 100 to 50!
+        int n_individuals = 50;
         int n_generations = 100;
-
-        System.out.println("TODO change from 100 to 50 individuals!");
 
         int timeout = 3600;
         int timeout_individual = 60;
@@ -497,6 +755,21 @@ public class NestedCrossValidation {
                 break;
             case "RandomForest":
                 algorithm_name = SupportedAlgorithms.RandomForest;
+                break;
+            case "J48":
+                algorithm_name = SupportedAlgorithms.J48;
+                break;
+            case "SimpleCart":
+                algorithm_name = SupportedAlgorithms.SimpleCart;
+                break;
+            case "JRip":
+                algorithm_name = SupportedAlgorithms.JRip;
+                break;
+            case "PART":
+                algorithm_name = SupportedAlgorithms.PART;
+                break;
+            case "DecisionTable":
+                algorithm_name = SupportedAlgorithms.DecisionTable;
                 break;
             default:
                 throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));

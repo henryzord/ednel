@@ -34,13 +34,17 @@ public class NCVMatrixHandler {
                 overallPredictionMatrix = new double[data.size()][];
                 predictionMatrix = null;
                 break;
+            case J48:
+            case SimpleCart:
+            case JRip:
+            case PART:
+            case DecisionTable:
             case RandomForest:
                 predictionMatrix = new double[data.size()][];
                 lastPredictionMatrix = null;
                 overallPredictionMatrix = null;
                 break;
         }
-
     }
 
     public void handle(
@@ -78,6 +82,12 @@ public class NCVMatrixHandler {
                     this.counter_instance += 1;
                 }
                 break;
+
+            case J48:
+            case SimpleCart:
+            case JRip:
+            case PART:
+            case DecisionTable:
             case RandomForest:
                 double[][] preds = abstractClassifier.distributionsForInstances(smaller_data);
 
@@ -104,6 +114,12 @@ public class NCVMatrixHandler {
                 this.bestUsersOverall = overallAUC >= lastAUC;
                 this.auc = Math.max(overallAUC, lastAUC);
                 break;
+
+            case J48:
+            case SimpleCart:
+            case JRip:
+            case PART:
+            case DecisionTable:
             case RandomForest:
                 String tempClfName = "classifier";
                 CompilePredictions foldJoiner = new CompilePredictions(predictionMatrix, actualClasses, tempClfName);
