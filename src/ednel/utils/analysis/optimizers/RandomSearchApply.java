@@ -12,8 +12,7 @@
  *
  * If using all ensemble members, type the following:
  *
- * -J48 -C 0.25 -M 2 -SimpleCart -M 2 -N 5 -C 1 -S 1 -PART -M 2 -C 0.25 -Q 1 -JRip -F 3 -N 2.0 -O 2 -S 1
- * -DecisionTable -R -X 1 -S weka.attributeSelection.BestFirst -D 1 -N 5
+ * -J48 -C 0.25 -M 2 -SimpleCart -M 2 -N 5 -C 1 -S 1 -PART -M 2 -C 0.25 -Q 1 -JRip -F 3 -N 2.0 -O 2 -S 1 -DecisionTable -R -X 1 -S weka.attributeSelection.BestFirst -BestFirst -D 1 -N 5
  */
 
 package ednel.utils.analysis.optimizers;
@@ -78,12 +77,21 @@ public class RandomSearchApply {
                 .build());
 
         options.addOption(Option.builder()
-                .longOpt("string_characteristics")
-                .required(true)
+                .longOpt("n_fold")
+                .required(false)
                 .type(String.class)
                 .hasArg()
                 .numberOfArgs(1)
-                .desc("A string of all the hyper-parameters of classifiers in the ensemble.")
+                .desc("Optional - fold of dataset to apply this configuration of hyper-parameters. If not specified, will apply same configuration on all folds.")
+                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("string_characteristics")
+                .required(false)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Optional - A string of all the hyper-parameters of classifiers in the ensemble.")
                 .build());
 
         options.addOption(Option.builder()
@@ -181,35 +189,48 @@ public class RandomSearchApply {
 
         String[] dataset_names = commandLine.getOptionValue("datasets_names").split(",");
         int n_samples = Integer.parseInt(commandLine.getOptionValue("n_samples"));
+        int n_fold_apply = commandLine.getOptionValue("n_fold") == null? -1 : Integer.parseInt(commandLine.getOptionValue("n_fold"));
         String characteristics_str = commandLine.getOptionValue("string_characteristics");
         String options_str = commandLine.getOptionValue("string_options");
         HashMap<String, String> optionTable = RandomSearchApply.fromOptionsStringToHashMap(options_str);
-        HashMap<String, String> characteristics = RandomSearchApply.fromCharacteristicsStringToHashMap(characteristics_str);
+        HashMap<String, String> characteristics = characteristics_str != null? RandomSearchApply.fromCharacteristicsStringToHashMap(characteristics_str) : new HashMap<>();
 
         boolean isRF = optionTable.containsKey("RandomForest");
 
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
-        LocalDateTime now = LocalDateTime.now();
-        String str_time = dtf.format(now);
+        String metadata_path = commandLine.getOptionValue("metadata_path");
+        boolean shouldCreate = true;
+        if(metadata_path.contains("overall")) {
+            shouldCreate = false;
+        }
 
-        File metadata_file = new File(commandLine.getOptionValue("metadata_path") + File.separator + str_time);
-        metadata_file.mkdirs();
+        File metadata_file = null;
+        File dataset_folder_file = null;
+        if(shouldCreate) {
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+            LocalDateTime now = LocalDateTime.now();
+            String str_time = dtf.format(now);
 
-//        BufferedWriter bfw = new BufferedWriter(new FileWriter(new File(
-//                commandLine.getOptionValue("metadata_path") + File.separator + str_time + "_applied_algorithm.csv")
-//        ));
+            metadata_file = new File(metadata_path + File.separator + str_time);
+            metadata_file.mkdirs();
+        } else {
+            dataset_folder_file = new File(metadata_path);
+        }
+
         Exception except = null;
 
+        int min_fold = n_fold_apply == -1? 1 : n_fold_apply;
+        int max_fold = n_fold_apply == -1? 10 : n_fold_apply;
+
         try {
-//            bfw.write("dataset_name,n_sample,n_fold,unweighted_area_under_roc,classifier size,elapsed time (seconds),characteristics,options\n");
-
             for(String dataset_name : dataset_names) {
-                File dataset_folder_file = new File(metadata_file.getAbsolutePath() + File.separator + dataset_name);
-                dataset_folder_file.mkdirs();
-                dataset_folder_file = new File(dataset_folder_file.getAbsolutePath() + File.separator + "overall");
-                dataset_folder_file.mkdirs();
+                if(shouldCreate) {
+                    dataset_folder_file = new File(metadata_file.getAbsolutePath() + File.separator + dataset_name);
+                    dataset_folder_file.mkdirs();
+                    dataset_folder_file = new File(dataset_folder_file.getAbsolutePath() + File.separator + "overall");
+                    dataset_folder_file.mkdirs();
+                }
 
-                for(int n_fold = 1; n_fold <= 10; n_fold++) {  // 10 folds
+                for(int n_fold = min_fold; n_fold <= max_fold; n_fold++) {
                     HashMap<String, Instances> datasets = Main.loadDataset(
                             commandLine.getOptionValue("datasets_path"),
                             dataset_name,
@@ -240,22 +261,12 @@ public class RandomSearchApply {
                             } else {
                                 ind = new Individual(optionTable, characteristics);
                             }
-//                            ind.buildClassifier(train_data);
-//                            Evaluation ev = new Evaluation(train_data);
-//
-//                            ev.evaluateModel(ind, test_data);
-//                            double unweightedAuc = FitnessCalculator.getUnweightedAreaUnderROC(train_data, test_data, ind);
                             LocalDateTime t2 = LocalDateTime.now();
 
                             long elapsed_time = t1.until(t2, ChronoUnit.SECONDS);
 
                             PBILLogger.train_and_write_predictions_to_file(new AbstractClassifier[]{ind}, train_data, test_data, preds_file.getAbsolutePath());
 
-//                            bfw.write(String.format(
-//                                    Locale.US,
-//                                    "%s,%d,%d,%f,%d,%d,\"%s\",\"%s\"\n",
-//                                    dataset_name, n_sample, n_fold, unweightedAuc, ind instanceof Individual? ((Individual)ind).getNumberOfRules() : -1, elapsed_time, characteristics_str, options_str
-//                            ));
                             System.out.println(String.format("Done: %s,%d,%d", dataset_name, n_sample, n_fold));
                         } catch(Exception e) {
                             System.err.println(String.format("Error: %s,%d,%d,%s", dataset_name, n_sample, n_fold, e.getMessage()));
