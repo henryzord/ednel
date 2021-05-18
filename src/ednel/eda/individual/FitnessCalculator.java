@@ -351,6 +351,7 @@ public class FitnessCalculator {
         for(int i = 0; i < population.length; i++) {
             fitnesses[i] = (Double)fitnessMethod.invoke(population[i].getFitness());
         }
-        return PopulationSorter.lexicographicArgsort(fitnesses);
+        return PopulationSorter.simpleArgsort(population);
+//        return PopulationSorter.lexicographicArgsort(fitnesses);
     }
 }
