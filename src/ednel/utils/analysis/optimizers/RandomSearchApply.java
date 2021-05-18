@@ -171,16 +171,26 @@ public class RandomSearchApply {
 
         if(!c.contains("RandomForest")) {
             return captureEDNELClassifierOptions(c);
+        } else if (c.contains("RandomForestRulesClassifier")) {
+            return captureRandomForestOptions(c, "RandomForestRulesClassifier");
         } else {
-            return captureRandomForestOptions(c);
+            return captureRandomForestOptions(c, "RandomForest");
         }
 
 
     }
 
-    private static HashMap<String, String> captureRandomForestOptions(String c) {
+    private static HashMap<String, String> captureRandomForestOptions(String c, String clfName) {
         HashMap<String, String> optionsTable = new HashMap<>();
-        optionsTable.put("RandomForest", c.substring(c.indexOf("RandomForest") + "RandomForest".length()).trim());
+
+        switch(clfName) {
+            case "RandomForestRulesClassifier":
+                optionsTable.put(clfName, c.substring(c.indexOf("RandomForestRulesClassifier") + "RandomForestRulesClassifier".length()).trim());
+                break;
+            default:
+                optionsTable.put(clfName, c.substring(c.indexOf("RandomForest") + "RandomForest".length()).trim());
+                break;
+        }
         return optionsTable;
     }
 
@@ -195,7 +205,15 @@ public class RandomSearchApply {
         HashMap<String, String> optionTable = RandomSearchApply.fromOptionsStringToHashMap(options_str);
         HashMap<String, String> characteristics = characteristics_str != null? RandomSearchApply.fromCharacteristicsStringToHashMap(characteristics_str) : new HashMap<>();
 
-        boolean isRF = optionTable.containsKey("RandomForest");
+        String clf_name = null;
+        if(optionTable.containsKey("RandomForest")) {
+            clf_name = "RandomForest";
+        } else if(optionTable.containsKey("RandomForestRulesClassifier")) {
+            clf_name = "RandomForestRulesClassifier";
+        } else {
+            clf_name = "EDNEL";
+        }
+
 
         String metadata_path = commandLine.getOptionValue("metadata_path");
         boolean shouldCreate = true;
@@ -221,66 +239,69 @@ public class RandomSearchApply {
         int min_fold = n_fold_apply == -1? 1 : n_fold_apply;
         int max_fold = n_fold_apply == -1? 10 : n_fold_apply;
 
-        try {
-            for(String dataset_name : dataset_names) {
-                if(shouldCreate) {
-                    dataset_folder_file = new File(metadata_file.getAbsolutePath() + File.separator + dataset_name);
-                    dataset_folder_file.mkdirs();
-                    dataset_folder_file = new File(dataset_folder_file.getAbsolutePath() + File.separator + "overall");
-                    dataset_folder_file.mkdirs();
-                }
 
-                for(int n_fold = min_fold; n_fold <= max_fold; n_fold++) {
-                    HashMap<String, Instances> datasets = Main.loadDataset(
-                            commandLine.getOptionValue("datasets_path"),
-                            dataset_name,
-                            n_fold
+        for(String dataset_name : dataset_names) {
+            if(shouldCreate) {
+                dataset_folder_file = new File(metadata_file.getAbsolutePath() + File.separator + dataset_name);
+                dataset_folder_file.mkdirs();
+                dataset_folder_file = new File(dataset_folder_file.getAbsolutePath() + File.separator + "overall");
+                dataset_folder_file.mkdirs();
+            }
+
+            for(int n_fold = min_fold; n_fold <= max_fold; n_fold++) {
+                HashMap<String, Instances> datasets = Main.loadDataset(
+                        commandLine.getOptionValue("datasets_path"),
+                        dataset_name,
+                        n_fold
+                );
+                Instances train_data = datasets.get("train_data");
+                Instances test_data = datasets.get("test_data");
+
+                for(int n_sample = 1; n_sample <= n_samples; n_sample++) {
+//                    try {
+                    File preds_file = new File(
+                            String.format(
+                                dataset_folder_file.getAbsolutePath() + File.separator +
+                                        "test_sample-%02d_fold-%02d_%s.preds",
+                                    n_sample, n_fold, clf_name
+                        )
                     );
-                    Instances train_data = datasets.get("train_data");
-                    Instances test_data = datasets.get("test_data");
 
-                    for(int n_sample = 1; n_sample <= n_samples; n_sample++) {
-                        try {
-                            File preds_file = new File(
-                                    String.format(
-                                        dataset_folder_file.getAbsolutePath() + File.separator +
-                                                "test_sample-%02d_fold-%02d_%s.preds",
-                                            n_sample, n_fold, isRF? "RandomForest" : "EDNEL"
-                                )
-                            );
+                    LocalDateTime t1 = LocalDateTime.now();
+                    AbstractClassifier ind;
 
-                            LocalDateTime t1 = LocalDateTime.now();
-                            AbstractClassifier ind;
-                            if(isRF) {
-                                ind = new RandomForest();
-                                String treatedOptions = optionTable.get("RandomForest");
-                                treatedOptions = RandomSearch.replaceNumFeaturesParameterRandomForest(
-                                        treatedOptions, train_data.numAttributes() - 1
-                                );
-                                ind.setOptions(treatedOptions.split(" "));
-                            } else {
-                                ind = new Individual(optionTable, characteristics);
-                            }
-                            LocalDateTime t2 = LocalDateTime.now();
-
-                            long elapsed_time = t1.until(t2, ChronoUnit.SECONDS);
-
-                            PBILLogger.train_and_write_predictions_to_file(new AbstractClassifier[]{ind}, train_data, test_data, preds_file.getAbsolutePath());
-
-                            System.out.println(String.format("Done: %s,%d,%d", dataset_name, n_sample, n_fold));
-                        } catch(Exception e) {
-                            System.err.println(String.format("Error: %s,%d,%d,%s", dataset_name, n_sample, n_fold, e.getMessage()));
-                        }
+                    switch(clf_name) {
+                        case "RandomForest":
+                            ind = new RandomForest();
+                            String treatedOptions = optionTable.get("RandomForest");
+//                        treatedOptions = RandomSearch.replaceNumFeaturesParameterRandomForest(
+//                                treatedOptions, train_data.numAttributes() - 1
+//                        );
+                            ind.setOptions(treatedOptions.split(" "));
+                            break;
+                        case "EDNEL":
+                            ind = new Individual(optionTable, characteristics);
+                            break;
+                        case "RandomForestRulesClassifier":
+                            ind = new RandomForestRulesClassifier();
+                            ind.setOptions(optionTable.get(clf_name).split(" "));
+                            ind.buildClassifier(train_data);
+                            break;
+                        default:
+                            throw new Exception("invalid classifier!");
                     }
+                    LocalDateTime t2 = LocalDateTime.now();
+
+                    long elapsed_time = t1.until(t2, ChronoUnit.SECONDS);
+
+                    PBILLogger.train_and_write_predictions_to_file(new AbstractClassifier[]{ind}, train_data, test_data, preds_file.getAbsolutePath());
+
+                    System.out.printf("Done: %s,%d,%d\n", dataset_name, n_sample, n_fold);
+//                    } catch(Exception e) {
+//                        System.err.println(String.format("Error: %s,%d,%d,%s", dataset_name, n_sample, n_fold, e.getMessage()));
+//                    }
                 }
             }
-        } catch(Exception e) {
-            except = e;
-        } finally {
-//            bfw.close();
-        }
-        if(except != null) {
-            throw except;
         }
     }
 }
