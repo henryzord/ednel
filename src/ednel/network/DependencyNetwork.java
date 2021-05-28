@@ -219,7 +219,6 @@ public class DependencyNetwork {
      * @return an ArrayList with the inferred sampling order
      */
     private static ArrayList<String> inferSamplingOrder(HashMap<String, HashMap<String, ArrayList<String>>> graph) {
-//        throw new Exception("some error here!");
         ArrayList<String> samplingOrder = new ArrayList<>(graph.size());
         HashSet<String> added_set = new HashSet<>();
 
@@ -260,8 +259,6 @@ public class DependencyNetwork {
                 detParentsOf.put(child, toAdd);
             }
         }
-
-//        throw new Exception("inferring incorrect sampling order!");
 
         int n_variables = graph.size();
 

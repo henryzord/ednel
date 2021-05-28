@@ -103,7 +103,7 @@ public class NestedCrossValidation {
         return parser.parse(options, args);
     }
 
-    private static void wekaClassifierParametersToFile(
+    public static void wekaClassifierParametersToFile(
             int n_external_fold, String dataset_experiment_path, String dataset_name,
             HashMap<String, Object> bestCombination
     ) throws IOException {
