@@ -80,6 +80,15 @@ public class Boosters {
                 .desc("Name of classifier to optimize with nested cross validation")
                 .build());
 
+        options.addOption(Option.builder()
+                .longOpt("n_internal_folds")
+                .required(true)
+                .type(Integer.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of internal folds to use")
+                .build());
+
         CommandLineParser parser = new DefaultParser();
         return parser.parse(options, args);
     }
@@ -259,6 +268,7 @@ public class Boosters {
         String dataset_name = options.get("dataset_name");
 //        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));  // TODO allow for any number of external folds to run!!!
         int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
+        int n_internal_folds = Integer.parseInt(options.get("n_internal_folds"));
 
         System.err.println("TODO implement code to run for other values of n_external_folds! (currently only supports = 10)");
 
@@ -291,7 +301,7 @@ public class Boosters {
 
         Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
                 i -> Boosters.runExternalCrossValidationFoldBareBones(
-                        algorithm_name, i, n_external_folds, dataset_name, datasets_path,
+                        algorithm_name, i, n_internal_folds, dataset_name, datasets_path,
                         experiment_metadata_path + File.separator + dataset_name)
         ).toArray();
     }
