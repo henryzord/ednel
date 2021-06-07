@@ -2,23 +2,19 @@ package ednel.utils.analysis.optimizers;
 
 import ednel.Main;
 import ednel.classifiers.trees.SimpleCart;
-import ednel.eda.EDNEL;
 import ednel.eda.individual.FitnessCalculator;
-import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.meta.AdaBoostM1;
 import weka.classifiers.rules.DecisionTable;
 import weka.classifiers.rules.JRip;
 import weka.classifiers.rules.PART;
+import weka.classifiers.trees.DecisionStump;
 import weka.classifiers.trees.J48;
-import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -28,7 +24,7 @@ import java.util.stream.IntStream;
 public class Boosters {
 
     public enum SupportedAlgorithms {
-        J48, SimpleCart, JRip, PART, DecisionTable
+        DecisionStump, J48, SimpleCart, JRip, PART, DecisionTable
     }
 
     public static CommandLine parseCommandLine(String[] args) throws ParseException {
@@ -88,6 +84,160 @@ public class Boosters {
         return parser.parse(options, args);
     }
 
+    private static AbstractClassifier getInternalCrossValidationAbstractClassifier(
+            HashMap<String, Object> comb, Instances data
+    ) throws Exception {
+
+        Object[] toUseParams = new String[comb.size() * 2];
+        int counter_param_others = 0;
+        for(String key : comb.keySet()) {
+            String paramName;
+            String paramValue;
+            String[] splitted = comb.get(key).toString().split(" ", 2);
+            if(splitted.length > 2) {
+                throw new Exception("unexpected behavior!");
+            }
+            if(splitted.length > 1) {
+                paramName = splitted[0];
+                paramValue = splitted[1];
+            } else {
+                paramName = "";
+                paramValue = splitted[0];
+            }
+            toUseParams[counter_param_others] = paramName;
+            toUseParams[counter_param_others + 1] = paramValue;
+            counter_param_others += 2;
+        }
+        AdaBoostM1 abs = new AdaBoostM1();
+        abs.setOptions((String[])toUseParams);
+        abs.buildClassifier(data);
+        return abs;
+    }
+
+    private static Object runExternalCrossValidationFoldBareBones(
+            Boosters.SupportedAlgorithms algorithmName, int n_external_fold, int n_internal_folds,
+            String dataset_name, String datasets_path, String dataset_experiment_path
+    ) {
+        try {
+            HashMap<String, Instances> datasets = Main.loadDataset(
+                    datasets_path,
+                    dataset_name,
+                    n_external_fold
+            );
+            Instances external_train_data = datasets.get("train_data");  // 9/10 of external cv folds
+            Instances external_test_data = datasets.get("test_data");  // 1/10 of external cv folds
+
+            // prepares data for future internal cross validation
+            external_train_data = FitnessCalculator.betterStratifier(external_train_data, n_internal_folds);
+
+            ArrayList<NCVMatrixHandler> combinationsHandlers = new ArrayList<>();
+
+            String clfFullName;
+
+            switch(algorithmName) {
+                case DecisionStump:
+                    clfFullName = DecisionStump.class.getCanonicalName();
+                    break;
+                case J48:
+                    clfFullName = J48.class.getCanonicalName();
+                    break;
+                case SimpleCart:
+                    clfFullName = SimpleCart.class.getCanonicalName();
+                    break;
+                case JRip:
+                    clfFullName = JRip.class.getCanonicalName();
+                    break;
+                case PART:
+                    clfFullName = PART.class.getCanonicalName();
+                    break;
+                case DecisionTable:
+                    clfFullName = DecisionTable.class.getCanonicalName();
+                    break;
+                default:
+                    throw new IllegalStateException("Unexpected value: " + algorithmName);
+            }
+
+            ArrayList<HashMap<String, Object>> combinations = Boosters.getAdaboostCombinations(clfFullName);
+
+            // NCVMatrixHandler doesn't really care of the subtype of weka classifier; this type verification is only
+            // used to decide if NCVMatrixHandler should allocated two or one matrix for storing predictions.
+            // NestedCrossValidation.SupportedAlgorithms.J48 will do just fine for any of the Boosters.SupportedAlgorithms
+            // classifiers
+            NestedCrossValidation.SupportedAlgorithms converted = NestedCrossValidation.SupportedAlgorithms.J48;
+
+            // iterates over combinations of hyper-parameters
+            for(HashMap<String, Object> comb : combinations) {
+                NCVMatrixHandler combinationMatrixHandler = new NCVMatrixHandler(external_train_data, converted);
+                for(int i = 0; i < n_internal_folds; i++) {
+                    Instances internal_train_data = external_train_data.trainCV(n_internal_folds, i);
+                    Instances internal_test_data = external_train_data.testCV(n_internal_folds, i);
+
+                    AbstractClassifier abstractClassifier = Boosters.getInternalCrossValidationAbstractClassifier(
+                            comb, internal_train_data
+                    );
+                    combinationMatrixHandler.handle(converted, abstractClassifier, internal_test_data);
+                }  // ends for internal cross validation
+
+                combinationMatrixHandler.compile();
+                combinationsHandlers.add(combinationMatrixHandler);
+            }  // ends for combinations
+
+            int best_combination_index = -1;
+            double best_combination_auc = Double.NEGATIVE_INFINITY;
+            for(int i = 0; i < combinationsHandlers.size(); i++) {
+                if(combinationsHandlers.get(i).getAuc() > best_combination_auc) {
+                    best_combination_index = i;
+                    best_combination_auc = combinationsHandlers.get(i).getAuc();
+                }
+            }
+
+            HashMap<String, Object> bestCombination = combinations.get(best_combination_index);
+
+            NestedCrossValidation.wekaClassifierParametersToFile(
+                    n_external_fold, dataset_experiment_path, dataset_name, bestCombination
+            );
+
+            AbstractClassifier abstractClf = Boosters.getInternalCrossValidationAbstractClassifier(
+                    bestCombination, external_train_data
+            );
+
+            PBILLogger.write_predictions_to_file(
+                    new AbstractClassifier[]{abstractClf},
+                    external_test_data,
+                    dataset_experiment_path + File.separator +
+                            String.format(
+                                    "overall%stest_sample-01_fold-%02d_%s.preds",
+                                    File.separator,
+                                    n_external_fold,
+                                    abstractClf.getClass().getSimpleName()
+                            )
+            );
+            System.out.printf("Done: %s,%d,%d%n", dataset_name, 1, n_external_fold);
+            return true;
+        } catch(Exception e) {
+            System.err.println(e.getMessage());
+            e.printStackTrace(System.err);
+            return e;
+        }
+    }
+
+    private static ArrayList<HashMap<String, Object>> getAdaboostCombinations(String clfCanonicalName) {
+
+        int[] numIterations_array = new int[]{50, 91, 132, 173, 214, 255, 295, 336, 377, 418, 459, 500};
+
+        ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
+
+        for(int numIterations : numIterations_array) {
+            HashMap<String, Object> comb = new HashMap<>();
+
+            comb.put("numIterations", String.format("-I %d", numIterations));
+            comb.put("classifier", String.format("-W %s", clfCanonicalName));
+            combinations.add(comb);
+        }
+
+        return combinations;
+    }
+
     public static void main(String[] args) throws Exception {
         CommandLine commandLine = Boosters.parseCommandLine(args);
 
@@ -114,23 +264,26 @@ public class Boosters {
 
         String clf_name = options.get("classifier");
 
-        NestedCrossValidation.SupportedAlgorithms algorithm_name;
+        Boosters.SupportedAlgorithms algorithm_name;
 
         switch(clf_name) {
+            case "DecisionStump":
+                algorithm_name = Boosters.SupportedAlgorithms.DecisionStump;
+                break;
             case "J48":
-                algorithm_name = NestedCrossValidation.SupportedAlgorithms.J48;
+                algorithm_name = Boosters.SupportedAlgorithms.J48;
                 break;
             case "SimpleCart":
-                algorithm_name = NestedCrossValidation.SupportedAlgorithms.SimpleCart;
+                algorithm_name = Boosters.SupportedAlgorithms.SimpleCart;
                 break;
             case "JRip":
-                algorithm_name = NestedCrossValidation.SupportedAlgorithms.JRip;
+                algorithm_name = Boosters.SupportedAlgorithms.JRip;
                 break;
             case "PART":
-                algorithm_name = NestedCrossValidation.SupportedAlgorithms.PART;
+                algorithm_name = Boosters.SupportedAlgorithms.PART;
                 break;
             case "DecisionTable":
-                algorithm_name = NestedCrossValidation.SupportedAlgorithms.DecisionTable;
+                algorithm_name = Boosters.SupportedAlgorithms.DecisionTable;
                 break;
             default:
                 throw new Exception(String.format("Booster for classifier %s is not implemented yet.", clf_name));
@@ -138,74 +291,8 @@ public class Boosters {
 
         Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
                 i -> Boosters.runExternalCrossValidationFoldBareBones(
-                        algorithm_name, i, dataset_name, datasets_path,
+                        algorithm_name, i, n_external_folds, dataset_name, datasets_path,
                         experiment_metadata_path + File.separator + dataset_name)
         ).toArray();
-    }
-
-    private static Object runExternalCrossValidationFoldBareBones(
-            NestedCrossValidation.SupportedAlgorithms algorithmName, int n_external_fold,
-            String dataset_name, String datasets_path, String dataset_experiment_path) {
-        try {
-
-            HashMap<String, Instances> datasets = Main.loadDataset(
-                    datasets_path,
-                    dataset_name,
-                    n_external_fold
-            );
-            Instances external_train_data = datasets.get("train_data");  // 9/10 of external cv folds
-            Instances external_test_data = datasets.get("test_data");  // 1/10 of external cv folds
-
-            String clfFullName;
-
-            switch(algorithmName) {
-                case J48:
-                    clfFullName = J48.class.getCanonicalName();
-                    break;
-                case SimpleCart:
-                    clfFullName = SimpleCart.class.getCanonicalName();
-                    break;
-                case JRip:
-                    clfFullName = JRip.class.getCanonicalName();
-                    break;
-                case PART:
-                    clfFullName = PART.class.getCanonicalName();
-                    break;
-                case DecisionTable:
-                    clfFullName = DecisionTable.class.getCanonicalName();
-                    break;
-                default:
-                    throw new IllegalStateException("Unexpected value: " + algorithmName);
-            }
-
-            AdaBoostM1 adb = new AdaBoostM1();
-            adb.setOptions(new String[]{"-W", clfFullName});
-            adb.buildClassifier(external_train_data);
-
-            HashMap<String, Object> bestCombination = new HashMap<>();
-            bestCombination.put("classifier", clfFullName);
-
-            NestedCrossValidation.wekaClassifierParametersToFile(
-                    n_external_fold, dataset_experiment_path, dataset_name, bestCombination
-            );
-
-            PBILLogger.write_predictions_to_file(
-                    new AbstractClassifier[]{adb},
-                    external_test_data,
-                    dataset_experiment_path + File.separator +
-                            String.format(
-                                    "overall%stest_sample-01_fold-%02d_%s.preds",
-                                    File.separator,
-                                    n_external_fold,
-                                    adb.getClass().getSimpleName()
-                            )
-            );
-            System.out.printf("Done: %s,%d,%d%n", dataset_name, 1, n_external_fold);
-            return true;
-        } catch(Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace(System.err);
-            return e;
-        }
     }
 }
