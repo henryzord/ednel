@@ -67,30 +67,6 @@ public class ExtractRulesFromRandomForest {
         return parser.parse(options, args);
     }
 
-    private static void parametersToFile(
-            int n_external_fold, String dataset_experiment_path, String dataset_name,
-            HashMap<String, Object> bestCombination
-    ) throws IOException {
-
-        HashMap<String, String> obj = new HashMap<>();
-
-        obj.put("dataset_name", dataset_name);
-        obj.put("dataset_experiment_path", dataset_experiment_path);
-        for(String key : bestCombination.keySet()) {
-            obj.put(key, bestCombination.get(key).toString());
-        }
-
-        FileWriter fw = new FileWriter(
-                dataset_experiment_path + File.separator + String.format("test_sample-01_fold-%02d_parameters.json", n_external_fold)
-        );
-
-        Gson converter = new GsonBuilder().setPrettyPrinting().create();
-
-        fw.write(converter.toJson(obj));
-        fw.flush();
-        fw.close();
-    }
-
     public static void main(String[] args) throws Exception {
         CommandLine commandLine = ExtractRulesFromRandomForest.parseCommandLine(args);
 
