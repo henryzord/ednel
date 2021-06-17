@@ -112,8 +112,8 @@ public class BaselineRandomSearchAlgorithm {
                 0.1f, // any value, doesn't matter
                 n_individuals,  // as many individuals as requested
                 1,  // one generation
-                3600, // timeout: one hour
-                60, // individuals timeout: 60 seconds
+                0, // timeout: no limit
+                0, // individuals timeout: no limit
                 100, // burn in: default value
                 0, // thinning factor: default value
                 false, // no cycles: default value

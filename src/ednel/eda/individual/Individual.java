@@ -338,8 +338,13 @@ public class Individual extends AbstractClassifier implements OptionHandler, Sum
 
 
     private boolean isOvertime(LocalDateTime start) {
-        return (this.timeout_individual != null) &&
-                ((int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > this.timeout_individual);
+        if(this.timeout_individual != null) {
+            if(this.timeout_individual > 0) {
+                return (int)start.until(LocalDateTime.now(), ChronoUnit.SECONDS) > this.timeout_individual;
+            }
+            return false;
+        }
+        return false;
     }
 
     public static HashMap<String, Class<? extends Aggregator>> getAggregatorClasses() {
