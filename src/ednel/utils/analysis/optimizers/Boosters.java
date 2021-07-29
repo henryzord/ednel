@@ -89,6 +89,15 @@ public class Boosters {
                 .desc("Number of internal folds to use")
                 .build());
 
+        options.addOption(Option.builder()
+                .longOpt("n_jobs")
+                .required(false)
+                .type(Integer.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of threads to use for computing. Use a positive non-zero value. Defaults to 10.")
+                .build());
+
         CommandLineParser parser = new DefaultParser();
         return parser.parse(options, args);
     }
@@ -270,6 +279,14 @@ public class Boosters {
         int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
         int n_internal_folds = Integer.parseInt(options.get("n_internal_folds"));
 
+        int n_jobs = 10;
+        if(options.get("n_jobs") != null) {
+            n_jobs = Integer.parseInt(options.get("n_jobs"));
+            if(n_jobs <= 0) {
+                throw new Exception("Number of jobs must be positive and non-negative!");
+            }
+        }
+
         System.err.println("TODO implement code to run for other values of n_external_folds! (currently only supports = 10)");
 
         String clf_name = options.get("classifier");
@@ -299,7 +316,22 @@ public class Boosters {
                 throw new Exception(String.format("Booster for classifier %s is not implemented yet.", clf_name));
         }
 
-        Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
+        n_jobs = Math.min(n_jobs, 10);
+
+        int n_loops = (int)(n_external_folds / n_jobs);
+
+        int counter = 0;
+        Object[] answers;
+        for(int i = 0; i < n_loops; i++) {
+            answers = IntStream.range((i * n_jobs) + 1, ((i + 1) * n_jobs) + 1).parallel().mapToObj(
+                    j -> Boosters.runExternalCrossValidationFoldBareBones(
+                            algorithm_name, j, n_internal_folds, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
+            ).toArray();
+            counter += n_jobs;
+        }
+
+        answers = IntStream.range(counter, n_external_folds + 1).parallel().mapToObj(
                 i -> Boosters.runExternalCrossValidationFoldBareBones(
                         algorithm_name, i, n_internal_folds, dataset_name, datasets_path,
                         experiment_metadata_path + File.separator + dataset_name)

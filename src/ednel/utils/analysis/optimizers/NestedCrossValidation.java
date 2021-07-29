@@ -99,6 +99,15 @@ public class NestedCrossValidation {
                 .desc("Name of classifier to optimize with nested cross validation")
                 .build());
 
+        options.addOption(Option.builder()
+                .longOpt("n_jobs")
+                .required(false)
+                .type(Integer.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Number of threads to use for computing. Use a positive non-zero value. Defaults to 10.")
+                .build());
+
         CommandLineParser parser = new DefaultParser();
         return parser.parse(options, args);
     }
@@ -408,7 +417,7 @@ public class NestedCrossValidation {
      * @param experiment_metadata_path Path to where write metadata on this experiment
      */
     private static void classifierOptimization(
-            SupportedAlgorithms algorithmName, int n_external_folds, int n_internal_folds,
+            SupportedAlgorithms algorithmName, int n_jobs, int n_external_folds, int n_internal_folds,
             String dataset_name, String datasets_path, String experiment_metadata_path
     ) {
 
@@ -439,10 +448,26 @@ public class NestedCrossValidation {
                 throw new NotImplementedException();
         }
 
-        Object[] answers = IntStream.range(1, n_external_folds + 1).parallel().mapToObj(
-                i -> NestedCrossValidation.runExternalCrossValidationFoldBareBones(
+        n_jobs = Math.min(n_jobs, 10);
+
+        int n_loops = (int)(n_external_folds / n_jobs);
+
+        int counter = 0;
+        Object[] answers;
+        for(int i = 0; i < n_loops; i++) {
+            answers = IntStream.range((i * n_jobs) + 1, ((i + 1) * n_jobs) + 1).parallel().mapToObj(
+                    j -> NestedCrossValidation.runExternalCrossValidationFoldBareBones(
+                            algorithmName, combinations,
+                            j, n_internal_folds, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
+            ).toArray();
+            counter += n_jobs;
+        }
+
+        answers = IntStream.range(counter, n_external_folds + 1).parallel().mapToObj(
+                j -> NestedCrossValidation.runExternalCrossValidationFoldBareBones(
                         algorithmName, combinations,
-                        i, n_internal_folds, dataset_name, datasets_path,
+                        j, n_internal_folds, dataset_name, datasets_path,
                         experiment_metadata_path + File.separator + dataset_name)
         ).toArray();
     }
@@ -742,6 +767,14 @@ public class NestedCrossValidation {
 //        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));  // TODO allow for any number of external folds to run!!!
         int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
 
+        int n_jobs = 10;
+        if(options.get("n_jobs") != null) {
+            n_jobs = Integer.parseInt(options.get("n_jobs"));
+            if(n_jobs <= 0) {
+                throw new Exception("Number of jobs must be positive and non-negative!");
+            }
+        }
+
         System.err.println("TODO implement code to run for other values of n_external_folds! (currently only supports = 10)");
 
         int n_internal_folds = Integer.parseInt(options.get("n_internal_folds"));
@@ -776,7 +809,7 @@ public class NestedCrossValidation {
         }
 
         NestedCrossValidation.classifierOptimization(
-                algorithm_name, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path
+                algorithm_name, n_jobs, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path
         );
     }
 }
