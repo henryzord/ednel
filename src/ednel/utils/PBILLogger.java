@@ -16,6 +16,7 @@ import weka.core.Instances;
 import javax.annotation.processing.FilerException;
 import java.io.*;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -548,38 +549,47 @@ public class PBILLogger {
             AbstractClassifier[] clfs, Instances test_data, String write_path
     ) throws Exception {
 
-        BufferedWriter bw = new BufferedWriter(new FileWriter(write_path));
+        File write_file = new File(write_path);
+        BufferedWriter bw = new BufferedWriter(new FileWriter(write_file));
 
-        // gets names of classifiers in list the list of AbstractClassifiers
-        String[] orderedClassifiersNames = new String[clfs.length];
-        for(int i = 0; i < clfs.length; i++) {
-            orderedClassifiersNames[i] = clfs[i].getClass().getSimpleName();
-        }
-
-        // writes header of .preds file
-        bw.write("classValue;");
-        for(int i = 0; i < clfs.length; i++) {
-            bw.write(orderedClassifiersNames[i] + (((i + 1) < clfs.length)? ";" : "\n"));
-        }
-
-        // for every instance in the test set
-        for(int i = 0; i < test_data.size(); i++) {
-            Instance inst = test_data.instance(i);
-            int class_value = (int)inst.classValue();
-
-            // writes class value first
-            bw.write(class_value + ";");
-
-            // iterates over classifiers, writes distribution of probabilities for each classifier
-            for(int j = 0; j < clfs.length; j++) {
-                bw.write(
-                        PBILLogger.writeDistributionOfProbabilities(clfs[j].distributionForInstance(inst)) +
-                                (((j + 1) < clfs.length)? ";" : "\n")
-                );
+        try {
+            // gets names of classifiers in list the list of AbstractClassifiers
+            String[] orderedClassifiersNames = new String[clfs.length];
+            for(int i = 0; i < clfs.length; i++) {
+                orderedClassifiersNames[i] = clfs[i].getClass().getSimpleName();
             }
+
+            // writes header of .preds file
+            bw.write("classValue;");
+            for(int i = 0; i < clfs.length; i++) {
+                bw.write(orderedClassifiersNames[i] + (((i + 1) < clfs.length)? ";" : "\n"));
+            }
+
+            // for every instance in the test set
+            for(int i = 0; i < test_data.size(); i++) {
+                Instance inst = test_data.instance(i);
+                int class_value = (int)inst.classValue();
+
+                // writes class value first
+                bw.write(class_value + ";");
+
+                // iterates over classifiers, writes distribution of probabilities for each classifier
+                for(int j = 0; j < clfs.length; j++) {
+                    bw.write(
+                            PBILLogger.writeDistributionOfProbabilities(clfs[j].distributionForInstance(inst)) +
+                                    (((j + 1) < clfs.length)? ";" : "\n")
+                    );
+                }
+            }
+            bw.flush();
+            bw.close();
+        } catch(Exception e) {
+            if(write_file.exists()) {
+                bw.close();
+                Files.deleteIfExists(write_file.toPath());
+            }
+            throw e;
         }
-        bw.flush();
-        bw.close();
     }
 
     /**

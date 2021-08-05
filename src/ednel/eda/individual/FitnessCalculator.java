@@ -414,15 +414,22 @@ public class FitnessCalculator {
     }
 
     public static void main(String[] args) throws Exception {
-        HashMap<String, Instances> datasets = AUTOCVEProcedure.loadHoldoutDataset(
-                "C:\\Users\\henry\\Projects\\autocve_experiments\\experiments_EVOSTAR21\\new\\partitions",
-                "37", 1);
+        String[] datasets_names = {"15", "37", "307", "451", "458", "469", "1476", "1485", "23517", "40496", "40499", "40994"};
 
-        RandomForest rf = new RandomForest();
-        rf.buildClassifier(datasets.get("train_data"));
 
-        double bacc = FitnessCalculator.getBalancedAccuracy(datasets.get("train_data"), datasets.get("test_data"), rf);
-        System.out.printf("Balanced accuracy: %f\n", bacc);
+        for(String dataset : datasets_names) {
+            for(int j = 1; j <= 10; j++) {
+                HashMap<String, Instances> sets = AUTOCVEProcedure.loadHoldoutDataset(
+                        "C:\\Users\\henry\\Projects\\autocve_experiments\\experiments_EVOSTAR21\\new\\partitions",
+                        dataset, j);
+
+                RandomForest rf = new RandomForest();
+                rf.buildClassifier(sets.get("train_data"));
+
+                double bacc = FitnessCalculator.getBalancedAccuracy(sets.get("train_data"), sets.get("test_data"), rf);
+                System.out.printf("Dataset: %s, Balanced accuracy: %f\n", dataset, bacc);
+            }
+        }
     }
 
 }
