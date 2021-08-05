@@ -1,6 +1,7 @@
 package ednel.utils.analysis.optimizers;
 
 import ednel.eda.EDNEL;
+import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
@@ -78,7 +79,7 @@ public class AUTOCVEProcedure {
         return parser.parse(options, args);
     }
 
-    private static HashMap<String, Instances> loadHoldoutDataset(String datasets_path, String dataset_name, int id_trial) throws Exception {
+    public static HashMap<String, Instances> loadHoldoutDataset(String datasets_path, String dataset_name, int id_trial) throws Exception {
         HashMap<String, Instances> datasets = new HashMap<>();
 
         ConverterUtils.DataSource train_set = new ConverterUtils.DataSource(
@@ -113,8 +114,6 @@ public class AUTOCVEProcedure {
 
             switch(algorithmName) {
                 case EDNEL:
-                    throw new Exception("TODO implement balanced accuracy as fitness function for EDNEL and PBIL!");
-
                     HashMap<String, Object> hyperparameters = AUTOCVEProcedure.getEDNELCombinations();
 
                     // float learning_rate, float selection_share, int n_individuals, int n_generations,
@@ -135,6 +134,7 @@ public class AUTOCVEProcedure {
                         Integer.parseInt(hyperparameters.get("max_parents").toString()),
                         Integer.parseInt(hyperparameters.get("delay_structure_learning").toString()),
                         Integer.parseInt(hyperparameters.get("n_internal_folds").toString()),
+                        FitnessCalculator.EvaluationMetric.BALANCED_ACCURACY,
                         new PBILLogger(
                             dataset_name, dataset_experiment_path,
                             Integer.parseInt(hyperparameters.get("n_individuals").toString()),
@@ -248,23 +248,25 @@ public class AUTOCVEProcedure {
     }
 
     private static HashMap<String, Object> getEDNELCombinations() {
-        float learning_rate = 0.52f;
-        float selection_share = 0.5f;
-        int n_individuals = 50;
-        int n_generations = 100;
+        float learning_rate = 0.52f;  // ok, checked
+        float selection_share = 0.5f;  // ok, checked
+        int n_individuals = 50;  // ok, checked
+        int n_generations = 100;  // ok, checked
 
-        int timeout = 5400;
-        int timeout_individual = 60;
+        int timeout = 5400;  // ok, checked
+        int timeout_individual = 60;  // ok, checked
 
-        int burn_in = 100;
-        int thinning_factor = 0;
+        int burn_in = 100;  // ok, checked
+        int thinning_factor = 0;  // ok, checked
 
-        boolean no_cycles = false;
+        boolean no_cycles = false;  // ok, checked
 
-        int early_stop_generations = 20;
-        int max_parents = 1;
+        int early_stop_generations = 20;  // ok, checked
+        int max_parents = 1;  // ok, checked
 
-        int delay_structure_learning = 5;
+        int delay_structure_learning = 5;  // ok, checked
+
+        int n_internal_folds = 5;  // ok, checked
 
         HashMap<String, Object> comb = new HashMap<>();
 
@@ -280,7 +282,7 @@ public class AUTOCVEProcedure {
         comb.put("early_stop_generations", early_stop_generations);
         comb.put("max_parents", max_parents);
         comb.put("delay_structure_learning", delay_structure_learning);
-        comb.put("n_internal_folds", 5); // 5 fold cross-validation procedure
+        comb.put("n_internal_folds", n_internal_folds);
         comb.put("pbilLogger", null);
         comb.put("seed", null);
 

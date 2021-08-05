@@ -59,6 +59,9 @@ public class EDNEL extends AbstractClassifier {
     /** Number of internal folds to use when evaluating fitness */
     protected int n_internal_folds;
 
+    /** Evaluation metric: either Unweighted Area Under the ROC Curve, or Balanced Accuracy */
+    protected FitnessCalculator.EvaluationMetric metric;
+
     /** Random number generation (RNG) */
     protected MersenneTwister mt;
     /** Seed to use. Defaults to system clock if not passed */
@@ -84,7 +87,8 @@ public class EDNEL extends AbstractClassifier {
 
     public EDNEL(float learning_rate, float selection_share, int n_individuals, int n_generations,
                  int timeout, int timeout_individual, int burn_in, int thinning_factor, boolean no_cycles, int early_stop_generations,
-                 int max_parents, int delay_structure_learning, int n_internal_folds, PBILLogger pbilLogger, Integer seed
+                 int max_parents, int delay_structure_learning, int n_internal_folds, FitnessCalculator.EvaluationMetric metric,
+                 PBILLogger pbilLogger, Integer seed
     ) throws Exception {
 
         this.learning_rate = learning_rate;
@@ -101,6 +105,7 @@ public class EDNEL extends AbstractClassifier {
         this.delay_structure_learning = this.max_parents == 0? 0 : delay_structure_learning;
 
         this.n_internal_folds = n_internal_folds;
+        this.metric = metric;
 
         this.earlyStop = null;
 
@@ -156,7 +161,7 @@ public class EDNEL extends AbstractClassifier {
         if(this.pbilLogger != null) {
             pbilLogger.setDatasets(null, learn_data, val_data, null);
         }
-        FitnessCalculator fc = new FitnessCalculator(this.n_internal_folds, learn_data, val_data);
+        FitnessCalculator fc = new FitnessCalculator(this.n_internal_folds, learn_data, val_data, this.metric);
         this.earlyStop = new EarlyStop(this.early_stop_generations, 0);
 
         this.currentGenBest = new BaselineIndividual();

@@ -7,6 +7,7 @@ package ednel.utils.analysis.optimizers;
 
 import ednel.Main;
 import ednel.eda.EDNEL;
+import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
@@ -121,6 +122,7 @@ public class BaselineRandomSearchAlgorithm {
                 0, // max parents: zero, but doesn't matter, will not learn anything
                 5, // delay structure learning: 5 but doesn't matter, won't learn any structure
                 0, // n internal folds: left at zero to perform an internal holdout, but doesn't matter
+                FitnessCalculator.EvaluationMetric.UNWEIGHTED_AUC,
                 new PBILLogger(
                     dataset_name, dataset_experiment_path,
                     n_individuals,

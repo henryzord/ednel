@@ -88,6 +88,7 @@ public class RunFoldOfTenFoldCrossValidation implements Runnable, Callable {
                 Integer.parseInt(cmd.get("max_parents")),
                 Integer.parseInt(cmd.get("delay_structure_learning")),
                 Integer.parseInt(cmd.get("n_internal_folds")),
+                FitnessCalculator.EvaluationMetric.UNWEIGHTED_AUC,
                 pbilLogger,
                 cmd.get("seed") == null?
                         null : Integer.parseInt(cmd.get("seed"))

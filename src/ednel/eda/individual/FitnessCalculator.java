@@ -2,11 +2,13 @@ package ednel.eda.individual;
 
 import ednel.utils.PBILLogger;
 import ednel.utils.analysis.CompilePredictions;
+import ednel.utils.analysis.optimizers.AUTOCVEProcedure;
 import ednel.utils.sorters.PopulationSorter;
 import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 import org.omg.CORBA.portable.UnknownException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.trees.RandomForest;
 import weka.core.Attribute;
 import weka.core.Instances;
 import weka.core.UnassignedClassException;
@@ -34,19 +36,26 @@ public class FitnessCalculator {
     /** Number of internal folds */
     private int n_folds;
 
+    private EvaluationMetric metric;
+
     public enum EvaluationMethod {
-            HOLDOUT, LEAVEONEOUT, CROSSVALIDATION;
+            HOLDOUT, LEAVEONEOUT, CROSSVALIDATION
     };
+
+    public enum EvaluationMetric {
+        UNWEIGHTED_AUC, BALANCED_ACCURACY
+    }
+
     private EvaluationMethod evaluation_method;
 
     private Integer[] sortedIndices_learn;
     private Integer[] sortedIndices_val;
 
-    public FitnessCalculator(int n_folds, Instances learn_data) throws Exception {
-        this(n_folds, learn_data, null);
+    public FitnessCalculator(int n_folds, Instances learn_data, EvaluationMetric metric) throws Exception {
+        this(n_folds, learn_data, null, metric);
     }
 
-    public FitnessCalculator(int n_folds, Instances learn_data, Instances val_data) throws Exception {
+    public FitnessCalculator(int n_folds, Instances learn_data, Instances val_data, EvaluationMetric metric) throws Exception {
         this.learn_data = learn_data;
         this.val_data = val_data;
 
@@ -69,27 +78,8 @@ public class FitnessCalculator {
             default:
                 this.evaluation_method = EvaluationMethod.CROSSVALIDATION;
         }
-    }
 
-    public static double getUnweightedAreaUnderROC(
-            Instances train_data, Instances val_data, AbstractClassifier clf) throws Exception {
-        Evaluation evaluation = new Evaluation(train_data);
-        evaluation.evaluateModel(clf, val_data);
-        return FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
-    }
-
-    public static double getUnweightedAreaUnderROC(Evaluation evaluation) throws Exception {
-        int n_classes = evaluation.confusionMatrix().length;
-        double unweighted = 0;
-        for(int i = 0; i < n_classes; i++) {
-            double auc = evaluation.areaUnderROC(i);
-            if(Utils.isMissingValue(auc)) {
-                throw new Exception("un-stratified code!");
-            } else {
-                unweighted += auc;
-            }
-        }
-        return unweighted / n_classes;
+        this.metric = metric;
     }
 
     /**
@@ -141,10 +131,10 @@ public class FitnessCalculator {
             int howMany = Math.round(copy.get(key).size() / (float)n_folds);
             if(howMany <= 0) {
                 throw new ValueException(String.format(
-                    "class %s has %d instances, but number of folds is %d",
-                    data.classAttribute().value(key.intValue()),
-                    copy.get(key).size(),
-                    n_folds
+                        "class %s has %d instances, but number of folds is %d",
+                        data.classAttribute().value(key.intValue()),
+                        copy.get(key).size(),
+                        n_folds
                 ));
             }
             howManies.put(key, howMany);
@@ -172,6 +162,68 @@ public class FitnessCalculator {
         }
         container.setClassIndex(data.classIndex());
         return container;
+    }
+
+    public static double getUnweightedAreaUnderROC(
+            Instances train_data, Instances val_data, AbstractClassifier clf) throws Exception {
+        Evaluation evaluation = new Evaluation(train_data);
+        evaluation.evaluateModel(clf, val_data);
+        return FitnessCalculator.getUnweightedAreaUnderROC(evaluation);
+    }
+
+    public static double getUnweightedAreaUnderROC(Evaluation evaluation) throws Exception {
+        int n_classes = evaluation.confusionMatrix().length;
+        double unweighted = 0;
+        for(int i = 0; i < n_classes; i++) {
+            double auc = evaluation.areaUnderROC(i);
+            if(Utils.isMissingValue(auc)) {
+                throw new Exception("un-stratified code!");
+            } else {
+                unweighted += auc;
+            }
+        }
+        return unweighted / n_classes;
+    }
+
+    public static double getBalancedAccuracy(
+            Instances train_data, Instances val_data, AbstractClassifier clf) throws Exception {
+        Evaluation evaluation = new Evaluation(train_data);
+        evaluation.evaluateModel(clf, val_data);
+        return FitnessCalculator.getBalancedAccuracy(evaluation);
+    }
+
+    public static double getBalancedAccuracy(Evaluation evaluation) throws Exception {
+        double[][] confMatrix = evaluation.confusionMatrix();
+        int n_classes = confMatrix.length;
+
+        double sum = 0;
+
+        for(int c = 0; c < n_classes; c++) {
+            double n_instances_class = 0;
+            for(int i = 0; i < n_classes; i++) {
+                n_instances_class += confMatrix[c][i];
+            }
+            sum += confMatrix[c][c] / n_instances_class;
+        }
+        sum /= n_classes;
+        return sum;
+    }
+
+    public Method getPreferredFitnessMethod() throws NoSuchMethodException {
+        Method fitnessMethod;
+
+        switch(this.evaluation_method) {
+            case HOLDOUT:
+                fitnessMethod = Fitness.class.getMethod("getValQuality");
+                break;
+            case LEAVEONEOUT:
+            case CROSSVALIDATION:
+                fitnessMethod = Fitness.class.getMethod("getLearnQuality");
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + this.evaluation_method);
+        }
+        return fitnessMethod;
     }
 
     /**
@@ -228,8 +280,18 @@ public class FitnessCalculator {
             copy.buildClassifier(this.learn_data);
             eval.evaluateModel(copy, this.val_data);
 
-            double auc = getUnweightedAreaUnderROC(eval);
-            return new Fitness(copy.getNumberOfRules(), null, auc);
+            double score;
+            switch(this.metric) {
+                case UNWEIGHTED_AUC:
+                    score = getUnweightedAreaUnderROC(eval);
+                    break;
+                case BALANCED_ACCURACY:
+                    score = getBalancedAccuracy(eval);
+                    break;
+                default:
+                    throw new Exception("unrecognized metric.");
+            }
+            return new Fitness(copy.getNumberOfRules(), null, score);
         } catch(Exception e) {
             return new Fitness(null, null, null);
         }
@@ -241,12 +303,13 @@ public class FitnessCalculator {
         EvaluateValidationSetThread t = null;
 
         if(get_validation_fitness) {
-            t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual);
+            t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, timeout_individual, this.metric);
             t.start();
         }
 
         Object[] trainEvaluations = IntStream.range(0, this.n_folds).parallel().mapToObj(
-                i -> FitnessCalculator.parallelFoldEvaluation(ind, learn_data, i, this.n_folds, random, timeout_individual)).toArray();
+                i -> FitnessCalculator.parallelFoldEvaluation(ind, learn_data, i, this.n_folds, random, timeout_individual)
+        ).toArray();
 
         // waits for evaluation of validation set to finish
         if(get_validation_fitness) {
@@ -274,7 +337,16 @@ public class FitnessCalculator {
         double learnQuality;
         try {
             CompilePredictions fj = new CompilePredictions(all_lines);
-            learnQuality = fj.getAUC("ensemble");
+            switch(this.metric) {
+                case UNWEIGHTED_AUC:
+                    learnQuality = fj.getUnweightedAUC("ensemble");
+                    break;
+                case BALANCED_ACCURACY:
+                    learnQuality = fj.getBalancedAccuracy("ensemble");
+                    break;
+                default:
+                    throw new Exception("unrecognized metric.");
+            }
         } catch(Exception e) {
             learnQuality = 0;
         }
@@ -314,36 +386,22 @@ public class FitnessCalculator {
         }
     }
 
-    public Fitness getEnsembleValidationFitness(Individual ind) throws EmptyEnsembleException, NoAggregationPolicyException {
+    public Fitness getEnsembleValidationFitness(Individual ind)
+            throws EmptyEnsembleException, NoAggregationPolicyException {
+
         if(ind.getFitness().getValQuality() == null) {
-            EvaluateValidationSetThread t = new EvaluateValidationSetThread(this.learn_data, this.val_data, ind, null);
+            EvaluateValidationSetThread t = new EvaluateValidationSetThread(
+                    this.learn_data, this.val_data, ind, null, this.metric
+            );
             t.run();
             return new Fitness(ind.getFitness().getSize(), ind.getFitness().getLearnQuality(), t.getValQuality());
         }
         return ind.getFitness();
     }
 
-    public Method getPreferredFitnessMethod() throws NoSuchMethodException {
-        Method fitnessMethod;
+    public Integer[] getSortedIndices(Individual[] population)
+            throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
 
-        switch(this.evaluation_method) {
-            case HOLDOUT:
-                fitnessMethod = Fitness.class.getMethod("getValQuality");
-                break;
-            case LEAVEONEOUT:
-            case CROSSVALIDATION:
-                fitnessMethod = Fitness.class.getMethod("getLearnQuality");
-                break;
-            default:
-                throw new IllegalStateException("Unexpected value: " + this.evaluation_method);
-        }
-
-        return fitnessMethod;
-
-
-    }
-
-    public Integer[] getSortedIndices(Individual[] population) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Double[] fitnesses = new Double[population.length];
 
         Method fitnessMethod = getPreferredFitnessMethod();
@@ -354,4 +412,17 @@ public class FitnessCalculator {
         return PopulationSorter.simpleArgsort(population);
 //        return PopulationSorter.lexicographicArgsort(fitnesses);
     }
+
+    public static void main(String[] args) throws Exception {
+        HashMap<String, Instances> datasets = AUTOCVEProcedure.loadHoldoutDataset(
+                "C:\\Users\\henry\\Projects\\autocve_experiments\\experiments_EVOSTAR21\\new\\partitions",
+                "37", 1);
+
+        RandomForest rf = new RandomForest();
+        rf.buildClassifier(datasets.get("train_data"));
+
+        double bacc = FitnessCalculator.getBalancedAccuracy(datasets.get("train_data"), datasets.get("test_data"), rf);
+        System.out.printf("Balanced accuracy: %f\n", bacc);
+    }
+
 }

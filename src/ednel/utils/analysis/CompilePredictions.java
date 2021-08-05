@@ -183,10 +183,16 @@ public class CompilePredictions {
         }
     }
 
-    public double getAUC(String clfName) throws Exception {
+    public double getUnweightedAUC(String clfName) throws Exception {
         Evaluation eval = new Evaluation(this.dummyDataset);
         eval.evaluateModel(this.dummyClassifiers.get(clfName), this.dummyDataset);
         return FitnessCalculator.getUnweightedAreaUnderROC(eval);
+    }
+
+    public double getBalancedAccuracy(String clfName) throws Exception {
+        Evaluation eval = new Evaluation(this.dummyDataset);
+        eval.evaluateModel(this.dummyClassifiers.get(clfName), this.dummyDataset);
+        return FitnessCalculator.getBalancedAccuracy(eval);
     }
 
     public HashMap<String, DummyClassifier> getDummyClassifiers() {

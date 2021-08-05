@@ -108,8 +108,8 @@ public class NCVMatrixHandler {
                 CompilePredictions lastFJ = new CompilePredictions(this.lastPredictionMatrix, this.actualClasses, "LastClassifier");
                 CompilePredictions overallFJ = new CompilePredictions(this.overallPredictionMatrix, this.actualClasses, "OverallClassifier");
 
-                double lastAUC = lastFJ.getAUC("LastClassifier");
-                double overallAUC = overallFJ.getAUC("OverallClassifier");
+                double lastAUC = lastFJ.getUnweightedAUC("LastClassifier");
+                double overallAUC = overallFJ.getUnweightedAUC("OverallClassifier");
 
                 this.bestUsersOverall = overallAUC >= lastAUC;
                 this.auc = Math.max(overallAUC, lastAUC);
@@ -123,7 +123,7 @@ public class NCVMatrixHandler {
             case RandomForest:
                 String tempClfName = "classifier";
                 CompilePredictions foldJoiner = new CompilePredictions(predictionMatrix, actualClasses, tempClfName);
-                this.auc = foldJoiner.getAUC(tempClfName);
+                this.auc = foldJoiner.getUnweightedAUC(tempClfName);
                 break;
 
             default:
