@@ -331,10 +331,12 @@ public class Boosters {
             counter += n_jobs;
         }
 
-        answers = IntStream.range(counter, n_external_folds + 1).parallel().mapToObj(
-                i -> Boosters.runExternalCrossValidationFoldBareBones(
-                        algorithm_name, i, n_internal_folds, dataset_name, datasets_path,
-                        experiment_metadata_path + File.separator + dataset_name)
-        ).toArray();
+        if(counter < n_external_folds) {
+            answers = IntStream.range(counter, n_external_folds + 1).parallel().mapToObj(
+                    i -> Boosters.runExternalCrossValidationFoldBareBones(
+                            algorithm_name, i, n_internal_folds, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
+            ).toArray();
+        }
     }
 }

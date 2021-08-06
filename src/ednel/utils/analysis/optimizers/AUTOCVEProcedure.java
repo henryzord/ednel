@@ -5,7 +5,6 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
@@ -19,6 +18,10 @@ import java.util.HashMap;
 import java.util.stream.IntStream;
 
 public class AUTOCVEProcedure {
+
+    public static final int N_TRIALS = 10;
+    public static final int DEFAULT_N_JOBS = 10;
+
     public enum SupportedAlgorithms {
         EDNEL, RandomForest
     }
@@ -139,7 +142,7 @@ public class AUTOCVEProcedure {
                             dataset_name, dataset_experiment_path,
                             Integer.parseInt(hyperparameters.get("n_individuals").toString()),
                             Integer.parseInt(hyperparameters.get("n_generations").toString()),
-                            1, n_try, true, false
+                            n_try, 0, true, false
                         ),
                         (Integer)hyperparameters.get("seed")
                     );
@@ -165,9 +168,10 @@ public class AUTOCVEProcedure {
                             test_data,
                             dataset_experiment_path + File.separator +
                                     String.format(
-                                            "overall%stest_sample-01_fold-%02d_%s.preds",
+                                            "overall%stest_sample-%02d_fold-%02d_%s.preds",
                                             File.separator,
                                             n_try,
+                                            0,
                                             rf.getClass().getSimpleName()
                                     )
                     );
@@ -195,12 +199,12 @@ public class AUTOCVEProcedure {
      * @param experiment_metadata_path Path to where write metadata on this experiment
      */
     private static void classifierOptimization(
-            SupportedAlgorithms algorithmName, int n_jobs, int n_external_folds,
+            SupportedAlgorithms algorithmName, int n_jobs,
             String dataset_name, String datasets_path, String experiment_metadata_path
     ) {
-        n_jobs = Math.min(n_jobs, 10);
+        n_jobs = Math.min(n_jobs, N_TRIALS);  // 10 trials
 
-        int n_loops = (int)(n_external_folds / n_jobs);
+        int n_loops = (int)(N_TRIALS / n_jobs);
 
         int counter = 0;
         Object[] answers;
@@ -214,12 +218,14 @@ public class AUTOCVEProcedure {
             counter += n_jobs;
         }
 
-        answers = IntStream.range(counter, n_external_folds + 1).parallel().mapToObj(
-                j -> AUTOCVEProcedure.runHoldout(
-                        algorithmName,
-                        j, dataset_name, datasets_path,
-                        experiment_metadata_path + File.separator + dataset_name)
-        ).toArray();
+        if(counter < N_TRIALS) {
+            answers = IntStream.range(counter, N_TRIALS + 1).parallel().mapToObj(
+                    j -> AUTOCVEProcedure.runHoldout(
+                            algorithmName,
+                            j, dataset_name, datasets_path,
+                            experiment_metadata_path + File.separator + dataset_name)
+            ).toArray();
+        }
     }
 
     private static ArrayList<HashMap<String, Object>> getDecisionTableCombinations() {
@@ -340,10 +346,8 @@ public class AUTOCVEProcedure {
 
         String datasets_path = options.get("datasets_path");
         String dataset_name = options.get("dataset_name");
-//        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));  // TODO allow for any number of external folds to run!!!
-        int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
 
-        int n_jobs = 10;
+        int n_jobs = DEFAULT_N_JOBS;
         if(options.get("n_jobs") != null) {
             n_jobs = Integer.parseInt(options.get("n_jobs"));
             if(n_jobs <= 0) {
@@ -369,7 +373,7 @@ public class AUTOCVEProcedure {
         }
 
         AUTOCVEProcedure.classifierOptimization(
-                algorithm_name, n_jobs, n_external_folds, dataset_name, datasets_path, experiment_metadata_path
+                algorithm_name, n_jobs, dataset_name, datasets_path, experiment_metadata_path
         );
     }
 }
