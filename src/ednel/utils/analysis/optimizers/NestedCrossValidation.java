@@ -285,7 +285,7 @@ public class NestedCrossValidation {
                 case EDNEL:
                     constructor = EDNEL.class.getConstructor(
                             float.class, float.class, int.class, int.class, int.class, int.class, int.class, int.class,
-                            boolean.class, int.class, int.class, int.class, int.class, PBILLogger.class, Integer.class
+                            boolean.class, int.class, int.class, int.class, int.class, FitnessCalculator.EvaluationMetric.class, PBILLogger.class, Integer.class
                     );
                     break;
                 case RandomForest:
@@ -684,6 +684,8 @@ public class NestedCrossValidation {
 
         int delay_structure_learning = 5;
 
+        FitnessCalculator.EvaluationMetric metric = FitnessCalculator.EvaluationMetric.UNWEIGHTED_AUC;
+
         ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
 
         for(float learning_rate : learning_rate_values) {
@@ -704,6 +706,7 @@ public class NestedCrossValidation {
                     comb.put("max_parents", max_parents);
                     comb.put("delay_structure_learning", delay_structure_learning);
                     comb.put("n_internal_folds", 0); // n_internal_folds for EDNEL is not the same for NestedCrossValidation
+                    comb.put("metric", metric);
                     comb.put("pbilLogger", null);
                     comb.put("seed", null);
 
