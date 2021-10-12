@@ -23,6 +23,8 @@ from matplotlib.colors import to_hex
 from networkx.drawing.nx_agraph import graphviz_layout
 from pandas.api.types import is_numeric_dtype
 
+import matplotlib
+
 from characteristics_to_pca import read_population_dataframe, run_pca, update_population_contour, to_all_numeric_columns
 
 
@@ -31,16 +33,19 @@ def read_zip(input_zip):
     return {name: input_zip.read(name) for name in input_zip.namelist()}
 
 
-def print_version(G: nx.DiGraph):
+def print_version(prob_structs: dict, selected_gen: str):
     """
     Generates a pdf of deterministic relationship between variables, to be used in a document (e.g. paper).
-    :param G: deterministic DiGraph
     """
 
-    def __get_node_label__(_label, _line_limit=11):
-        _candidate = _label.split('_')[-1]  # type: str
+    def __get_node_label__(_label, _line_limit=11) -> tuple:
+        try:
+            _group, _candidate = tuple(_label.split('_'))  # type: str
+        except ValueError:  # variable is already the group (e.g. JRip)
+            _group, _candidate = _label, _label
+
         if len(_candidate) <= _line_limit:
-            return _candidate
+            return _group, _candidate
 
         # else
         _words = []
@@ -74,8 +79,9 @@ def print_version(G: nx.DiGraph):
                 _answer += _word
                 _line_counter += len(_word)
 
-        return _answer
+        return _group, _answer
 
+    G = prob_structs[selected_gen]  # type: nx.DiGraph
     out_degrees = dict(G.out_degree)
     min_degree = min(out_degrees.values())
     roots = [k for k, v in out_degrees.items() if v == min_degree]
@@ -94,24 +100,35 @@ def print_version(G: nx.DiGraph):
             except nx.exception.NetworkXNoPath:
                 pass
 
-    all_colors = list(map(to_hex, viridis(np.linspace(0, 1, num=10))))
-
-    colors = all_colors[5::2]
-
     node_colors = list()
     node_labels = dict()
+    node_groups = dict()
     for node in G.nodes:
-        node_colors += [colors[degrees[node]]]
-        node_labels[node] = __get_node_label__(node) # type: str
+        node_groups[node], node_labels[node] = __get_node_label__(node)  # type: str
+        # node_colors += [colors[degrees[node]]]
+
+    groups = sorted(list(set(node_groups.values())))
+    all_colors = list(map(to_hex, viridis(np.linspace(0, 1, num=len(groups) + 3))))[3:]
+    color_assignments = dict(zip(groups, all_colors))
+
+    for node in G.nodes:
+        node_colors += [color_assignments[node_groups[node]]]
 
     fig, ax = plt.subplots(figsize=(16, 10))
+    # fig, ax = plt.subplots()
 
-    pos = graphviz_layout(G, root='0', prog='neato')
+    # pos = graphviz_layout(G, root='0', prog='neato')
+    pos = graphviz_layout(G, prog='neato')
 
-    edge_list = G.edges(data=True)
+    edge_list = [(x[1], x[0]) for x in G.edges(data=False)]
 
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=3000, node_color=node_colors, edgecolors='black', alpha=1)
-    nx.draw_networkx_edges(G, pos, ax=ax, edgelist=edge_list, style='solid', alpha=1)
+    nx.draw_networkx_edges(
+        G, pos,
+        ax=ax, edgelist=edge_list, style='solid', alpha=1,
+        arrows=True, arrowstyle='-|>', arrowsize=25, width=1.,
+        min_target_margin=25., min_source_margin=25.
+    )
     nx.draw_networkx_labels(G, pos, node_labels, ax=ax, font_size=8)
 
     plt.axis('off')
@@ -533,7 +550,7 @@ def main(args):
     )
 
     if args.print is True:
-        print_version(prob_structs)
+        print_version(prob_structs, args.selected_gen)
     elif args.print is False:
         characteristics_df = read_population_dataframe(os.path.join(args.experiment_path, 'characteristics.csv'))
         population_df = run_pca(to_all_numeric_columns(characteristics_df))
@@ -635,13 +652,18 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--experiment-path', action='store', required=False, default=None,
+        '--experiment-path', action='store', required=True, default=None,
         help='Path to folder with experiment metadata.'
     )
 
     parser.add_argument(
         '--print', action='store_true', required=False, default=False,
         help='If provided, will generate a .pdf file with the structure of first generation graphical model.'
+    )
+
+    parser.add_argument(
+        '--selected-gen', action='store', required=False, default='000', type=str,
+        help='Optional - if provided, will select generation that should be printed. Defaults to \'000\''
     )
 
     main(parser.parse_args())

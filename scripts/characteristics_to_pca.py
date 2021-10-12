@@ -106,7 +106,15 @@ def update_population_contour(df: pd.DataFrame, gen: str, n_neighbors: int = 1, 
 
     # removes last and overall individuals from DataFrame, to be added later
     # otherwise scale of colors will be compromised
-    df = df.drop(['last', 'overall'])
+    try:
+        df = df.drop(['last'])
+    except KeyError:
+        pass  # last and/or overall not in dataframe, proceed
+
+    try:
+        df = df.drop(['overall'])
+    except KeyError:
+        pass  # last and/or overall not in dataframe, proceed
 
     # Load and split data
     xrange = np.arange(df.x.min() - margin, df.x.max() + margin, mesh_size)
@@ -171,7 +179,15 @@ def update_population_scatter(df: pd.DataFrame, csv_path: str):
 
     # removes last and overall individuals from DataFrame, to be added later
     # otherwise scale of colors will be compromised
-    df = df.drop(['last', 'overall'])
+    try:
+        df = df.drop(['last'])
+    except KeyError:
+        pass  # last and/or overall not in dataframe, proceed
+
+    try:
+        df = df.drop(['overall'])
+    except KeyError:
+        pass  # last and/or overall not in dataframe, proceed
 
     active = 0
 
