@@ -90,6 +90,15 @@ public class Boosters {
                 .build());
 
         options.addOption(Option.builder()
+                .longOpt("optimize_ensemble_size")
+                .required(false)
+                .type(Boolean.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Optional - whether to optimize number of ensemble members or not. Defaults to true (do optimize)")
+                .build());
+
+        options.addOption(Option.builder()
                 .longOpt("n_jobs")
                 .required(false)
                 .type(Integer.class)
@@ -134,7 +143,7 @@ public class Boosters {
 
     private static Object runExternalCrossValidationFoldBareBones(
             Boosters.SupportedAlgorithms algorithmName, int n_external_fold, int n_internal_folds,
-            String dataset_name, String datasets_path, String dataset_experiment_path
+            String dataset_name, String datasets_path, String dataset_experiment_path, boolean optimize_ensemble_size
     ) {
         try {
             HashMap<String, Instances> datasets = Main.loadDataset(
@@ -175,7 +184,9 @@ public class Boosters {
                     throw new IllegalStateException("Unexpected value: " + algorithmName);
             }
 
-            ArrayList<HashMap<String, Object>> combinations = Boosters.getAdaboostCombinations(clfFullName);
+            ArrayList<HashMap<String, Object>> combinations = Boosters.getAdaboostCombinations(
+                    clfFullName, optimize_ensemble_size
+            );
 
             // NCVMatrixHandler doesn't really care of the subtype of weka classifier; this type verification is only
             // used to decide if NCVMatrixHandler should allocated two or one matrix for storing predictions.
@@ -239,10 +250,17 @@ public class Boosters {
         }
     }
 
-    private static ArrayList<HashMap<String, Object>> getAdaboostCombinations(String clfCanonicalName) {
+    private static ArrayList<HashMap<String, Object>> getAdaboostCombinations(
+            String clfCanonicalName,
+            boolean optimize_ensemble_size
+    ) {
 
-        int[] numIterations_array = new int[]{50, 91, 132, 173, 214, 255, 295, 336, 377, 418, 459, 500};
-
+        int[] numIterations_array;
+        if(optimize_ensemble_size) {
+            numIterations_array = new int[]{50, 91, 132, 173, 214, 255, 295, 336, 377, 418, 459, 500};
+        } else {
+            numIterations_array = new int[]{5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+        }
         ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
 
         for(int numIterations : numIterations_array) {
@@ -326,7 +344,9 @@ public class Boosters {
             answers = IntStream.range((i * n_jobs) + 1, ((i + 1) * n_jobs) + 1).parallel().mapToObj(
                     j -> Boosters.runExternalCrossValidationFoldBareBones(
                             algorithm_name, j, n_internal_folds, dataset_name, datasets_path,
-                            experiment_metadata_path + File.separator + dataset_name)
+                            experiment_metadata_path + File.separator + dataset_name,
+                            Boolean.parseBoolean(options.getOrDefault("optimize_ensemble_size", "true"))
+                    )
             ).toArray();
             counter += n_jobs;
         }
@@ -335,7 +355,9 @@ public class Boosters {
             answers = IntStream.range(counter, n_external_folds + 1).parallel().mapToObj(
                     i -> Boosters.runExternalCrossValidationFoldBareBones(
                             algorithm_name, i, n_internal_folds, dataset_name, datasets_path,
-                            experiment_metadata_path + File.separator + dataset_name)
+                            experiment_metadata_path + File.separator + dataset_name,
+                            Boolean.parseBoolean(options.getOrDefault("optimize_ensemble_size", "true"))
+                    )
             ).toArray();
         }
     }
