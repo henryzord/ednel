@@ -5,7 +5,7 @@
 #### On Windows (tested on Windows 10):
 
 1. Download Java JDK SE version **8u261** from Oracle site: 
-https://www.oracle.com/br/java/technologies/javase/javase-jdk8-downloads.html (note: you'll need to have an Oracle 
+https://www.oracle.com/br/java/technologies/javase/javase8u211-later-archive-downloads.html (note: you'll need to have an Oracle 
 account to do so, to accept their software use agreement)
 2. Install using the Graphical Installer
 	Note: installing JDK on windows should have already installed the Java Runtime Environment (JRE). If not, 
