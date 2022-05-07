@@ -9,7 +9,6 @@ package ednel.utils.analysis.optimizers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-// import com.google.gson.JsonArray;
 import org.json.simple.JSONArray;
 import ednel.Main;
 import ednel.classifiers.trees.SimpleCart;
@@ -94,7 +93,7 @@ public class NestedCrossValidation {
 
         options.addOption(Option.builder()
                 .longOpt("clfOptions_path")
-                .required(true)
+                .required(false)
                 .type(String.class)
                 .hasArg()
                 .numberOfArgs(1)
@@ -698,19 +697,20 @@ public class NestedCrossValidation {
                 for(int k = 0; k < max_parents.size(); k++) {
                     HashMap<String, Object> comb = new HashMap<>();
 
-                    comb.put("learning_rate", learning_rates.get(i));
-                    comb.put("selection_share", (Double)clfOptions.get("selection_share"));
-                    comb.put("n_individuals", (Long)clfOptions.get("n_individuals"));
-                    comb.put("n_generations", (Long)clfOptions.get("n_generations"));
-                    comb.put("timeout", (Long)clfOptions.get("timeout"));
-                    comb.put("timeout_individual", (Long)clfOptions.get("timeout_individual"));
-                    comb.put("burn_in", (Long)clfOptions.get("burn_in"));
-                    comb.put("thinning_factor", (Long)clfOptions.get("thinning_factor"));
-                    comb.put("no_cycles", (Boolean)clfOptions.get("no_cycles"));
-                    comb.put("early_stop_generations", early_stop_generations.get(j));
-                    comb.put("max_parents", max_parents.get(k));
-                    comb.put("delay_structure_learning", (Long)clfOptions.get("delay_structure_learning"));
-                    comb.put("n_internal_folds", (Long)clfOptions.get("n_internal_folds")); // n_internal_folds for EDNEL is not the same for NestedCrossValidation
+                    comb.put("learning_rate", ((Double)learning_rates.get(i)).floatValue());
+                    comb.put("selection_share", ((Double)clfOptions.get("selection_share")).floatValue());
+                    comb.put("n_individuals", ((Long)clfOptions.get("n_individuals")).intValue());
+                    comb.put("n_generations", ((Long)clfOptions.get("n_generations")).intValue());
+                    comb.put("timeout", ((Long)clfOptions.get("timeout")).intValue());
+                    comb.put("timeout_individual", ((Long)clfOptions.get("timeout_individual")).intValue());
+                    comb.put("burn_in", ((Long)clfOptions.get("burn_in")).intValue());
+                    comb.put("thinning_factor", ((Long)clfOptions.get("thinning_factor")).intValue());
+                    comb.put("no_cycles", ((Boolean)clfOptions.get("no_cycles")).booleanValue());
+                    comb.put("early_stop_generations", ((Long)early_stop_generations.get(j)).intValue());
+                    comb.put("max_parents", ((Long)max_parents.get(k)).intValue());
+                    comb.put("delay_structure_learning", ((Long)clfOptions.get("delay_structure_learning")).intValue());
+                    // n_internal_folds for EDNEL is not the same for NestedCrossValidation
+                    comb.put("n_internal_folds", ((Long)clfOptions.get("n_internal_folds")).intValue());
                     comb.put("metric", metric);
                     comb.put("pbilLogger", null);
                     comb.put("seed", null);
@@ -803,12 +803,13 @@ public class NestedCrossValidation {
         int n_internal_folds = Integer.parseInt(cmdLineOptions.get("n_internal_folds"));
         String clf_name = cmdLineOptions.get("classifier");
 
-        HashMap<String, Object> clfOptions = NestedCrossValidation.parseClfOptions(cmdLineOptions.get("clfOptions_path"));
-
         SupportedAlgorithms algorithm_name;
+
+        HashMap<String, Object> clfOptions = null;
 
         switch(clf_name) {
             case "EDNEL":
+                clfOptions = NestedCrossValidation.parseClfOptions(cmdLineOptions.get("clfOptions_path"));
                 algorithm_name = SupportedAlgorithms.EDNEL;
                 break;
             case "RandomForest":
@@ -830,11 +831,14 @@ public class NestedCrossValidation {
                 algorithm_name = SupportedAlgorithms.DecisionTable;
                 break;
             default:
-                throw new Exception(String.format("Nested cross-validation for classifier %s is not implemented yet.", clf_name));
+                throw new Exception(String.format(
+                        "Nested cross-validation for classifier %s is not implemented yet.", clf_name)
+                );
         }
 
         NestedCrossValidation.classifierOptimization(
-                algorithm_name, n_jobs, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path, clfOptions
+                algorithm_name, n_jobs, n_external_folds, n_internal_folds,
+                dataset_name, datasets_path, experiment_metadata_path, clfOptions
         );
     }
 }
