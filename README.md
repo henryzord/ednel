@@ -45,12 +45,11 @@ Choose **Linux Compressed Archive**
 Install Weka version `3.9.3`
 Download it from Source Forge: https://sourceforge.net/projects/weka/files/weka-3-9/3.9.3/
 
-
-#### TODO add instructions from building code from command line
-
 ### Using
 
-After you have generated a .jar for the project, run it by invoking the following command:
+After you have generated a .jar for the project (I personally use 
+[Intellij Idea](https://www.jetbrains.com/help/idea/compiling-applications.html#package_into_jar) for this), run it by 
+invoking the following command:
 
 ```
 java -jar ednel.jar

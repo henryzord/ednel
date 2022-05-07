@@ -1,0 +1,16 @@
+{
+  "learning_rate_values": [0.13, 0.26, 0.52],
+  "selection_share": 0.5,
+  "n_individuals": 50,
+  "n_generations": 100,
+  "timeout": 3600,
+  "timeout_individual": 60,
+  "burn_in": 100,
+  "thinning_factor": 0,
+  "no_cycles": false,
+  "early_stop_generations_values": [10, 20],
+  "max_parents_values": [0, 1], 
+  "delay_structure_learning": 5,
+  "n_internal_folds": 0
+}
+

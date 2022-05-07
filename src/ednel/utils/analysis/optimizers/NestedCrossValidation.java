@@ -1,7 +1,16 @@
+/**
+ * Runs a nested cross-validation on EDNEL and selected algorithms.
+ *
+ * This is the algorithm that was used in EDNEL chapter in the thesis
+ * "Evolutionary Algorithms for Learning Ensembles of Interpretable Classifiers"
+ */
+
 package ednel.utils.analysis.optimizers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+// import com.google.gson.JsonArray;
+import org.json.simple.JSONArray;
 import ednel.Main;
 import ednel.classifiers.trees.SimpleCart;
 import ednel.eda.EDNEL;
@@ -9,6 +18,8 @@ import ednel.eda.individual.FitnessCalculator;
 import ednel.eda.individual.Individual;
 import ednel.utils.PBILLogger;
 import org.apache.commons.cli.*;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import weka.classifiers.AbstractClassifier;
 import weka.classifiers.rules.DecisionTable;
@@ -21,15 +32,15 @@ import weka.core.Instances;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Parameter;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 public class NestedCrossValidation {
@@ -80,6 +91,15 @@ public class NestedCrossValidation {
 //                .numberOfArgs(1)
 //                .desc("Number of external folds to use in nested cross validation.")
 //                .build());
+
+        options.addOption(Option.builder()
+                .longOpt("clfOptions_path")
+                .required(true)
+                .type(String.class)
+                .hasArg()
+                .numberOfArgs(1)
+                .desc("Path to a JSON file with options for classifier (e.g. number of individuals, generations, etc)")
+                .build());
 
         options.addOption(Option.builder()
                 .longOpt("n_internal_folds")
@@ -418,13 +438,13 @@ public class NestedCrossValidation {
      */
     private static void classifierOptimization(
             SupportedAlgorithms algorithmName, int n_jobs, int n_external_folds, int n_internal_folds,
-            String dataset_name, String datasets_path, String experiment_metadata_path
+            String dataset_name, String datasets_path, String experiment_metadata_path, HashMap<String, Object> clfOptions
     ) {
 
         ArrayList<HashMap<String, Object>> combinations;
         switch(algorithmName) {
             case EDNEL:
-                combinations = NestedCrossValidation.getEDNELCombinations();
+                combinations = NestedCrossValidation.getEDNELCombinations(clfOptions);
                 break;
             case RandomForest:
                 combinations = NestedCrossValidation.getRandomForestCombinations();
@@ -664,48 +684,33 @@ public class NestedCrossValidation {
         return combinations;
     }
 
-    private static ArrayList<HashMap<String, Object>> getEDNELCombinations() {
-
-        float[] learning_rate_values = {0.13f, 0.26f, 0.52f};
-        float selection_share = 0.5f;
-        int n_individuals = 50;
-        int n_generations = 100;
-
-        int timeout = 3600;
-        int timeout_individual = 60;
-
-        int burn_in = 100;
-        int thinning_factor = 0;
-
-        boolean no_cycles = false;
-
-        int[] early_stop_generations_values = {10, 20};
-        int[] max_parents_values = {0, 1};
-
-        int delay_structure_learning = 5;
-
+    private static ArrayList<HashMap<String, Object>> getEDNELCombinations(HashMap<String, Object> clfOptions) {
         FitnessCalculator.EvaluationMetric metric = FitnessCalculator.EvaluationMetric.UNWEIGHTED_AUC;
 
         ArrayList<HashMap<String, Object>> combinations = new ArrayList<>();
 
-        for(float learning_rate : learning_rate_values) {
-            for(int early_stop_generations : early_stop_generations_values) {
-                for(int max_parents : max_parents_values) {
+        JSONArray learning_rates = (JSONArray)clfOptions.get("learning_rate_values");
+        JSONArray early_stop_generations = (JSONArray)clfOptions.get("early_stop_generations_values");
+        JSONArray max_parents = (JSONArray)clfOptions.get("max_parents_values");
+
+        for(int i = 0; i < learning_rates.size(); i++) {
+            for(int j = 0; j < early_stop_generations.size(); j++) {
+                for(int k = 0; k < max_parents.size(); k++) {
                     HashMap<String, Object> comb = new HashMap<>();
 
-                    comb.put("learning_rate", learning_rate);
-                    comb.put("selection_share", selection_share);
-                    comb.put("n_individuals", n_individuals);
-                    comb.put("n_generations", n_generations);
-                    comb.put("timeout", timeout);
-                    comb.put("timeout_individual", timeout_individual);
-                    comb.put("burn_in", burn_in);
-                    comb.put("thinning_factor", thinning_factor);
-                    comb.put("no_cycles", no_cycles);
-                    comb.put("early_stop_generations", early_stop_generations);
-                    comb.put("max_parents", max_parents);
-                    comb.put("delay_structure_learning", delay_structure_learning);
-                    comb.put("n_internal_folds", 0); // n_internal_folds for EDNEL is not the same for NestedCrossValidation
+                    comb.put("learning_rate", learning_rates.get(i));
+                    comb.put("selection_share", (Double)clfOptions.get("selection_share"));
+                    comb.put("n_individuals", (Long)clfOptions.get("n_individuals"));
+                    comb.put("n_generations", (Long)clfOptions.get("n_generations"));
+                    comb.put("timeout", (Long)clfOptions.get("timeout"));
+                    comb.put("timeout_individual", (Long)clfOptions.get("timeout_individual"));
+                    comb.put("burn_in", (Long)clfOptions.get("burn_in"));
+                    comb.put("thinning_factor", (Long)clfOptions.get("thinning_factor"));
+                    comb.put("no_cycles", (Boolean)clfOptions.get("no_cycles"));
+                    comb.put("early_stop_generations", early_stop_generations.get(j));
+                    comb.put("max_parents", max_parents.get(k));
+                    comb.put("delay_structure_learning", (Long)clfOptions.get("delay_structure_learning"));
+                    comb.put("n_internal_folds", (Long)clfOptions.get("n_internal_folds")); // n_internal_folds for EDNEL is not the same for NestedCrossValidation
                     comb.put("metric", metric);
                     comb.put("pbilLogger", null);
                     comb.put("seed", null);
@@ -714,7 +719,6 @@ public class NestedCrossValidation {
                 }
             }
         }
-
         return combinations;
     }
 
@@ -750,31 +754,45 @@ public class NestedCrossValidation {
         return combinations;
     }
 
+    private static HashMap<String, Object> parseClfOptions(String clfOptions_path) throws IOException, org.json.simple.parser.ParseException {
+        JSONParser jsonParser = new JSONParser();
+
+        JSONObject json_obj = (JSONObject)jsonParser.parse(new BufferedReader(new FileReader(clfOptions_path)));
+        HashMap<String, Object> clfOptions = new HashMap<>();
+
+        Set keys = json_obj.keySet();
+        for(Object key : keys) {
+            clfOptions.put(key.toString(), json_obj.get(key));
+        }
+        return clfOptions;
+
+    }
+
     public static void main(String[] args) throws Exception {
         CommandLine commandLine = NestedCrossValidation.parseCommandLine(args);
 
-        HashMap<String, String> options = new HashMap<>();
+        HashMap<String, String> cmdLineOptions = new HashMap<>();
         for(Option opt : commandLine.getOptions()) {
-            options.put(opt.getLongOpt(), commandLine.getOptionValue(opt.getLongOpt()));
+            cmdLineOptions.put(opt.getLongOpt(), commandLine.getOptionValue(opt.getLongOpt()));
         }
 
         // writes metadata
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
         String str_time = dtf.format(LocalDateTime.now());
-        options.put("datasets_names", options.get("dataset_name"));
-        PBILLogger.metadata_path_start(str_time, options);
-        options.remove("datasets_names");
+        cmdLineOptions.put("datasets_names", cmdLineOptions.get("dataset_name"));
+        PBILLogger.metadata_path_start(str_time, cmdLineOptions);
+        cmdLineOptions.remove("datasets_names");
 
-        String experiment_metadata_path = options.get("metadata_path") + File.separator + str_time;
+        String experiment_metadata_path = cmdLineOptions.get("metadata_path") + File.separator + str_time;
 
-        String datasets_path = options.get("datasets_path");
-        String dataset_name = options.get("dataset_name");
+        String datasets_path = cmdLineOptions.get("datasets_path");
+        String dataset_name = cmdLineOptions.get("dataset_name");
 //        int n_external_folds = Integer.parseInt(options.get("n_external_folds"));  // TODO allow for any number of external folds to run!!!
         int n_external_folds = 10;  // TODO allow for any number of external folds to run!!!
 
         int n_jobs = 10;
-        if(options.get("n_jobs") != null) {
-            n_jobs = Integer.parseInt(options.get("n_jobs"));
+        if(cmdLineOptions.get("n_jobs") != null) {
+            n_jobs = Integer.parseInt(cmdLineOptions.get("n_jobs"));
             if(n_jobs <= 0) {
                 throw new Exception("Number of jobs must be positive and non-negative!");
             }
@@ -782,8 +800,10 @@ public class NestedCrossValidation {
 
         System.err.println("TODO implement code to run for other values of n_external_folds! (currently only supports = 10)");
 
-        int n_internal_folds = Integer.parseInt(options.get("n_internal_folds"));
-        String clf_name = options.get("classifier");
+        int n_internal_folds = Integer.parseInt(cmdLineOptions.get("n_internal_folds"));
+        String clf_name = cmdLineOptions.get("classifier");
+
+        HashMap<String, Object> clfOptions = NestedCrossValidation.parseClfOptions(cmdLineOptions.get("clfOptions_path"));
 
         SupportedAlgorithms algorithm_name;
 
@@ -814,7 +834,7 @@ public class NestedCrossValidation {
         }
 
         NestedCrossValidation.classifierOptimization(
-                algorithm_name, n_jobs, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path
+                algorithm_name, n_jobs, n_external_folds, n_internal_folds, dataset_name, datasets_path, experiment_metadata_path, clfOptions
         );
     }
 }
